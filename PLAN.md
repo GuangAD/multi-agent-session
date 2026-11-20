@@ -262,7 +262,7 @@ daemon/远程主机/WSL、worktree 模型、native chat 结构化会话、MCP/AC
 
 - 目录:`D:/test/agent-sessions`(空目录,名字可改;写入该路径会触发沙箱写授权,批准即可)
 - 环境:Node 24(已确认 v24.14.0)、pnpm(已确认全局 10.17.1 可用)、git 2.46(已确认)、Windows 需 VS Build Tools(C++ 工作负载)+ Python 3(node-pty 与 electron 原生模块编译;2026-11-20 已实测:VS 2022 Community 含 C++ 工具集、Python 3.11/3.12 就绪,node-pty 1.1.0 自带 win32-x64 预编译、安装即用,PTY 实拉 cmd.exe 验证通过)
-- 参考源码(只读):项目内完整快照 `.reference/orca-1.4.265/` **已就位**(348MB,完整仓库含全部子工程,无 .git/node_modules,已 gitignore 不提交;附录 A 路径按 `.reference/orca-1.4.265/<原路径>` 解析);备用原始仓库 `D:/test/mini-orca`(同一 v1.4.265 提交,本地 tag `v1.4.265` 可锚定任意文件版本)
+- 参考源码(只读):项目内完整快照 `.reference/orca-1.4.265/` **已就位**(348MB,完整仓库含全部子工程,无 .git/node_modules,2026-11-20 起随仓库入库以支持换机续做;附录 A 路径按 `.reference/orca-1.4.265/<原路径>` 解析);备用原始仓库 `D:/test/mini-orca`(同一 v1.4.265 提交,本地 tag `v1.4.265` 可锚定任意文件版本)
 - 脚手架:`git init` → `pnpm init` → `pnpm create @quick-start/electron`(选 TypeScript + React)生成 electron-vite 骨架 → 按下方清单改造(模板解决 electron-vite 三段构建与 tsconfig 细节,手搭易踩坑)
 
 ### B1 根文件清单
@@ -271,7 +271,7 @@ daemon/远程主机/WSL、worktree 模型、native chat 结构化会话、MCP/AC
 |---|---|
 | `AGENTS.md` | 项目定位(轻量 agent 会话管理器)、常用命令、工程边界(main 独占 Node 能力 / 渲染层只走 bridge / 新增 agent 只加 definitions 文件)、验证入口 |
 | `README.md` | 当前真实状态,不写未实现功能 |
-| `.gitignore` | `node_modules/`、`.reference/`、`out/`、`dist/`、`*.log`、`.DS_Store` |
+| `.gitignore` | `node_modules/`、`out/`、`dist/`、`.tmp/`、`.review/`、`*.log`、`.DS_Store`(`.reference/` 自 2026-11-20 起入库,不再忽略) |
 | `package.json` | scripts:`dev`/`build`/`typecheck`(node+web 两投影)/`test`/`rebuild`(electron-rebuild);engines node 24;packageManager pnpm |
 | 依赖 | dependencies:`node-pty`、`simple-git`;devDependencies:`electron`、`electron-vite`、`electron-builder`、`@electron/rebuild`、`typescript`、`vitest`、`react`、`react-dom`、`zustand`、`@xterm/xterm`、`@xterm/addon-fit`、`tailwindcss` + `@tailwindcss/vite`、`@vitejs/plugin-react`、`lucide-react` |
 | `electron.vite.config.ts` | main/preload/renderer 三段;`node-pty` 列入 main external;renderer 挂 react + tailwind 插件 |

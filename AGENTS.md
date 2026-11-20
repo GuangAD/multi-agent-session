@@ -19,7 +19,7 @@ Electron + electron-vite + TypeScript strict;React 19 + Zustand + Tailwind CSS 4
 - `src/preload/`:contextBridge 唯一桥
 - `src/shared/`:进程间契约,渲染层唯一类型来源
 - `src/renderer/`:纯 UI,永不 import main,一切经 `ipc/bridge.ts`
-- `.reference/`:Orca v1.4.265 完整源码快照,只读参考(移植时按附录 A 取用),永不 import、不构建、不提交
+- `.reference/`:Orca v1.4.265 完整源码快照,只读参考(移植时按附录 A 取用),永不 import、不构建;2026-11-20 起随仓库入库(348MB／38043 文件)以支持换机续做
 - agent 扩展点:接入新 agent CLI = 仅在 `src/main/agents/definitions/` 新增一个定义文件,框架零改动
 - 目录名用具体领域名,不设 utils/helpers/common;单测与源码同目录 `*.test.ts`
 
