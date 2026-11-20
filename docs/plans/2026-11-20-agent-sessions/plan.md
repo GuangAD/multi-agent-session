@@ -11,8 +11,12 @@
 - [x] **T2 agent 配置层与安装检测**
       挡谁:T3(建会话需按定义拉起)、T5(状态引擎按 agentId 取规则)、T6、T7(导入按 agentId 找扫描器)、T8(resume 按 agentId 构造参数)
 - [ ] **T3 PTY 注册表与会话终端**
-      交付:选择 agent 新建会话,终端可交互;关标签页进程即止;应用退出无孤儿进程;采样开关可落盘
+- [x] **T3 PTY 注册表与会话终端**
       挡谁:T4(会话记录与标签页绑定)、T5(状态引擎吃 PTY 数据流)
+- [ ] **T3.5 shell 底座改造(ADR-0004,变更任务)**
+      交付:PTY 跑常驻 shell(cmd),agent 由应用在 shell 内启动;CLI 退出回 shell 提示符可继续交互、可再次进入;Shift+滚轮强制本地滚动(scrollback);shell 命令行注入的转义规则有测试
+      挡谁:T4(重开会话形态=新 shell+注入 resume)、T5(exited 语义=PTY 退出)、T8(resume 注入形态)
+      对应:ADR-0004;T3 冒烟两项发现(退出后不可交互、TUI 接管滚轮)的修复载体
 - [ ] **T4 会话记录与侧栏**
       交付:重启后会话列表在;重开原样拉起;重命名/删除(确认+连带关标签页)生效
       挡谁:T5(状态点渲染在会话行)、T7(导入列表挂在会话区)、T8(重开流程接 resume)
@@ -87,4 +91,18 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 下游结论(T3+ 用):渲染层 components/sidebar 引 shared 需 ../../../../shared(比 App.tsx 深一级);resolveCommandPath 返回可能正斜杠混排,T3 构造 spawn argv 需规整外观时自行 path.win32.normalize,不改移植件;forEachWithConcurrency(限 4)在 ipc/agents.ts 有现成用法;MSYS 的 TZ=Asia/Shanghai date 输出异常,记账时间用 node Date + timeZone 交叉取
   - 文档变更登记:本轮无四层文档实质改动(本条与勾选为 controller 记账)
   - 已提交 0814aa94(20 文件 +725/-6;T3 BASE=0814aa9)
+- 2026-11-20 21:55 | T3 开发与评审闭环(冒烟经用户确认,已提交 02ca380e)
+  - implementer(worker subagent)按契约完成:node-pty 1.1.0/@xterm/xterm 6.0.0/@xterm/addon-fit 0.11.0 入 dependencies;buildSpawnArgv/samplingTap 接缝 4 用例 TDD 红→绿;ptyRegistry 编排(spawn/kill/killAll/事件转发/采样句柄三路关闭)与 pty:* IPC;渲染层 TerminalTabs/TerminalView/use-terminal(Map 常驻 + 单一数据泵)+ sessions-slice 内存态 + NewSessionMenu 接线;before-quit 调 killAll;未提交、零越界
+  - controller 亲跑验证:typecheck 双投影 exit 0;vitest 21 passed;electron-vite build 通过(node-pty 保持外置);git status 与清单逐项一致
+  - 首轮评审(reviewer subagent,对照 .review/T3.patch 1494 行):规格符合 ✅,无 Critical;Important 2——采样 WriteStream 无 error 监听(坏目录崩主进程 + 全部 PTY 孤儿)、spawn→xterm 注册间启动输出丢失窗口;Minor 4(create await 不在 try、spawn 无重复 id 防护、字节流 UTF-8 往返衰减[记录]、scrollback 异步到达触发终端重建[记 T-settings 约束])
+  - Important 修复(原 implementer):Fix-1 error 监听 + 采样降级停用(守卫:坏目录 → uncaughtException 计 0;mutation:移除监听 → 红因精确指向 ENOENT 逃逸)✓;Fix-2 泵内 pending 暂存 + openTerminal 注册即 flush + closeTerminal 清理(守卫 2 条 + 附加变异验清理路径)✓;Fix-3/4 顺手修;复审(reviewer glm-5.3-flash:low)4 项全 ADDRESSED、无新增,可提交
+  - 契约外增补登记(机械必要,已裁定接受):pty:spawn/pty:kill(契约步骤 7 明文渲染层触发 spawn/kill)、settings:get + src/main/ipc/settings.ts(scrollback 取 settings 明文)、projects-slice selectedProjectId(新建链路需目标项目,T4 重组侧栏时消化);spawn 落 Promise<void>(resolveCommandPath 异步,沿 T2 异步先例)
+  - 实测结论(implementer 台架):node-pty 在 Windows 必须交解析后绝对路径(裸命令名 CreateProcess 抛 File not found);.cmd shim 交绝对路径直拉即可,无需 cmd /c 包装;electron-vite v6 外置只能走 build.rollupOptions.external(顶层 external 字段已不存在)
+  - pi 疑点闭环(用户冒烟确认):C:\Program Files\nodejs\pi 即 Pi coding agent 本尊,definitions/pi.ts 不改
+  - 冒烟发现与定性(用户反馈两项):①pi 退出后终端不可再交互——T3 形态固有(PTY 直接跑 agent,进程死即条目删),修复载体=T3.5;②pi 运行时无法滚动——pi 为全屏 TUI(交替屏 + 鼠标上报)接管滚轮,属 TUI 固有行为,兜底(Shift+滚轮强制本地滚动)落 T3.5;用户拍板先提交 T3 再做 T3.5
+  - 变更登记(shell 底座,用户在 T3 评审期提出):PTY 常驻 shell、agent 在 shell 内启动、CLI 退出回 shell 可再交互——落 ADR-0004;CONTEXT.md 标签页条目就地修订;spec.md 五处修订(整体实现段、SessionRunState 注释、pty:spawn/pty:kill/settings:get 三通道增补、pty:exit 语义注释、pty-registry 模块行);plan.md 任务清单追加 T3.5;不触 brief 决策,按回退协议直接登记不重过门
+  - 测试基线口径:契约步骤 8「19 passed」系门 2 时点数——T2 后基线 17,T3 接缝 4 条 = 21;评审修复新增守卫 3(Fix-1 ×1、Fix-2 ×2)= 24 passed(5 文件)
+  - 下游结论(T3.5/T4/T5 用):pendingData 对「已 spawn 未 open」会话无上限累加(终审评估加上限);采样写盘原始字节追加无 UTF-8 往返衰减,数据泵整段字符串直灌 xterm;TerminalView effect 依赖 [sessionId, scrollback],设置变更会重建实例(暂存会 flush 进新实例不丢);msys 的 TZ 变量不可信,记账时间一律 node Date + timeZone
+  - 文档变更登记:本轮含实质变更(shell 底座)——CONTEXT.md/spec.md/plan.md/ADR-0004 四处,随本任务 docs commit 入库
+  - 已提交 02ca380e(代码);T3.5 BASE=02ca380e
 <!-- 四层文档的任何改动都在这里另行留一行 -->

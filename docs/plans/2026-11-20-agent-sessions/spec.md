@@ -2,8 +2,7 @@
 
 ## 整体实现
 
-Electron 单窗口应用,三进程分工:主进程(src/main)持有全部 Node 能力——PTY 子进程、git、文件系统、agent 存储(只读);渲染层(src/renderer)是纯 React UI,持有每会话一个的常驻 xterm 实例;两层之间只经 preload 暴露的类型化桥(src/shared 定义契约)通信。数据主干:用户添加项目目录 → 项目与会话记录写入应用数据目录的单个 store 文件(原子写)→ 新建会话时主进程按 agent 定义构造命令、spawn node-pty、把字节流推给渲染层对应 xterm → 状态识别引擎在主进程消费同一份数据流(标题事件、屏幕快照、字节缓冲)产出会话状态 → 渲染层状态点与通知消费状态变化。会话导入是另一条只读数据流:按 agent 定义定位其存储目录、解析会话元数据、按项目目录匹配、去重与忽略清单过滤后并入 store。应用退出时主进程全量杀掉 PTY,不留孤儿。
-
+Electron 单窗口单进程桌面应用:主进程独占全部 Node 能力,渲染层纯 UI,进程间走类型化契约桥;agent 接入用配置驱动的定义表,新增 agent 零框架改动;状态识别走「标题事件 + 屏幕快照 + 字节流缓冲」三源;终端容器用每会话常驻 xterm 实例;持久化用应用数据目录的单个 store 文件整文件原子写。数据主干:用户添加项目目录 → 项目与会话记录写入应用数据目录的单个 store 文件(原子写)→ 新建会话时主进程 spawn 常驻 shell 的 node-pty(PTY=shell 底座,ADR-0004)、把 agent 启动命令注入 shell、把字节流推给渲染层对应 xterm;CLI 退出后回 shell 提示符,标签页保留可继续交互 → 状态识别引擎在主进程消费同一份数据流(标题事件、屏幕快照、字节缓冲)产出会话状态 → 渲染层状态点与通知消费状态变化。会话导入是另一条只读数据流:按 agent 定义定位其存储目录、解析会话元数据、按项目目录匹配、去重与忽略清单过滤后并入 store。应用退出时主进程全量杀掉 PTY,不留孤儿。
 ## 流程图
 
 ```mermaid
@@ -70,7 +69,7 @@ interface Session {
   activityAt?: string                 // 导入会话最近活动时间,排序展示
 }
 
-type SessionRunState = 'working' | 'waiting' | 'idle' | 'exited'  // 运行时,不持久化
+type SessionRunState = 'working' | 'waiting' | 'idle' | 'exited'  // 运行时,不持久化;exited = 终端进程(PTY)退出,agent CLI 退出回 shell 不算(ADR-0004)
 
 interface Settings {
   defaultAgentId?: AgentId
@@ -137,6 +136,9 @@ interface AgentDefinition {
 'agents:list'      : () => Array<{ def: AgentDefinition; installed: boolean; path?: string }>
 'pty:write'        : (p: { sessionId: SessionId; data: string }) => void
 'pty:resize'       : (p: { sessionId: SessionId; cols: number; rows: number }) => void
+'pty:spawn'        : (p: { sessionId: SessionId; agentId: AgentId; cwd: string }) => void   // T3 增补:渲染层触发 spawn
+'pty:kill'         : (sessionId: SessionId) => void                                          // T3 增补:关标签页杀 shell
+'settings:get'     : () => Settings                                                          // T3 增补:scrollback 等只读;设置界面后续任务
 'files:tree'       : (root: string) => TreeNode
 'files:read'       : (p: { path: string; maxBytes: number }) => { content: string; truncated: boolean; binary: boolean }
 'files:openInEditor': (path: string) => { via: 'vscode' | 'system' }
@@ -149,7 +151,7 @@ interface AgentDefinition {
 'git:checkout'     : (p: { root: string; branch: string }) => void
 // 主进程 → 渲染层事件
 'pty:data'         : { sessionId: SessionId; data: string }
-'pty:exit'         : { sessionId: SessionId; exitCode: number }
+'pty:exit'         : { sessionId: SessionId; exitCode: number }   // PTY(shell)退出即标签页终端终结;agent CLI 退出回 shell 不触发(ADR-0004)
 'state:changed'    : { sessionId: SessionId; state: SessionRunState }
 
 interface TreeNode { name: string; path: string; kind: 'dir' | 'file'; children?: TreeNode[] }
@@ -165,7 +167,7 @@ interface GitStatus { branch: string; entries: Array<{ path: string; staged: str
 - `src/main/ipc/channels.ts` — 通道名常量,与 shared/ipc-contract 一一对应;`src/main/ipc/{projects,sessions,pty,agents,files,git}.ts` — 按域薄编排层,业务在下列领域模块
 - `src/main/agents/agent-registry.ts` — 定义注册表与安装状态聚合;`src/main/agents/definitions/{claude,codex,antigravity,pi,kimi}.ts` — 每家一个定义(含状态规则与扫描/续接挂载)
 - `src/main/command-path/command-path-resolver.ts` — PATH 探测(移植 Orca,Windows PATHEXT/引号剥离)
-- `src/main/pty-registry.ts` — PTY 创建/写入/resize/杀/退出事件 + 采样落盘开关
+- `src/main/pty-registry.ts` — PTY(shell 底座,ADR-0004)创建/写入/resize/杀/退出事件 + 采样落盘开关
 - `src/main/agent-state/state-parser.ts` — 三源状态引擎(标题/屏幕快照/字节缓冲 → 状态,去抖 + 证据分级);`src/main/agent-state/__fixtures__/` — 五家正反样本
 - `src/main/session-store/store-persistence.ts` — store 文件原子读写与损坏兜底;`src/main/session-store/session-records.ts` — 会话记录 CRUD/重命名/删除/忽略清单登记
 - `src/main/session-store/session-import/` — `index.ts`(runImport 编排:定位→解析→匹配→去重→忽略清单)、`path-match.ts`(cwd 归一化匹配)、`{claude,codex,pi,kimi,antigravity}.ts`(各家适配)、`__fixtures__/`(脱敏真实样本)
