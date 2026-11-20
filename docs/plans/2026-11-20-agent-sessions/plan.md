@@ -8,7 +8,7 @@
       交付:开发模式出三栏窗口(左栏右栏可收起);添加目录后重启列表仍在;typecheck 与 vitest 全绿
       挡谁:T2、T3、T4、T5、T6、T7、T8、T9、T10、T11(IPC 框架、shared 契约与测试基座是全部后续任务的地基)
 - [ ] **T2 agent 配置层与安装检测**
-      交付:新建会话选择器渲染 5 个 agent 的名称/徽标/安装状态;注册表与 PATH 探测纯逻辑测试绿
+- [x] **T2 agent 配置层与安装检测**
       挡谁:T3(建会话需按定义拉起)、T5(状态引擎按 agentId 取规则)、T6、T7(导入按 agentId 找扫描器)、T8(resume 按 agentId 构造参数)
 - [ ] **T3 PTY 注册表与会话终端**
       交付:选择 agent 新建会话,终端可交互;关标签页进程即止;应用退出无孤儿进程;采样开关可落盘
@@ -74,4 +74,17 @@ brief 第 6 节的欠账,排在对应任务内消化:
 - 2026-11-20 18:05 | 变更登记:`.reference/`(Orca v1.4.265 快照,348MB／38043 文件)纳入仓库并推送远程 `GuangAD/multi-agent-session`(用户明确要求,支持换机续做)——同步修正 AGENTS.md 工程边界与 PLAN.md B0/B1 中「已 gitignore 不提交」的表述;四层文档(brief/plan/spec/tasks)结论未变,仅工程边界描述同步实况
 - 2026-11-20 | 变更登记:门 2 评审增补——不支持预览的类型与项目目录支持「通过 VS Code 打开」(code 命令优先,未装回退系统默认应用),落 T9,非接缝不加用例(用户提出)
 
+- 2026-11-20 20:51 | T2 开发与评审闭环(冒烟经用户确认 20:51,已提交 0814aa94)
+  - implementer(worker subagent)按契约 TDD 完成:resolver 整文件移植 + 配套纯函数(getExecutableNames/forEachWithConcurrency/directoryNameKey/readDetectionDirectory,落 src/main/command-path/ 同目录)、agent-registry(register/getById/list + 五定义自注册)、五份定义文件(状态规则初版指向 Orca agent-state-rules json 信号要点,kimi degraded:true,sessions 一律留空位保证 IPC 结构化克隆)、agents:list IPC(forEachWithConcurrency 限 4 按索引回填保序)、NewSessionMenu + AgentBadge;未提交、未动文档、零越界
+  - controller 亲跑验证:typecheck 双投影 exit 0;vitest 全量绿;git status 与报告清单逐项一致
+  - 首轮评审(reviewer subagent,对照 .review/T2.patch 860 行,逐行对照 Orca 原件 4 件):无 Critical;规格符合 ❌ 仅 1 处——Important:resolver 非 win32 分支误用 PATHEXT 语义(原件两路径一律 [''],裸命令名在 POSIX 宿主永远探不到);Minor 3(溯源措辞失准、原件 PATH 条目 trim 变体未保留[记录即可]、NewSessionMenu 无 .catch[T3 接线时顺手补])
+  - Important 修复(原 implementer,只动 resolver 与其测试):非 win32 分支改 options.exts ?? [''];守卫用例(platform 注入 linux + POSIX 裸名命中,ResolveCommandPathOptions 增 platform 可选项);mutation check:回退 PATHEXT 语义 → 守卫用例红(expected null not to be null,裸名无 '' 扩展)→ 还原 6 passed;复审(reviewer glm-5.3-flash:low 档)两发现均 ADDRESSED,无新增问题,裁决可提交
+  - 契约/口径登记:① resolveCommandPath 落为 Promise<string | null>(readDetectionDirectory/stat 异步,契约同步记法不可兼得,Orca 原件即 async);② ResolveCommandPathOptions 增 platform 注入(原件同款,守卫用例服务);③ 「检测只走 PATH」收窄裁定接受——Orca 的 install-dir 兜底(~/.local/bin、AppData npm 目录等)未移植,新装 agent 需重启应用才可见,定义文件覆盖命令兜底(backlog 备忘);④ screen 地标挂 working 槽(spec 的 AgentStateRules.screen 无 idle 槽),T5 采样校准时复核;⑤ getWindowsBatchDetectionExtensions(批检测扩展集 = PATHEXT ∪ 字面可执行名)系原件原生 agent 兜底,并入 resolve
+  - 测试基线口径:契约步骤 10「15 passed」系门 2 时点数——T1 评审阶段加 1 并发守卫(6 条),T2 复审后加 1 POSIX 守卫(11 条),全量实为 17 passed
+  - 冒烟阻塞修复(controller):pnpm dev 报「Error: Electron uninstall」复现——node_modules/electron/dist 与 path.txt 缺失(postinstall 未跑成,白名单已在 package.json),node node_modules/electron/install.js 手动补跑后正常;手动冒烟经用户确认通过(选择器 5 agent,pi 已安装、其余置灰)
+  - pi 疑点(留 T3):检出 C:\Program Files\nodejs\pi(npm 全局 shim),用户未确认是否 Pi coding agent 本尊;T3 建会话实测,异常则在 definitions/pi.ts 覆盖命令(遗留项承接)
+  - 本机探测(供 T3/T6 参考):仅 pi 检出;claude/codex/agy/kimi/kimi-code 均未检出
+  - 下游结论(T3+ 用):渲染层 components/sidebar 引 shared 需 ../../../../shared(比 App.tsx 深一级);resolveCommandPath 返回可能正斜杠混排,T3 构造 spawn argv 需规整外观时自行 path.win32.normalize,不改移植件;forEachWithConcurrency(限 4)在 ipc/agents.ts 有现成用法;MSYS 的 TZ=Asia/Shanghai date 输出异常,记账时间用 node Date + timeZone 交叉取
+  - 文档变更登记:本轮无四层文档实质改动(本条与勾选为 controller 记账)
+  - 已提交 0814aa94(20 文件 +725/-6;T3 BASE=0814aa9)
 <!-- 四层文档的任何改动都在这里另行留一行 -->
