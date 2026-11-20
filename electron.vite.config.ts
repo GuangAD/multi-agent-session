@@ -4,7 +4,12 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  main: {},
+  main: {
+    build: {
+      // node-pty 是原生模块,不进主进程 bundle(brief 第 4 节技术选型)
+      rollupOptions: { external: ['node-pty'] }
+    }
+  },
   preload: {},
   renderer: {
     resolve: {

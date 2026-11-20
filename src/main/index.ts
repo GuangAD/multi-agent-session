@@ -6,6 +6,10 @@ import { createAppWindow } from './app-window'
 import { loadStore } from './session-store/store-persistence'
 import { registerProjectsIpc } from './ipc/projects'
 import { registerAgentsIpc } from './ipc/agents'
+import { registerSessionsIpc } from './ipc/sessions'
+import { registerSettingsIpc } from './ipc/settings'
+import { registerPtyIpc } from './ipc/pty'
+import { ptyRegistry } from './pty-registry'
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.agent-sessions.app')
@@ -22,6 +26,10 @@ app.whenReady().then(async () => {
   const store = await loadStore(storePath)
   registerProjectsIpc(store, storePath)
   registerAgentsIpc()
+  registerSessionsIpc()
+  registerSettingsIpc(store)
+  // 单窗口应用:事件出站直接取当前窗口(无窗口时不发)
+  registerPtyIpc(() => BrowserWindow.getAllWindows()[0] ?? null)
 
   createAppWindow()
 
@@ -30,6 +38,11 @@ app.whenReady().then(async () => {
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createAppWindow()
   })
+})
+
+// 应用退出全量清理:比 window-all-closed 更早且覆盖 Cmd+Q,不留孤儿 PTY(controller 口径 5)
+app.on('before-quit', () => {
+  ptyRegistry.killAll()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

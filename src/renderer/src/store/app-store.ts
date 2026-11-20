@@ -1,9 +1,11 @@
 // Zustand 装配:按域切片(spec 模块划分:store/app-store.ts)
 import { create } from 'zustand'
 import { createProjectsSlice, type ProjectsSlice } from './projects-slice'
+import { createSessionsSlice, type SessionsSlice } from './sessions-slice'
 
-export type AppState = ProjectsSlice
+export type AppState = ProjectsSlice & SessionsSlice
 
 export const useAppStore = create<AppState>()((...args) => ({
-  ...createProjectsSlice(...args)
+  ...createProjectsSlice(...args),
+  ...createSessionsSlice(...args)
 }))
