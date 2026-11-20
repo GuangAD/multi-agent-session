@@ -5,6 +5,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createAppWindow } from './app-window'
 import { loadStore } from './session-store/store-persistence'
 import { registerProjectsIpc } from './ipc/projects'
+import { registerAgentsIpc } from './ipc/agents'
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.agent-sessions.app')
@@ -20,6 +21,7 @@ app.whenReady().then(async () => {
   const storePath = join(app.getPath('userData'), 'store.json')
   const store = await loadStore(storePath)
   registerProjectsIpc(store, storePath)
+  registerAgentsIpc()
 
   createAppWindow()
 

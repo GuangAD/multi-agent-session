@@ -13,6 +13,7 @@ import {
 import { useAppStore } from './store/app-store'
 import { Button } from './components/ui/button'
 import { EmptyState } from './components/ui/empty-state'
+import { NewSessionMenu } from './components/sidebar/NewSessionMenu'
 import type { Project } from '../../shared/types'
 
 function ProjectList({
@@ -80,6 +81,7 @@ function App(): React.JSX.Element {
             <FolderOpen className="size-4" aria-hidden />
             添加目录
           </Button>
+          <NewSessionMenu />
           <ProjectList projects={projects} onRemove={(id) => void removeProject(id)} />
         </aside>
       )}

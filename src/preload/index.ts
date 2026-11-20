@@ -9,6 +9,9 @@ const api: AppApi = {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.projectsList),
     add: () => ipcRenderer.invoke(IPC_CHANNELS.projectsAdd),
     remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.projectsRemove, id)
+  },
+  agents: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.agentsList)
   }
 }
 
