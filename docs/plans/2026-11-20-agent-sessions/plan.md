@@ -53,8 +53,23 @@ brief 第 6 节的欠账,排在对应任务内消化:
 
 ## 开发记录
 
-- 开工前接口预检 | 待做
-  - (T1 开工前逐项核对生产/消费接口与测试命令可解析性,结果记在此)
+- 2026-11-20 08:30 | 开工前接口预检(通过;两处契约级登记,无停手项,BASE=8964391)
+  - 跨任务接口逐项核对:T1 产 shared/types.ts(Project/Session/Settings/IgnoreEntry/AppStore/SessionRunState/AgentId)与 loadStore/saveStoreAtomic/DEFAULT_STORE → T2 消费 AgentId ✓;T2 产 agentRegistry + AgentDefinition(shared/agents.ts 落点归 T2,T1 不建)与 resolveCommandPath → T3 消费 def/spawn 形状 ✓;T3 产 ptyRegistry/buildSpawnArgv/samplingTap(env AGENT_SESSIONS_SAMPLE → <dir>/<sessionId>.bin)→ T4/T5 消费 ✓;T4 产 sessionRecords CRUD(改传入 store + saveStoreAtomic)→ T6 runImport(store,…)/T8 回填消费 ✓;T5 产 createTracker(state:changed)→ T11 通知消费 SessionRunState ✓;T9/T10/T11 通道与 shared/ipc-contract 一一对应,TreeNode/GitStatus/Settings.theme 均在 spec 定义内 ✓
+  - 测试命令可解析性:T1 步骤 2 含 vitest 基座创建(include src/**/*.test.ts);各任务测试文件均与源码同目录 *.test.ts,过滤命令全为文件/目录路径过滤(T6/T7 目录级),无 -k 模式;全部 Expected 均写明跑测条数;累计链 5→15→19→24→35→50→55→65→70→82→86 与门 2 的 86 用例逐级吻合 ✓
+  - 登记一:spec 接口面清单列 sessionRecords.get,T4 契约未列——按 spec 补入 T4 实现(不经 IPC 直查 store),覆盖矩阵 5 用例不变
+  - 登记二:spec 接口面清单 BackfillCoordinator(claim/resolve/release)与 T8 契约(claim/poll/release)命名不一致——resolve≈poll 同义,以 T8 契约为准
+  - 另:controller 补充约定——T1 建 .gitignore 时除模板条目外含 .reference/、.tmp/、.review/(评审 diff 不入历史,code-review 技能要求);不改四层文档结论
+- 2026-11-20 17:35 | T1 开发与评审闭环(代码就绪,待手动冒烟 + 确认提交)
+  - implementer(worker subagent)按契约完成:模板 @quick-start/create-electron@1.0.31 并入、storePersistence 接缝 TDD 红→绿(5 用例)、projects IPC 三通道 + preload 桥 + projects-slice + 三栏空壳(左右可收起);未提交、未动文档、零越界(git status 38 条与报告清单逐项一致)
+  - controller 亲跑验证:typecheck 双投影 exit 0;vitest 目标/全量绿;build exit 0;lint exit 0
+  - 首轮评审(reviewer subagent,对照 .review/T1.patch 1062 行):规格符合 ✅,无 Critical,无夹带无误解;1 Important——saveStoreAtomic 固定共享 <file>.tmp 并发互踩;5 Minor(version 无条件覆盖、入口 rejection 未接住、渲染层 IPC 失败无处理、盘根 name 空串、.editorconfig 末行无换行)——记录,不阻塞
+  - Important 修复(原 implementer,只动接缝两文件):per-call 唯一 uuid tmp + 失败 best-effort 清理 + 接缝内同文件保存队列(Windows 并发 rename 覆盖同目标瞬时 EPERM,唯一名治不了,队列结构性消除;controller 裁决接受——串行化落接缝正是意图);新增并发守卫用例(8 写者×3 轮,断言完整内容 + 无残留);mutation check:退回固定 tmp 第 1 跑即红且仅守卫转红 → 还原 6 passed ✓;修复后 controller 复跑全绿(6 passed/typecheck/lint)
+  - 复审(reviewer :low 档,对照 .review/T1-fix.patch):Important-1 ADDRESSED,无新增 Critical/Important,裁决可提交;新增 Minor——saveQueues Map 只增不减(留 T4 复用接缝时顺手自清);范围外观察 2 条(无 fsync,掉电级原子性属设计取舍;队列下守卫并发形态部分退化但守卫仍有效)
+  - 口径登记:契约步骤 2「空基座 no test files found」未单独执行(install 与写测试时序重叠,配置可加载性由红跑证实,接受);electron-builder 相关剔除(M7 才接,build 重定义为 typecheck && electron-vite build);eslint ignores 补 .reference/.tmp/.review;窗口尺寸沿用模板 900×670
+  - 下游结论(T2+ 用):main/preload 产物 CJS,__dirname 可用,HMR 逻辑在 app-window.ts;node-pty 归 T2 装 dependencies;引 shared 的相对路径深度易错(typecheck 抓过两处);store 生命周期 = 入口 loadStore(userData/store.json) 持有内存对象,IPC 域原地改 + saveStoreAtomic 即时落盘,T4 直接复用;saveStoreAtomic 已并发安全(唯一 tmp + 队列),调用方无需自行加锁
+  - 文档变更登记:本轮无四层文档实质改动(plan.md 预检与本章为 controller 记账)
+  - 冒烟阻塞修复(controller,2026-11-20 17:36):用户首跑 pnpm dev 报「Error: Electron uninstall」——pnpm 10 默认拦截依赖构建脚本,模板并入时漏了 pnpm.onlyBuiltDependencies,electron postinstall 未跑、dist/ 二进制缺失。修复:package.json 补 "pnpm":{"onlyBuiltDependencies":["electron"]},node install.js 手动补跑下载(T3 装 node-pty 时按契约补同名白名单);vitest/typecheck/JSON 校验复核通过
+  - 状态:awaiting 用户手动冒烟(pnpm dev 三栏窗口 → 添加目录 → 重启列表仍在)+ 确认后提交
 - 2026-11-20 | 变更登记:门 2 评审增补——不支持预览的类型与项目目录支持「通过 VS Code 打开」(code 命令优先,未装回退系统默认应用),落 T9,非接缝不加用例(用户提出)
 
 <!-- 四层文档的任何改动都在这里另行留一行 -->

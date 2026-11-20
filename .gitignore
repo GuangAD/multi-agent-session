@@ -1,7 +1,9 @@
 node_modules/
 .reference/
+.tmp/
+.review/
 out/
 dist/
-.tmp/
-*.log
+.eslintcache
+*.log*
 .DS_Store
