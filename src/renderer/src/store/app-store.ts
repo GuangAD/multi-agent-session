@@ -1,13 +1,15 @@
 // Zustand 装配:按域切片(spec 模块划分:store/app-store.ts)
 import { create } from 'zustand'
 import { createProjectsSlice, type ProjectsSlice } from './projects-slice'
+import { createFilePreviewSlice, type FilePreviewSlice } from './file-preview-slice'
 import { createSessionsSlice, type SessionsSlice } from './sessions-slice'
 import { createRunStateSlice, type RunStateSlice } from './run-state-slice'
 
-export type AppState = ProjectsSlice & SessionsSlice & RunStateSlice
+export type AppState = ProjectsSlice & SessionsSlice & RunStateSlice & FilePreviewSlice
 
 export const useAppStore = create<AppState>()((...args) => ({
   ...createProjectsSlice(...args),
   ...createSessionsSlice(...args),
-  ...createRunStateSlice(...args)
+  ...createRunStateSlice(...args),
+  ...createFilePreviewSlice(...args)
 }))

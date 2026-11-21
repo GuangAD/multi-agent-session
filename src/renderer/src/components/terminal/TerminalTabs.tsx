@@ -8,6 +8,7 @@ import { EmptyState } from '../ui/empty-state'
 import { TerminalView } from './TerminalView'
 import { setTerminalReadyHandler } from './use-terminal'
 import { RUN_STATE_DISPLAY } from '../../run-state-display'
+import { FilePreview } from '../file-panel/FilePreview'
 
 // spec 默认值:xterm scrollback 默认 10000 行(settings 缺读时兜底,与 DEFAULT_STORE 一致)
 const FALLBACK_SCROLLBACK = 10000
@@ -19,6 +20,13 @@ export function TerminalTabs(): React.JSX.Element {
   const runStates = useAppStore((state) => state.runStates)
   const projects = useAppStore((state) => state.projects)
   const setActiveTab = useAppStore((state) => state.setActiveTab)
+  // 文件预览标签页(T9 评审期调整):预览发起在右栏、渲染在中间区,状态经 file-preview-slice 共享
+  const previewPath = useAppStore((state) => state.previewPath)
+  const previewName = useAppStore((state) => state.previewName)
+  const previewActive = useAppStore((state) => state.previewActive)
+  const activatePreview = useAppStore((state) => state.activatePreview)
+  const deactivatePreview = useAppStore((state) => state.deactivatePreview)
+  const closePreview = useAppStore((state) => state.closePreview)
   const closeTab = useAppStore((state) => state.closeTab)
   // scrollback 是创建期参数:tab 挂上后即取 store 设置值(只读一次,无设置界面不会变)
   const [scrollback, setScrollback] = useState(FALLBACK_SCROLLBACK)
@@ -51,7 +59,7 @@ export function TerminalTabs(): React.JSX.Element {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {tabs.length > 0 && (
+      {(tabs.length > 0 || previewPath !== null) && (
         <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-zinc-200 px-2 py-1 dark:border-zinc-700">
           {tabs.map((tab) => {
             // tab 只挂记录 id:显示名/项目名从持久记录取(重命名后 tab 即时跟随)
@@ -71,7 +79,10 @@ export function TerminalTabs(): React.JSX.Element {
                 <button
                   type="button"
                   className="flex items-center gap-1.5 truncate"
-                  onClick={() => setActiveTab(tab.sessionId)}
+                  onClick={() => {
+                    setActiveTab(tab.sessionId)
+                    deactivatePreview() // 点终端标签:切回终端画面,预览标签保留在栏上
+                  }}
                 >
                   <span className="max-w-40 truncate">{title}</span>
                   {projectName && (
@@ -96,9 +107,37 @@ export function TerminalTabs(): React.JSX.Element {
               </div>
             )
           })}
+          {previewPath !== null && (
+            <div
+              className={`flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-sm ${
+                previewActive
+                  ? 'bg-zinc-200 dark:bg-zinc-700'
+                  : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              }`}
+            >
+              <button
+                type="button"
+                className="flex items-center gap-1.5 truncate"
+                onClick={activatePreview}
+              >
+                <span className="max-w-40 truncate">{previewName}</span>
+              </button>
+              <button
+                type="button"
+                aria-label="关闭文件预览"
+                className="rounded p-0.5 text-zinc-400 hover:bg-zinc-300 hover:text-zinc-700 dark:hover:bg-zinc-600 dark:hover:text-zinc-200"
+                onClick={closePreview}
+              >
+                <X className="size-3.5" aria-hidden />
+              </button>
+            </div>
+          )}
         </div>
       )}
-      {tabs.length === 0 ? (
+      {previewActive && previewPath !== null ? (
+        /* 文件预览占中间区:key = 路径,切换文件重挂读取态归零(与右栏时代同款) */
+        <FilePreview key={previewPath} path={previewPath} />
+      ) : tabs.length === 0 ? (
         <EmptyState title="没有打开的会话" hint="从左栏「新建会话」选择一个 agent 开始" />
       ) : (
         tabs.map((tab) => (

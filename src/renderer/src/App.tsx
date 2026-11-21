@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useAppStore } from './store/app-store'
 import { Button } from './components/ui/button'
-import { EmptyState } from './components/ui/empty-state'
 import { Sidebar } from './components/sidebar/Sidebar'
+import { FileTreePanel } from './components/file-panel/FileTreePanel'
 import { TerminalTabs } from './components/terminal/TerminalTabs'
 import { bridge } from './ipc/bridge'
 
@@ -67,7 +67,7 @@ function App(): React.JSX.Element {
         <TerminalTabs />
       </main>
 
-      {/* 右栏:文件 / Git 面板占位(M5/M6 接入) */}
+      {/* 右栏:文件面板(T9),Git 面板后续任务接入;收起能力沿用 T1 布局 */}
       {rightOpen && (
         <aside className="flex min-h-0 w-72 shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center justify-between p-2">
@@ -76,7 +76,7 @@ function App(): React.JSX.Element {
               <PanelRightClose className="size-4" aria-hidden />
             </Button>
           </div>
-          <EmptyState title="文件 / Git" hint="文件浏览与 Git 面板将在后续版本提供" />
+          <FileTreePanel />
         </aside>
       )}
     </div>

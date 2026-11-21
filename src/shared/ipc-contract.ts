@@ -3,7 +3,8 @@
 // T3 增补 sessions:create、settings:get 与 pty:* 五通道(spawn/write/resize/kill + data/exit 事件);
 // T4 补齐 sessions:* 全域(rename/remove/open/list,会话记录持久化 CRUD);
 // T5 增补 state:* 三通道(上行 state:title / state:snapshot,下行 state:changed 状态广播);
-// T6 增补 sessions:import(按 agent 扫描存储,把属于该项目的历史会话导入应用记录)。
+// T6 增补 sessions:import(按 agent 扫描存储,把属于该项目的历史会话导入应用记录);
+// T9 增补 files:* 三通道(files:tree 文件树 / files:read 只读预览 / files:openInEditor 外部编辑器打开)。
 import type { AgentListItem, ResumeRef } from './agents'
 import type {
   AgentId,
@@ -35,6 +36,10 @@ export const IPC_CHANNELS = {
   // T5:三源状态引擎的通道(上行标题/屏幕快照,下行状态广播)
   stateTitle: 'state:title',
   stateSnapshot: 'state:snapshot',
+  // T9:文件浏览三通道(树扫描 / 预览读取 / 外部编辑器打开)
+  filesTree: 'files:tree',
+  filesRead: 'files:read',
+  filesOpenInEditor: 'files:openInEditor',
   // 主进程 → 渲染层事件通道(ipcRenderer.on 订阅)
   ptyData: 'pty:data',
   ptyExit: 'pty:exit',
@@ -130,6 +135,32 @@ export interface StateApi {
   onChanged: (listener: (event: StateChangedEvent) => void) => () => void
 }
 
+// T9:文件树节点。children === undefined 表示该目录层尚未扫描(懒展开标记,
+// 主进程 scanTree 单层扫描恒如此),children === [] 表示已扫描且为空目录
+export interface TreeNode {
+  name: string
+  path: string
+  kind: 'dir' | 'file'
+  children?: TreeNode[]
+}
+
+// T9:files:read 载荷。error 存在 = 读取失败(文件不存在/无权限/是目录),
+// 此时其余字段为兜底空值;二进制命中时 content 为空串(不渲染乱码)
+export interface FilePreviewResult {
+  content: string
+  truncated: boolean
+  binary: boolean
+  error?: string
+}
+
+// T9:文件浏览(树懒展开 + 只读预览 + 外部编辑器打开)。read 的错误经载荷 error 字段返回,
+// tree 的扫描失败经主进程兜底空树,openInEditor 的回退在编排内完成——三者都不向渲染层抛
+export interface FilesApi {
+  tree: (root: string) => Promise<TreeNode>
+  read: (p: { path: string; maxBytes: number }) => Promise<FilePreviewResult>
+  openInEditor: (path: string) => Promise<{ via: 'vscode' | 'system' }>
+}
+
 export interface AppApi {
   projects: ProjectsApi
   agents: AgentsApi
@@ -137,4 +168,5 @@ export interface AppApi {
   settings: SettingsApi
   pty: PtyApi
   state: StateApi
+  files: FilesApi
 }

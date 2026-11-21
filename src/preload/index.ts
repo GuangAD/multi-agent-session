@@ -52,6 +52,12 @@ const api: AppApi = {
     // 下行:去抖后的状态广播
     onChanged: (listener: (event: StateChangedEvent) => void) =>
       subscribe<StateChangedEvent>(IPC_CHANNELS.stateChanged, listener)
+  },
+  // T9:文件浏览(树懒展开 / 只读预览 / 外部编辑器打开);read 错误经载荷 error 字段返回
+  files: {
+    tree: (root) => ipcRenderer.invoke(IPC_CHANNELS.filesTree, root),
+    read: (p) => ipcRenderer.invoke(IPC_CHANNELS.filesRead, p),
+    openInEditor: (path) => ipcRenderer.invoke(IPC_CHANNELS.filesOpenInEditor, path)
   }
 }
 
