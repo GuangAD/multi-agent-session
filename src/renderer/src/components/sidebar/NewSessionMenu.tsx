@@ -1,5 +1,5 @@
 // 新建会话菜单:展开渲染 5 个 agent 的名称/首字母徽标/安装状态(未安装置灰并标注「未安装」)
-// T3 接线:选中 agent → sessions:create → pty:spawn → 开 tab(需先选中一个项目)
+// T4 接线:选中 agent → sessions:create 入库 → 开 tab → 首个 fit 后 pty:spawn(需先选中一个项目)
 import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, SquarePen } from 'lucide-react'
 import { bridge } from '../../ipc/bridge'

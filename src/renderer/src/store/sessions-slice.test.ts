@@ -58,7 +58,7 @@ describe('openSession(spawn 时序)', () => {
     await store.getState().openSession(project, agent)
 
     expect(spawnMock, '开 tab 前不得 spawn:此时没有真实 fit 尺寸').not.toHaveBeenCalled()
-    expect(store.getState().tabs.map((tab) => tab.session.id)).toEqual(['s-open'])
+    expect(store.getState().tabs.map((tab) => tab.sessionId)).toEqual(['s-open'])
     expect(store.getState().activeTabId).toBe('s-open')
   })
 
@@ -116,5 +116,31 @@ describe('spawnOnTerminalReady', () => {
     expect(store.getState().activeTabId).toBeNull()
     expect(errorSpy).toHaveBeenCalled()
     errorSpy.mockRestore()
+  })
+})
+
+// 期望值来源:会话记录契约的 createdAt 倒序——session-records.listByProject 与启动 loadSessions
+// 拿到的都是新记录在前,故新建记录必须落在列表首位;下面用数组字面量手写独立期望,
+// 不用被测代码的同款算法重算。把前插改回追加,本组首个用例即转红。
+describe('sessions 记录顺序(与 listByProject 的 createdAt 倒序一致)', () => {
+  it('新建记录前插到首位;已在列表的记录原位替换,不重复追加', async () => {
+    const store = makeStore()
+    store.setState({ sessions: [makeSession('s-older')] })
+    createMock.mockResolvedValue(makeSession('s-newest'))
+
+    await store.getState().openSession(project, agent)
+
+    expect(store.getState().sessions[0]?.id, '新建记录应落在首位').toBe('s-newest')
+    expect(store.getState().sessions.map((session) => session.id)).toEqual(['s-newest', 's-older'])
+
+    // 已在列表:原位替换(不移动位置、不重复追加)
+    store.setState({ sessions: [makeSession('s-newest'), makeSession('s-existing')] })
+    createMock.mockResolvedValue(makeSession('s-existing'))
+    await store.getState().openSession(project, agent)
+
+    expect(store.getState().sessions.map((session) => session.id)).toEqual([
+      's-newest',
+      's-existing'
+    ])
   })
 })

@@ -301,6 +301,11 @@ export const ptyRegistry = {
     }
   },
 
+  // 存活会话 id(读):删除会话记录时判定「有活动标签页」的来源——shell 活着即有活动 tab
+  activeSessionIds(): SessionId[] {
+    return [...entries.keys()]
+  },
+
   // 订阅返回退订函数(契约推荐形态);ipc/pty.ts 装配时挂一次
   onData(listener: PtyDataListener): () => void {
     dataListeners.add(listener)

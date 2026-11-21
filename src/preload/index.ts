@@ -25,7 +25,11 @@ const api: AppApi = {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.agentsList)
   },
   sessions: {
-    create: (p) => ipcRenderer.invoke(IPC_CHANNELS.sessionsCreate, p)
+    create: (p) => ipcRenderer.invoke(IPC_CHANNELS.sessionsCreate, p),
+    rename: (p) => ipcRenderer.invoke(IPC_CHANNELS.sessionsRename, p),
+    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsRemove, id),
+    open: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsOpen, id),
+    list: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.sessionsList, projectId)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet)

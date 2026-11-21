@@ -11,6 +11,11 @@ import { registerSettingsIpc } from './ipc/settings'
 import { registerPtyIpc } from './ipc/pty'
 import { ptyRegistry } from './pty-registry'
 
+// 会话记录落盘器的退出前排空入口:由 registerSessionsIpc 在 whenReady 内装配后填入
+let flushSessionRecords: () => Promise<void> = async () => {}
+// 退出收尾阶段:done 后再次进入 before-quit 直接放行(app.quit() 会重入本 handler)
+let quitPhase: 'idle' | 'cleaning' | 'done' = 'idle'
+
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.agent-sessions.app')
 
@@ -26,7 +31,7 @@ app.whenReady().then(async () => {
   const store = await loadStore(storePath)
   registerProjectsIpc(store, storePath)
   registerAgentsIpc()
-  registerSessionsIpc()
+  flushSessionRecords = registerSessionsIpc(store, storePath).flush
   registerSettingsIpc(store)
   // 单窗口应用:事件出站直接取当前窗口(无窗口时不发)
   registerPtyIpc(() => BrowserWindow.getAllWindows()[0] ?? null)
@@ -41,8 +46,24 @@ app.whenReady().then(async () => {
 })
 
 // 应用退出全量清理:比 window-all-closed 更早且覆盖 Cmd+Q,不留孤儿 PTY(controller 口径 5)
-app.on('before-quit', () => {
-  ptyRegistry.killAll()
+// Why: 会话记录是 100ms 尾沿防抖落盘,删除/重命名后立刻退出会丢掉最后一次变更(重启后已删会话
+// 复活、重命名回退);故先排空落盘再杀 PTY。收尾是异步的,先 preventDefault 拦住本次退出,
+// 收尾完成后再 app.quit()(那时 quitPhase 已置 done,重入本 handler 直接放行,不成死循环)。
+app.on('before-quit', (event) => {
+  if (quitPhase === 'done') {
+    return
+  }
+  event.preventDefault()
+  if (quitPhase === 'cleaning') {
+    return // 收尾进行中(期间再次触发退出):等第一次收尾完成,不重复执行
+  }
+  quitPhase = 'cleaning'
+  void (async () => {
+    await flushSessionRecords()
+    ptyRegistry.killAll()
+    quitPhase = 'done'
+    app.quit()
+  })()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

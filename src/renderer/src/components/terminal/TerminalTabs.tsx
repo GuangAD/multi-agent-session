@@ -13,6 +13,7 @@ const FALLBACK_SCROLLBACK = 10000
 
 export function TerminalTabs(): React.JSX.Element {
   const tabs = useAppStore((state) => state.tabs)
+  const records = useAppStore((state) => state.sessions)
   const activeTabId = useAppStore((state) => state.activeTabId)
   const projects = useAppStore((state) => state.projects)
   const setActiveTab = useAppStore((state) => state.setActiveTab)
@@ -51,11 +52,14 @@ export function TerminalTabs(): React.JSX.Element {
       {tabs.length > 0 && (
         <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-zinc-200 px-2 py-1 dark:border-zinc-700">
           {tabs.map((tab) => {
-            const active = tab.session.id === activeTabId
-            const projectName = projects.find((p) => p.id === tab.session.projectId)?.name
+            // tab 只挂记录 id:显示名/项目名从持久记录取(重命名后 tab 即时跟随)
+            const record = records.find((session) => session.id === tab.sessionId)
+            const title = record?.title ?? tab.sessionId
+            const active = tab.sessionId === activeTabId
+            const projectName = projects.find((p) => p.id === record?.projectId)?.name
             return (
               <div
-                key={tab.session.id}
+                key={tab.sessionId}
                 className={`flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-sm ${
                   active
                     ? 'bg-zinc-200 dark:bg-zinc-700'
@@ -65,9 +69,9 @@ export function TerminalTabs(): React.JSX.Element {
                 <button
                   type="button"
                   className="flex items-center gap-1.5 truncate"
-                  onClick={() => setActiveTab(tab.session.id)}
+                  onClick={() => setActiveTab(tab.sessionId)}
                 >
-                  <span className="max-w-40 truncate">{tab.session.title}</span>
+                  <span className="max-w-40 truncate">{title}</span>
                   {projectName && (
                     <span className="max-w-28 truncate text-xs text-zinc-500 dark:text-zinc-400">
                       {projectName}
@@ -79,9 +83,9 @@ export function TerminalTabs(): React.JSX.Element {
                 </button>
                 <button
                   type="button"
-                  aria-label={`关闭会话 ${tab.session.title}`}
+                  aria-label={`关闭会话 ${title}`}
                   className="rounded p-0.5 text-zinc-400 hover:bg-zinc-300 hover:text-zinc-700 dark:hover:bg-zinc-600 dark:hover:text-zinc-200"
-                  onClick={() => void closeTab(tab.session.id)}
+                  onClick={() => void closeTab(tab.sessionId)}
                 >
                   <X className="size-3.5" aria-hidden />
                 </button>
@@ -95,9 +99,9 @@ export function TerminalTabs(): React.JSX.Element {
       ) : (
         tabs.map((tab) => (
           <TerminalView
-            key={tab.session.id}
-            sessionId={tab.session.id}
-            active={tab.session.id === activeTabId}
+            key={tab.sessionId}
+            sessionId={tab.sessionId}
+            active={tab.sessionId === activeTabId}
             scrollback={scrollback}
           />
         ))

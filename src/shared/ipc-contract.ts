@@ -1,6 +1,7 @@
 // IPC 契约:通道名与载荷类型一一对应(spec 模块划分「契约先行」)
 // 通道由任务增量补:T1 落 projects 三通道;T2 增补 agents:list;
-// T3 增补 sessions:create、settings:get 与 pty:* 五通道(spawn/write/resize/kill + data/exit 事件)。
+// T3 增补 sessions:create、settings:get 与 pty:* 五通道(spawn/write/resize/kill + data/exit 事件);
+// T4 补齐 sessions:* 全域(rename/remove/open/list,会话记录持久化 CRUD)。
 import type { AgentListItem } from './agents'
 import type { AgentId, Project, ProjectId, Session, SessionId, Settings } from './types'
 
@@ -11,6 +12,10 @@ export const IPC_CHANNELS = {
   projectsRemove: 'projects:remove',
   agentsList: 'agents:list',
   sessionsCreate: 'sessions:create',
+  sessionsRename: 'sessions:rename',
+  sessionsRemove: 'sessions:remove',
+  sessionsOpen: 'sessions:open',
+  sessionsList: 'sessions:list',
   settingsGet: 'settings:get',
   ptySpawn: 'pty:spawn',
   ptyWrite: 'pty:write',
@@ -33,9 +38,15 @@ export interface AgentsApi {
   list: () => Promise<AgentListItem[]>
 }
 
-// T3 最小实现:构造 Session 返回渲染层,不写 store(T4 落 sessionRecords 持久化)
+// T4:会话记录持久化 CRUD(主进程 sessionRecords + 防抖落盘);重命名只改应用侧显示名
 export interface SessionsApi {
   create: (p: { projectId: ProjectId; agentId: AgentId }) => Promise<Session>
+  rename: (p: { id: SessionId; title: string }) => Promise<void>
+  // 删除记录;closedTabs = 需连带关闭的标签页(主进程按活动 PTY 判定)
+  remove: (id: SessionId) => Promise<{ closedTabs: SessionId[] }>
+  // 重开:记录存在则更新 lastOpenedAt 并返回(T4 = 原样拉起,resume 参数由 T8 接入)
+  open: (id: SessionId) => Promise<Session>
+  list: (projectId: ProjectId) => Promise<Session[]>
 }
 
 // 终端渲染参数(scrollback 默认 10000);T3 只读,设置界面后续任务
@@ -57,7 +68,13 @@ export interface PtyApi {
   // cols/rows = 渲染层 fit 提案(T3.5 评审期 Fix-A):启动尺寸用渲染层已测值,避免 80×24 起步
   // 导致 TUI 错宽(pi 收不到 ConPTY 的 resize 通知,启动宽度即终身宽度);主进程对非法值
   // 回退未测量兜底 120×40。Orca pty-first-size 同思路(src/main/ipc/pty/delivery/pty-first-size.ts)。
-  spawn: (p: { sessionId: SessionId; agentId: AgentId; cwd: string; cols: number; rows: number }) => Promise<void>
+  spawn: (p: {
+    sessionId: SessionId
+    agentId: AgentId
+    cwd: string
+    cols: number
+    rows: number
+  }) => Promise<void>
   write: (p: { sessionId: SessionId; data: string }) => Promise<void>
   resize: (p: { sessionId: SessionId; cols: number; rows: number }) => Promise<void>
   kill: (sessionId: SessionId) => Promise<void>

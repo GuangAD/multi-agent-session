@@ -1,27 +1,35 @@
-// 会话内存表切片(T3):tab = 运行中的终端画面,会话记录持久化 CRUD 是 T4
-// (CONTEXT.md 职责边界:关闭标签页不影响会话;本切片只管运行态,重启即清空)
+// 会话切片(T4):sessions = store 里的持久会话记录(重启不丢),tabs = 运行中的标签页
+// (CONTEXT.md 职责边界:关闭标签页不影响会话;tab 只挂持久记录 id,元数据一律回记录里取)
 import type { StateCreator } from 'zustand'
 import { bridge } from '../ipc/bridge'
 import type { AgentListItem } from '../../../shared/agents'
 import type { AgentId, Project, Session, SessionId } from '../../../shared/types'
 import type { AppState } from './app-store'
 
-// TabSession 自定形状:session 元数据 + 运行态标记(运行态不持久化)
+// TabSession 只记运行态:显示名/项目/agent 等元数据都从 sessions 记录取(记录改了 tab 即时跟随)
 export interface TabSession {
-  session: Session
+  sessionId: SessionId
   runState: 'running' | 'exited' // pty:exit 后转 exited
 }
 
 export interface SessionsSlice {
+  // 已加载项目的会话记录(平铺;按 projectId 分组渲染在侧栏)
+  sessions: Session[]
   tabs: TabSession[]
   activeTabId: SessionId | null
-  // 新建链路(Fix-B):IPC create → 先开 tab(容器挂载后 fit 出真实尺寸)→ 带尺寸 spawn
+  // 按项目逐个拉取记录(spec 契约:sessions:list 载荷是单个 projectId)
+  loadSessions: () => Promise<void>
+  // 新建(Fix-B):IPC 入库 → 先开 tab(容器挂载后 fit 出真实尺寸)→ 带尺寸 spawn
   openSession: (project: Project, agent: AgentListItem) => Promise<void>
+  // 重开:已有 tab 则激活它;否则按持久记录原样拉起(T4 无 resume 参数,T8 接入续接)
+  reopenSession: (session: Session, project: Project) => Promise<void>
   // 终端首个 fit 收敛后由 TerminalView 回调:消费待 spawn 记录并带真实 cols/rows 发起 spawn
   spawnOnTerminalReady: (sessionId: SessionId, cols: number, rows: number) => Promise<void>
   closeTab: (sessionId: SessionId) => Promise<void>
   setActiveTab: (sessionId: SessionId) => void
   markSessionExited: (sessionId: SessionId) => void
+  renameSession: (id: SessionId, title: string) => Promise<void>
+  removeSession: (id: SessionId) => Promise<void>
 }
 
 // 待 spawn 会话:渲染层先开 tab 拿到 fit 提案尺寸再 spawn(Fix-B)。模块级协调数据,
@@ -30,9 +38,25 @@ export interface SessionsSlice {
 // ack 只消费一次(消费即删),StrictMode 双挂载/二次 fit 回调的重复触发天然幂等。
 const pendingSpawns = new Map<SessionId, { agentId: AgentId; cwd: string }>()
 
-export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> = (set) => ({
+// 记录落位:已在列表则原位替换(重开刷新 lastOpenedAt / 重命名),否则前插
+// Why: 前插对齐会话记录契约的 createdAt 倒序——session-records.listByProject 与启动 loadSessions
+// 拿到的都是新记录在前;追加到末尾会让新建会话停在分组底部、重启后又跳到顶部,同一数据两种顺序。
+function upsertSession(sessions: Session[], session: Session): Session[] {
+  return sessions.some((item) => item.id === session.id)
+    ? sessions.map((item) => (item.id === session.id ? session : item))
+    : [session, ...sessions]
+}
+
+export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> = (set, get) => ({
+  sessions: [],
   tabs: [],
   activeTabId: null,
+
+  loadSessions: async () => {
+    const projects = get().projects
+    const lists = await Promise.all(projects.map((project) => bridge.sessions.list(project.id)))
+    set({ sessions: lists.flat() })
+  },
 
   openSession: async (project, agent) => {
     let session: Session
@@ -48,8 +72,36 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
     // 看到的终身宽度;先 spawn(80×24)再 fit 会让大窗口下的 TUI 永远画在旧宽度,右侧整段空白。
     pendingSpawns.set(session.id, { agentId: agent.def.id, cwd: project.path })
     set((state) => ({
-      tabs: [...state.tabs, { session, runState: 'running' }],
+      sessions: upsertSession(state.sessions, session),
+      tabs: [...state.tabs, { sessionId: session.id, runState: 'running' }],
       activeTabId: session.id
+    }))
+  },
+
+  reopenSession: async (session, project) => {
+    // 同一会话同一时刻最多一个标签页(plan M4:禁止双开);已开则只切过去
+    if (get().tabs.some((tab) => tab.sessionId === session.id)) {
+      set({ activeTabId: session.id })
+      return
+    }
+    let record: Session
+    try {
+      record = await bridge.sessions.open(session.id)
+    } catch (error) {
+      console.error(`重开会话 ${session.title} 失败:`, error)
+      return
+    }
+    // 连点/并发点击兜底:open 往返期间另一路已开好 tab,则只切过去,不重复开(同会话禁止双开)
+    if (get().tabs.some((tab) => tab.sessionId === record.id)) {
+      set({ activeTabId: record.id })
+      return
+    }
+    // 与新建同一条链路:先开 tab,首个 fit 后带尺寸 spawn(原样拉起 agent 命令,不带 resume 参数)
+    pendingSpawns.set(record.id, { agentId: record.agentId, cwd: project.path })
+    set((state) => ({
+      sessions: upsertSession(state.sessions, record),
+      tabs: [...state.tabs, { sessionId: record.id, runState: 'running' }],
+      activeTabId: record.id
     }))
   },
 
@@ -71,11 +123,11 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
       console.error('启动会话失败:', error)
       // spawn 失败不留僵尸 tab(与原「失败不开 tab」语义等价:tab 已开故回撤)
       set((state) => {
-        const index = state.tabs.findIndex((tab) => tab.session.id === sessionId)
-        const tabs = state.tabs.filter((tab) => tab.session.id !== sessionId)
+        const index = state.tabs.findIndex((tab) => tab.sessionId === sessionId)
+        const tabs = state.tabs.filter((tab) => tab.sessionId !== sessionId)
         const activeTabId =
           state.activeTabId === sessionId
-            ? (tabs[Math.min(Math.max(index, 0), tabs.length - 1)]?.session.id ?? null)
+            ? (tabs[Math.min(Math.max(index, 0), tabs.length - 1)]?.sessionId ?? null)
             : state.activeTabId
         return { tabs, activeTabId }
       })
@@ -86,15 +138,15 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
     // 先杀进程再撤 tab;已退出的会话主进程对 kill 静默忽略,幂等
     await bridge.pty.kill(sessionId)
     set((state) => {
-      const index = state.tabs.findIndex((tab) => tab.session.id === sessionId)
+      const index = state.tabs.findIndex((tab) => tab.sessionId === sessionId)
       if (index === -1) {
         return state
       }
-      const tabs = state.tabs.filter((tab) => tab.session.id !== sessionId)
+      const tabs = state.tabs.filter((tab) => tab.sessionId !== sessionId)
       // 关闭当前 tab 时激活邻位(右侧优先取原位置,末端则取前一个)
       const activeTabId =
         state.activeTabId === sessionId
-          ? (tabs[Math.min(index, tabs.length - 1)]?.session.id ?? null)
+          ? (tabs[Math.min(index, tabs.length - 1)]?.sessionId ?? null)
           : state.activeTabId
       return { tabs, activeTabId }
     })
@@ -107,10 +159,42 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
   markSessionExited: (sessionId) => {
     set((state) => ({
       tabs: state.tabs.map((tab) =>
-        tab.session.id === sessionId && tab.runState !== 'exited'
+        tab.sessionId === sessionId && tab.runState !== 'exited'
           ? { ...tab, runState: 'exited' }
           : tab
       )
     }))
+  },
+
+  renameSession: async (id, title) => {
+    try {
+      await bridge.sessions.rename({ id, title })
+    } catch (error) {
+      console.error('重命名会话失败:', error)
+      return
+    }
+    set((state) => ({
+      sessions: state.sessions.map((session) =>
+        session.id === id ? { ...session, title } : session
+      )
+    }))
+  },
+
+  removeSession: async (id) => {
+    let closedTabs: SessionId[]
+    try {
+      closedTabs = (await bridge.sessions.remove(id)).closedTabs
+    } catch (error) {
+      console.error('删除会话失败:', error)
+      return
+    }
+    // 主进程按活动 PTY 返回需连带关闭的 tab;记录已删,挂在该记录上的 tab(含进程已退出)一律撤
+    const boundTabs = get()
+      .tabs.filter((tab) => tab.sessionId === id)
+      .map((tab) => tab.sessionId)
+    for (const tabId of new Set([...closedTabs, ...boundTabs])) {
+      await get().closeTab(tabId)
+    }
+    set((state) => ({ sessions: state.sessions.filter((session) => session.id !== id) }))
   }
 })
