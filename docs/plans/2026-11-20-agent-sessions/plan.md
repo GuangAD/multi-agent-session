@@ -31,7 +31,7 @@
 - [x] **T8 回填与自动续接**
       交付:自建会话重开自动续接对话;并发资格规则与禁止双开生效;五家 resume 参数核对通过
       挡谁:无
-- [ ] **T9 文件浏览**
+- [x] **T9 文件浏览**
       交付:右侧文件树展开浏览,点击只读查看,大文件截断提示
       挡谁:无
 - [ ] **T10 Git 面板**
@@ -231,4 +231,17 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 下游结论(T9-T11/收尾用):①导入提示「导入 N 条」= 新增数,若要做「N 条新增、M 条已存在」细分文案,改点在 ImportMenu 的结果展示(数据 imported/skipped 已具备)②删项目的连带范围现已完整:记录删除(主进程)+ 标签页关闭(渲染层 closeTab 杀 shell)——将来若加「删除项目前确认框」,列明会话数即可
   - 文档变更登记:brief 7.1(变更改写)、spec Session 注释、CONTEXT.md「agent 对话」词条——均随本条提交入库;tasks/T8.md 未动(契约是历史执行件)
   - **提交状态**:已提交 d4bd0430(feat: 导入续接变更,5 文件)+ 757e6ec5(fix: 孤儿记录,7 文件,用户确认)+ 本条 docs 提交;review diff `.review/T8-change.patch` 提交后删除
+- 2026-11-21 22:40 | T9 开发与评审闭环(冒烟经用户确认,代码已提交)
+  - BASE=665e28c3;implementer(worker subagent)按契约完成:`src/main/fs-tree.ts`(接缝 shouldIgnore/scanTree(root, depth=1);IGNORED_NAMES 五项 ['.git','node_modules','dist','out','.reference'] 精确匹配;单层扫描懒展开——子目录 children 恒 undefined,前端点开再请求;symlink 一律跳过防越界/环;root 不可读兜底空树;目录在前 localeCompare)、`src/main/file-content.ts`(readFilePreview 单句柄 open+stat+同句柄按绝对位置补齐读,clamp [1,2_000_000],前 8192 字节 NUL 嗅探 binary,错误经 {error} 载荷不抛)、`src/main/ipc/open-in-editor.ts`(code 优先/系统默认回退编排)、`src/main/ipc/files.ts` 三通道、契约/preload/入口装配、渲染层 file-panel 三件(FileTreePanel/FileTree/FilePreview)+ 右栏接入
+  - controller 亲跑验证:typecheck 双投影 0 error;vitest 164 passed/25 files(153 基线 + fs-tree 5 + file-content 6,自洽);git status 与清单逐项一致
+  - 首轮评审(reviewer subagent,对照 .review/T9.patch 871 行,聚焦核实 resolver 源码与既有调用点):规格符合 ❌ 仅 1 项;**Critical-1——open-in-editor 的「优先 VS Code」在 win32 机制性失效**:resolveCommandPath('code') 按 PATHEXT 命中 bin\code.cmd(标准安装只有 bash 脚本 code 与 code.cmd),Node ≥20.12.2 / Electron ≥31(CVE-2024-27980 修复)起 execFile 无 shell 执行 .cmd 恒 EINVAL → 恒静默降级系统默认打开,via:'vscode' 永不可达;「T3 实测同款」类比不成立(T3 的执行点是 node-pty 经 shell,非 child_process.execFile);Minor 3(execFileQuiet 无超时、contract 头注释 T5 行重复、files:read 无路径沙箱——桌面单用户应用记为已知边界)
+  - Critical-1 修复(controller 亲手,运行时探针链先坐实再修):直拉 code.cmd → `spawn EINVAL` 坐实;cmd /d /s /c 包装但不显式开 verbatim → 三种引号形态全败(根因:file 为 cmd.exe 时 Node 走标准 MSVCRT 参数转义,手写引号被二次转义破坏,`\"C:\P` 碎片实证);**修正形态 = cmd /d /s /c + windowsVerbatimArguments: true + `""${resolved}" "${target}""` 整段再包引号**(/s 引号规则:剥第一个引号删最后一个,内部引号保留)——探针:自造含空格 .cmd `ARGS=hello world` ✓、真实 code --version `1.147.0` ✓、含空格双路径端到端 OK ✓;一并落地 Minor-2(execFileQuiet 加 timeout 5000ms,挂死回退)与 Minor-1(重复注释行);复审(reviewer :low)三条全 ADDRESSED 无新增,裁决可提交
+  - TDD:fs-tree 五条先红(module-not-found 先例形态)后绿;file-content 6 条守卫为裁决 8 授权自加——**守卫立刻抓到真 bug**(Node fs.promises.FileHandle 只有 stat() 没有 fstat(),4 条红后修正),判断成立;TDD waiver(留痕):ipc/files.ts 与 open-in-editor.ts 编排层 import electron 无单测(编排薄层先例,行为靠冒烟 + Critical-1 修复由运行时探针链证明)
+  - **冒烟发现并修复(白屏,controller 违反红线)**:预览移中间区时 controller 在 TerminalTabs.tsx(渲染层)加了 `import { basename } from 'node:path'`——渲染层纯浏览器环境禁一切 Node 模块(AGENTS.md 工程红线),bundle 解析失败 → 应用启动白屏;全仓扫描确认为渲染层唯一一处;修复:文件名在 file-preview-slice 自派生(path 末段 split),TerminalTabs 读 previewName;验证补 `pnpm build`(渲染层 bundle 解析通过)与渲染层 node import 清零检查。教训:渲染层改动后除 typecheck/vitest 外必须过一次 build(它才能抓模块解析错)
+  - 需求调整(用户冒烟期提出):预览从右栏移到中间区域——做成中间区标签栏里的**预览标签页**(与终端标签并列,点文件打开、可切换、× 关闭),右栏只剩全高文件树;新增 `file-preview-slice.ts`(previewPath/previewName/previewActive + open/activate/deactivate/close;进 Zustand 的理由 = 预览发起在右栏、渲染在中间区,跨组件——原裁决 7「局部 state」的前提因布局调整失效,如实登记);FileTreePanel 去预览区、选中高亮改读 previewPath;终端尺寸不受预览影响(预览激活 = 终端 tab 隐藏,与切走标签同语义)
+  - 冒烟实测(用户确认):①树展开流畅(.reference 不出现)②点文件中间区预览标签页正常、终端/预览标签切换正常③截断/二进制提示正常④「VS Code 打开」文件与「打开目录」均正常(Critical-1 修复验证点)⑤白屏修复后启动正常;「未装 VS Code 回退系统默认应用」本机不可达(VS Code 已装),装后复核
+  - 口径登记:①契约步骤 2「5 failed」实况 = module-not-found 整套件(先例形态)②步骤 5「70 passed」系门 2 时点,实况基线 153/23,本轮后 164/25③预览请求字节数渲染层取 200_000(≈195KB,窄面板 2MB 过重;主进程 clamp 2MB 兜底)④懒展开的 children 语义:undefined=未扫、[]=已扫空,有守卫钉住
+  - 下游结论(T10/T11 与收尾用):①`file-content.ts` 单句柄补齐读模式可直接复用(有界读取/二进制嗅探);②`open-in-editor.ts` 的 cmd 包装形态(cmd /d /s /c + windowsVerbatimArguments + 双引号整段)是 Windows 上 execFile .cmd 的唯一可行姿势,后续任何「执行 .cmd shim」场景照抄;③渲染层禁 Node 模块——白屏教训,新增渲染层代码后跑 `pnpm build` 验证;④eslint react-hooks/set-state-in-effect 已启用,effect 拉数据用「key 重挂 + 异步回调内 setState」形态;⑤预览单实例(previewPath 单值),将来要「多文件多标签」需把 previewPath 改数组
+  - 文档变更登记:四层文档无实质变更(spec 的 files 三通道与 TreeNode 形状与实现一致;TreeNode 在 shared 落地系 T9 消费首件,spec「已定义」表述与实况差异已在本条知悉);CONTEXT/ADR/AGENTS 无改动;plan.md 勾选 T9 + 本条
+  - **提交状态**:已提交 e07dbc43(代码 16 文件:6 改 + 10 增,用户确认)+ 本条 docs 提交;review diff `.review/T9*.patch` 提交后删除
 <!-- 四层文档的任何改动都在这里另行留一行 -->
