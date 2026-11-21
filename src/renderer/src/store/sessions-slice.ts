@@ -26,8 +26,8 @@ export interface SessionsSlice {
   loadSessions: () => Promise<void>
   // 新建(Fix-B):IPC 入库 → 先开 tab(容器挂载后 fit 出真实尺寸)→ 带尺寸 spawn
   openSession: (project: Project, agent: AgentListItem) => Promise<void>
-  // 重开:已有 tab 则激活它(双开拦截);否则按持久记录拉起——回填过 id 的自建会话带
-  // resume 续接,imported/无 id 原样拉起(T8)
+  // 重开:已有 tab 则激活它(双开拦截);否则按持久记录拉起——有 externalSessionId 即续接
+  // (自建=回填所得,导入=扫描入库;2026-11-21 需求变更),无 id 原样拉起(T8)
   reopenSession: (session: Session, project: Project) => Promise<void>
   // 终端首个 fit 收敛后由 TerminalView 回调:消费待 spawn 记录并带真实 cols/rows 发起 spawn
   spawnOnTerminalReady: (sessionId: SessionId, cols: number, rows: number) => Promise<void>
@@ -106,12 +106,12 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
       return
     }
     // 与新建同一条链路:先开 tab,首个 fit 后带尺寸 spawn。
-    // T8(controller 裁决 2):回填过 id 的自建会话带 ref 走 resume;
-    // imported 或无 id → 不带 ref,原样拉起(与「+」新建完全一致)
-    const resume: ResumeRef | undefined =
-      record.origin !== 'imported' && record.externalSessionId
-        ? { id: record.externalSessionId, filePath: record.externalFilePath }
-        : undefined
+    // 续接定位:有 externalSessionId 即带 ref——自建会话来自回填,导入会话来自扫描入库
+    // (2026-11-21 需求变更,plan 开发记录 20:15 条:导入的历史会话同样续接);无 id → 原样拉起。
+    // resumeArgv 返回 null(如 pi 缺转录路径)时主进程原样拉起,不抛错。
+    const resume: ResumeRef | undefined = record.externalSessionId
+      ? { id: record.externalSessionId, filePath: record.externalFilePath }
+      : undefined
     pendingSpawns.set(record.id, {
       agentId: record.agentId,
       cwd: project.path,

@@ -26,7 +26,7 @@
 
 ## agent 对话(externalSessionId)
 
-agent CLI 自己拥有并落盘的对话本体,存于 agent 的存储目录(`~/.claude` 等),内容由 agent 管理,应用永不保存或改写;会话记录通过 externalSessionId 指向它,供 resume 续接。
+agent CLI 自己拥有并落盘的对话本体,存于 agent 的存储目录(`~/.claude` 等),内容由 agent 管理,应用永不保存或改写;会话记录通过 externalSessionId 指向它,供 resume 续接——重开时有此 id 即续接该对话,来源不分导入入库还是自建回填。
 
 反义/易混淆:对话内容的唯一权威是 agent 存储——不是应用的记录,也不是终端画面。
 

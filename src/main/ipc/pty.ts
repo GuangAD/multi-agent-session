@@ -98,7 +98,7 @@ export function registerPtyIpc(
   ipcMain.handle(
     IPC_CHANNELS.ptySpawn,
     // cols/rows = 渲染层 fit 提案(Fix-A),透传注册表;非法值由注册表接缝回退兜底
-    // T8:resume 可选(渲染层从重开的会话记录构造,imported/无 id 不带)
+    // T8:resume 可选(渲染层从重开的会话记录构造;无 externalSessionId 不带,imported 有 id 同样续接)
     async (
       _event,
       p: {

@@ -64,7 +64,7 @@ interface Session {
   createdAt: string                   // ISO
   lastOpenedAt?: string
   origin: 'created' | 'imported'
-  externalSessionId?: string          // imported:去重键;created:回填后供续接
+  externalSessionId?: string          // 去重键 + 重开续接定位:imported=扫描入库,created=回填所得(2026-11-21 变更:导入同样续接)
   externalFilePath?: string           // pi 等按转录路径续接的 agent 需要
   activityAt?: string                 // 导入会话最近活动时间,排序展示
 }
