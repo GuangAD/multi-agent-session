@@ -9,6 +9,7 @@ import { TerminalView } from './TerminalView'
 import { setTerminalReadyHandler } from './use-terminal'
 import { RUN_STATE_DISPLAY } from '../../run-state-display'
 import { FilePreview } from '../file-panel/FilePreview'
+import { DiffView } from '../git-panel/DiffView'
 
 // spec 默认值:xterm scrollback 默认 10000 行(settings 缺读时兜底,与 DEFAULT_STORE 一致)
 const FALLBACK_SCROLLBACK = 10000
@@ -23,6 +24,7 @@ export function TerminalTabs(): React.JSX.Element {
   // 文件预览标签页(T9 评审期调整):预览发起在右栏、渲染在中间区,状态经 file-preview-slice 共享
   const previewPath = useAppStore((state) => state.previewPath)
   const previewName = useAppStore((state) => state.previewName)
+  const previewKind = useAppStore((state) => state.previewKind)
   const previewActive = useAppStore((state) => state.previewActive)
   const activatePreview = useAppStore((state) => state.activatePreview)
   const deactivatePreview = useAppStore((state) => state.deactivatePreview)
@@ -135,8 +137,13 @@ export function TerminalTabs(): React.JSX.Element {
         </div>
       )}
       {previewActive && previewPath !== null ? (
-        /* 文件预览占中间区:key = 路径,切换文件重挂读取态归零(与右栏时代同款) */
-        <FilePreview key={previewPath} path={previewPath} />
+        /* 预览占中间区:key = 路径,切换文件重挂读取态归零;T10 起按 previewKind 分流
+           (文件只读预览 / 变更文件差异),两者都不往标签载荷塞 root */
+        previewKind === 'git-diff' ? (
+          <DiffView key={`diff-${previewPath}`} />
+        ) : (
+          <FilePreview key={previewPath} path={previewPath} />
+        )
       ) : tabs.length === 0 ? (
         <EmptyState title="没有打开的会话" hint="从左栏「新建会话」选择一个 agent 开始" />
       ) : (

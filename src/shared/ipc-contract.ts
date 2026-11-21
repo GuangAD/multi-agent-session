@@ -40,6 +40,14 @@ export const IPC_CHANNELS = {
   filesTree: 'files:tree',
   filesRead: 'files:read',
   filesOpenInEditor: 'files:openInEditor',
+  // T10:git 七通道(状态/差异/暂存/取消暂存/提交/分支/切换);不做 push/pull/rebase
+  gitStatus: 'git:status',
+  gitDiff: 'git:diff',
+  gitStage: 'git:stage',
+  gitUnstage: 'git:unstage',
+  gitCommit: 'git:commit',
+  gitBranches: 'git:branches',
+  gitCheckout: 'git:checkout',
   // 主进程 → 渲染层事件通道(ipcRenderer.on 订阅)
   ptyData: 'pty:data',
   ptyExit: 'pty:exit',
@@ -144,6 +152,14 @@ export interface TreeNode {
   children?: TreeNode[]
 }
 
+// T10:git:status 载荷(spec 数据结构)。staged/unstaged = porcelain 的 X/Y 单字符
+// (左 = 暂存区相对 HEAD,右 = 工作区相对暂存区);未跟踪条目 staged 留空、unstaged 记 '?',
+// 让渲染层「staged 非空 → 已暂存组」的分组语义与「暂存」按钮一致
+export interface GitStatus {
+  branch: string
+  entries: Array<{ path: string; staged: string; unstaged: string }>
+}
+
 // T9:files:read 载荷。error 存在 = 读取失败(文件不存在/无权限/是目录),
 // 此时其余字段为兜底空值;二进制命中时 content 为空串(不渲染乱码)
 export interface FilePreviewResult {
@@ -161,6 +177,18 @@ export interface FilesApi {
   openInEditor: (path: string) => Promise<{ via: 'vscode' | 'system' }>
 }
 
+// T10:Git 面板(本地操作;不做 push/pull/rebase)。错误经 invoke rejection 传渲染层,面板 catch 后
+// 区分「不是 Git 仓库」与一般失败
+export interface GitApi {
+  status: (root: string) => Promise<GitStatus>
+  diff: (p: { root: string; path?: string }) => Promise<string>
+  stage: (p: { root: string; paths: string[] }) => Promise<void>
+  unstage: (p: { root: string; paths: string[] }) => Promise<void>
+  commit: (p: { root: string; message: string }) => Promise<string>
+  branches: (root: string) => Promise<{ current: string; all: string[] }>
+  checkout: (p: { root: string; branch: string }) => Promise<void>
+}
+
 export interface AppApi {
   projects: ProjectsApi
   agents: AgentsApi
@@ -169,4 +197,5 @@ export interface AppApi {
   pty: PtyApi
   state: StateApi
   files: FilesApi
+  git: GitApi
 }

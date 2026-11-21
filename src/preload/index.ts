@@ -58,6 +58,16 @@ const api: AppApi = {
     tree: (root) => ipcRenderer.invoke(IPC_CHANNELS.filesTree, root),
     read: (p) => ipcRenderer.invoke(IPC_CHANNELS.filesRead, p),
     openInEditor: (path) => ipcRenderer.invoke(IPC_CHANNELS.filesOpenInEditor, path)
+  },
+  // T10:Git 面板(本地操作;不做 push/pull/rebase)
+  git: {
+    status: (root) => ipcRenderer.invoke(IPC_CHANNELS.gitStatus, root),
+    diff: (p) => ipcRenderer.invoke(IPC_CHANNELS.gitDiff, p),
+    stage: (p) => ipcRenderer.invoke(IPC_CHANNELS.gitStage, p),
+    unstage: (p) => ipcRenderer.invoke(IPC_CHANNELS.gitUnstage, p),
+    commit: (p) => ipcRenderer.invoke(IPC_CHANNELS.gitCommit, p),
+    branches: (root) => ipcRenderer.invoke(IPC_CHANNELS.gitBranches, root),
+    checkout: (p) => ipcRenderer.invoke(IPC_CHANNELS.gitCheckout, p)
   }
 }
 

@@ -12,6 +12,7 @@ import { registerSettingsIpc } from './ipc/settings'
 import { registerPtyIpc } from './ipc/pty'
 import { registerStateIpc } from './ipc/state'
 import { registerFilesIpc } from './ipc/files'
+import { registerGitIpc } from './ipc/git'
 import { ptyRegistry } from './pty-registry'
 
 // 会话记录落盘器的退出前排空入口:由 registerSessionsIpc 在 whenReady 内装配后填入
@@ -44,6 +45,7 @@ app.whenReady().then(async () => {
   registerStateIpc(store, () => BrowserWindow.getAllWindows()[0] ?? null)
   // T9:文件浏览三通道(无 store/窗口依赖,装配不传参)
   registerFilesIpc()
+  registerGitIpc()
 
   createAppWindow()
 
