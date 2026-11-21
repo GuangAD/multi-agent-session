@@ -1,8 +1,10 @@
 // Fix-2 守卫:pty:data 早于 xterm 注册到达时「先到先存、注册即放」,启动输出不丢
 // 落法:use-terminal 是渲染层模块,node 环境下对其 import 面(bridge = window.api、
-// @xterm/xterm、@xterm/addon-fit)与 window/rAF 全局打桩;数据泵暂存与 openTerminal
-// flush 逻辑本体不 mock,断言打在 Terminal 写入序列上(环境桩不碰被测逻辑)
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+// @xterm/xterm、@xterm/addon-fit)与 rAF/ResizeObserver 全局打桩;数据泵暂存与 openTerminal
+// flush 逻辑本体不 mock,断言打在 Terminal 写入序列/fit 调用/滚轮 dispatch/bridge.pty.write
+// 调用记录上(环境桩不碰被测逻辑)
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { bridge } from '../../ipc/bridge'
 import { closeTerminal, openTerminal } from './use-terminal'
 
 interface PumpEvent {
@@ -10,14 +12,48 @@ interface PumpEvent {
   data: string
 }
 
-// vi.hoisted:供 mock 工厂捕获泵回调与 xterm 写入序列(工厂先于测试文件体执行,防 TDZ)
-const { onPtyDataHandlers, createdTerminals } = vi.hoisted(() => {
-  const onPtyDataHandlers: Array<(event: PumpEvent) => void> = []
-  const createdTerminals: Array<{ writes: string[] }> = []
-  return { onPtyDataHandlers, createdTerminals }
-})
+// xterm 官方滚轮钩子的 handler 形状(typings/xterm.d.ts attachCustomWheelEventHandler)
+type CustomWheelHandler = (event: WheelEvent) => boolean
 
-// bridge 桩:泵回调捕获进 onPtyDataHandlers;write/resize 不被本守卫触达,给齐形状即可
+type ProposedDimensions = { cols: number; rows: number }
+type XtermModesStub = { mouseTrackingMode: 'none' | 'x10' | 'vt200' | 'drag' | 'any' }
+
+// vi.hoisted:供 mock 工厂捕获泵回调与 xterm 写入序列(工厂先于测试文件体执行,防 TDZ)
+const { onPtyDataHandlers, createdTerminals, createdFitAddons, fitObservers, rafState } =
+  vi.hoisted(() => {
+    const onPtyDataHandlers: Array<(event: PumpEvent) => void> = []
+    const createdTerminals: Array<{
+      writes: string[]
+      scrolled: number[]
+      options: Record<string, unknown>
+      buffer: { active: { type: 'normal' | 'alternate' } }
+      customWheelHandlers: Array<(event: WheelEvent) => boolean>
+      // 网格现值(xterm Terminal.cols/rows 只读投影):稳定帧收敛按它与提案比对
+      cols: number
+      rows: number
+      // xterm modes 投影:滚轮分支按 mouseTrackingMode 判定(xterm 默认 'none')
+      modes: XtermModesStub
+      // xterm.open 后才有的根元素;桩置 null,重放测试注入 dispatchEvent 记录器
+      element: { dispatchEvent: (event: unknown) => boolean } | null
+    }> = []
+    const createdFitAddons: Array<{
+      fitCalls: number
+      proposed: ProposedDimensions | undefined
+    }> = []
+    // ResizeObserver 桩实例登记(openTerminal 每终端挂一个;测试取 at(-1))
+    const fitObservers: Array<{
+      callback: () => void
+      observed: unknown[]
+      disconnectCalls: number
+      trigger: () => void
+    }> = []
+    // RAF 手动泵:稳定帧循环逐帧推进,测试按帧 flush
+    const rafState = { queue: [] as Array<{ id: number; cb: (time: number) => void }>, seq: 0 }
+    return { onPtyDataHandlers, createdTerminals, createdFitAddons, fitObservers, rafState }
+  })
+
+// bridge 桩:泵回调捕获进 onPtyDataHandlers;write 是滚轮分支 2.5(翻页键直达)的观察点
+// (vi.fn 自动记录调用,测试前 mockClear 隔离),resize 不被触达,给齐形状即可
 vi.mock('../../ipc/bridge', () => ({
   bridge: {
     pty: {
@@ -31,15 +67,33 @@ vi.mock('../../ipc/bridge', () => ({
   }
 }))
 
-// xterm 桩:Terminal 记录写入序列(被测逻辑的观察点);FitAddon 只需 fit 可调
+// xterm 桩:Terminal 记录写入序列与滚轮钩子(被测逻辑的观察点);StableCellFitAddon 桩记录
+// fit 调用并提供可配置的 proposeDimensions 提案(稳定帧循环的输入面)。真实 addon 的提案数学
+// (device/dpr cell、盒子纯函数)有专测 stable-cell-fit-addon.test.ts,此处只喂提案。
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
     writes: string[] = []
-    constructor() {
+    scrolled: number[] = []
+    buffer: { active: { type: 'normal' | 'alternate' } } = { active: { type: 'normal' } }
+    customWheelHandlers: Array<(event: WheelEvent) => boolean> = []
+    cols = 80
+    rows = 24
+    modes: XtermModesStub = { mouseTrackingMode: 'none' }
+    element: { dispatchEvent: (event: unknown) => boolean } | null = null
+    options: Record<string, unknown>
+    constructor(options: Record<string, unknown>) {
+      this.options = options
       createdTerminals.push(this)
     }
     write(data: string): void {
       this.writes.push(data)
+    }
+    scrollLines(amount: number): void {
+      this.scrolled.push(amount)
+    }
+    // 捕获 attachCustomWheelEventHandler 挂上的 handler,供测试直接调用
+    attachCustomWheelEventHandler(handler: (event: WheelEvent) => boolean): void {
+      this.customWheelHandlers.push(handler)
     }
     open(_container: HTMLElement): void {}
     loadAddon(_addon: unknown): void {}
@@ -53,29 +107,111 @@ vi.mock('@xterm/xterm', () => ({
   }
 }))
 
-vi.mock('@xterm/addon-fit', () => ({
-  FitAddon: class {
-    fit(): void {}
+vi.mock('./stable-cell-fit-addon', () => ({
+  StableCellFitAddon: class {
+    fitCalls = 0
+    proposed: ProposedDimensions | undefined = undefined
+    constructor() {
+      createdFitAddons.push(this)
+    }
+    fit(): void {
+      this.fitCalls += 1
+    }
+    proposeDimensions(): ProposedDimensions | undefined {
+      return this.proposed
+    }
   }
 }))
 
+// 容器桩:openTerminal 不在容器挂 wheel 监听(滚轮走 terminal 实例上的官方钩子),
+// 桩内 xterm.open 为空操作,容器仅作 ResizeObserver.observe 的观察对象身份
+function makeContainerStub(): HTMLElement {
+  return {} as unknown as HTMLElement
+}
+
+// ResizeObserver 桩:登记 observe/disconnect 调用与回调;trigger 手动模拟容器尺寸变化回调
+class FakeResizeObserver {
+  callback: () => void
+  observed: unknown[] = []
+  disconnectCalls = 0
+  constructor(callback: () => void) {
+    this.callback = callback
+    fitObservers.push(this)
+  }
+  observe(target: unknown): void {
+    this.observed.push(target)
+  }
+  disconnect(): void {
+    this.disconnectCalls += 1
+  }
+  trigger(): void {
+    this.callback()
+  }
+}
+
 beforeAll(() => {
-  // use-terminal 的运行面:window(挂 resize 监听)与 requestAnimationFrame(首帧 fit)
-  vi.stubGlobal('window', { addEventListener: () => undefined })
-  vi.stubGlobal('requestAnimationFrame', (cb: (time: number) => void) => {
-    cb(0)
-    return 0
+  // use-terminal 的运行面:RAF 手动泵 + ResizeObserver 桩(窗口跟随收敛循环)
+  vi.stubGlobal('requestAnimationFrame', (cb: (time: number) => void): number => {
+    rafState.seq += 1
+    rafState.queue.push({ id: rafState.seq, cb })
+    return rafState.seq
   })
+  vi.stubGlobal('cancelAnimationFrame', (id: number): void => {
+    rafState.queue = rafState.queue.filter((frame) => frame.id !== id)
+  })
+  vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+  // WheelEvent 桩:重放克隆经 new WheelEvent(type, init) 构造(node 无此全局);形状 = init 面拷贝
+  vi.stubGlobal(
+    'WheelEvent',
+    class FakeWheelEvent {
+      type: string
+      constructor(type: string, init: WheelEventInit) {
+        this.type = type
+        Object.assign(this, init)
+      }
+    }
+  )
+})
+
+beforeEach(() => {
+  rafState.queue = [] // 帧队列逐测试隔离,防上一用例的循环帧泄漏
+  vi.mocked(bridge.pty.write).mockClear() // PTY 写入记录逐测试隔离:翻页键守卫只看本用例的 write
 })
 
 afterAll(() => {
   vi.unstubAllGlobals()
 })
 
+// 按帧推进:消费当前待决帧一次(循环体内新排的帧留待下一次调用,一调用 = 一帧)
+function flushAnimationFrame(): void {
+  const pending = rafState.queue
+  rafState.queue = []
+  for (const frame of pending) {
+    frame.cb(0)
+  }
+}
+
+// 开终端并消化首帧 fit(openTerminal 的首帧 RAF),测试从空队列、零 fit 基线开始
+function openSettledTerminal(sessionId: string): {
+  container: HTMLElement
+  fitAddon: (typeof createdFitAddons)[number]
+  observer: (typeof fitObservers)[number]
+  terminal: (typeof createdTerminals)[number]
+} {
+  const container = makeContainerStub()
+  openTerminal(sessionId, 10000, container)
+  flushAnimationFrame()
+  const fitAddon = createdFitAddons.at(-1)!
+  fitAddon.fitCalls = 0
+  const observer = fitObservers.at(-1)!
+  expect(observer, 'openTerminal 应对 container 挂 ResizeObserver').toBeDefined()
+  return { container, fitAddon, observer, terminal: createdTerminals.at(-1)! }
+}
+
 describe('use-terminal 数据泵(Fix-2 守卫)', () => {
   it('先到先存、注册即放:未注册 id 的 pty:data 不丢,flush 进写入序列首部,之后正常直灌', () => {
     // 先开再关一个引导终端:确保数据泵已挂(dataBusBound 幂等),拿到泵回调
-    openTerminal('s-boot', 10000, {} as HTMLElement)
+    openTerminal('s-boot', 10000, makeContainerStub())
     closeTerminal('s-boot')
     const pump = onPtyDataHandlers[0]
     expect(pump, '数据泵应随首次 openTerminal 挂上').toBeDefined()
@@ -84,7 +220,7 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
     pump!({ sessionId: 's-early', data: 'BANNER-1' })
     pump!({ sessionId: 's-early', data: 'BANNER-2' })
 
-    openTerminal('s-early', 10000, {} as HTMLElement)
+    openTerminal('s-early', 10000, makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     // flush 内容完整出现在写入序列首部
     expect(terminal.writes.join('')).toBe('BANNER-1BANNER-2')
@@ -101,9 +237,264 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
     pump({ sessionId: 's-stale', data: 'STALE-OUT' })
     closeTerminal('s-stale') // 未注册过的 id 也走清理路径
 
-    openTerminal('s-stale', 10000, {} as HTMLElement)
+    openTerminal('s-stale', 10000, makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     expect(terminal.writes.join('')).toBe('')
     closeTerminal('s-stale')
+  })
+})
+
+
+describe('use-terminal 字体度量(Orca 对齐)', () => {
+  it('Terminal 选项使用 Orca 字体族/字号/字重,避免 canvas 测量与 DOM 渲染度量不一致', () => {
+    openTerminal('s-font', 10000, makeContainerStub())
+    const terminal = createdTerminals.at(-1)!
+
+    expect(terminal.options.fontFamily, '应显式指定 Orca 字体族').toContain('Cascadia Mono')
+    expect(terminal.options.fontSize, '字号应与 Orca 一致').toBe(14)
+    expect(terminal.options.fontWeight, '常规字重应与 Orca 一致').toBe('300')
+    expect(terminal.options.fontWeightBold, '粗体字重应与 Orca 一致').toBe('500')
+
+    closeTerminal('s-font')
+  })
+})
+describe('use-terminal 窗口跟随(ResizeObserver + RAF 稳定帧收敛)', () => {
+  it('observer 观察 container;触发后 RAF 循环等布局稳定,收敛时 fit 恰一次并退出', () => {
+    const { container, fitAddon, observer } = openSettledTerminal('s-fit')
+    expect(observer.observed, '观察对象应是 openTerminal 传入的 container').toEqual([container])
+
+    // 窗口拖大 → 容器变化 → RO 回调;新尺寸在下一帧才落进提案(模拟重排延迟)
+    observer.trigger()
+    fitAddon.proposed = { cols: 120, rows: 40 }
+    flushAnimationFrame() // 帧 1:提案 ≠ 触发时提案,≠ terminal 现值 → 继续等
+    expect(fitAddon.fitCalls).toBe(0)
+    flushAnimationFrame() // 帧 2:提案与上一帧相同 → 收敛 → fit
+    expect(fitAddon.fitCalls).toBe(1)
+    flushAnimationFrame()
+    expect(fitAddon.fitCalls).toBe(1) // 收敛即退出,无残留循环
+    expect(rafState.queue.length).toBe(0)
+    closeTerminal('s-fit')
+  })
+
+  it('提出尺寸与 terminal 现值一致:单帧收敛即 fit', () => {
+    const { fitAddon, observer } = openSettledTerminal('s-fit-eq')
+    fitAddon.proposed = { cols: 80, rows: 24 } // = terminal 现值(80x24)
+    observer.trigger()
+    flushAnimationFrame()
+    expect(fitAddon.fitCalls).toBe(1)
+    expect(rafState.queue.length).toBe(0)
+    closeTerminal('s-fit-eq')
+  })
+
+  it('高频振荡(每帧提案都不同):满 8 帧兜底 fit 一次并退出,防振荡不止', () => {
+    const { fitAddon, observer } = openSettledTerminal('s-fit-osc')
+    observer.trigger()
+    let flip = false
+    for (let frame = 0; frame < 10; frame += 1) {
+      fitAddon.proposed = flip ? { cols: 120, rows: 40 } : { cols: 121, rows: 41 }
+      flip = !flip
+      flushAnimationFrame()
+    }
+    expect(fitAddon.fitCalls, '满 MAX_STABILITY_FRAMES 帧必须兜底收敛').toBe(1)
+    expect(rafState.queue.length).toBe(0)
+    closeTerminal('s-fit-osc')
+  })
+
+  it('连续触发 observer:合并进同一循环,待决帧不叠加', () => {
+    const { fitAddon, observer } = openSettledTerminal('s-fit-co')
+    fitAddon.proposed = { cols: 120, rows: 40 }
+    observer.trigger()
+    observer.trigger()
+    observer.trigger()
+    expect(rafState.queue.length).toBe(1) // 循环已在跑:重复触发合并,不另排帧
+    flushAnimationFrame()
+    flushAnimationFrame()
+    expect(fitAddon.fitCalls).toBe(1)
+    closeTerminal('s-fit-co')
+  })
+
+  it('closeTerminal:observer.disconnect 被调,待决 fit 帧被撤销,循环不再推进', () => {
+    const { fitAddon, observer } = openSettledTerminal('s-fit-close')
+    fitAddon.proposed = { cols: 120, rows: 40 }
+    observer.trigger()
+    expect(rafState.queue.length).toBe(1)
+    closeTerminal('s-fit-close')
+    expect(observer.disconnectCalls).toBe(1)
+    flushAnimationFrame()
+    flushAnimationFrame()
+    expect(fitAddon.fitCalls).toBe(0) // 待决帧已撤销:关闭后不再 fit
+    expect(rafState.queue.length).toBe(0)
+  })
+})
+
+// 合成滚轮事件桩:滚轮 handler 只消费 shiftKey 与 deltaY(钩子的输入面)
+function makeWheelEvent(init: { deltaY: number; shiftKey?: boolean }): WheelEvent {
+  return { deltaY: init.deltaY, shiftKey: init.shiftKey ?? false } as WheelEvent
+}
+
+describe('use-terminal Shift+滚轮本地滚动(ADR-0004:attachCustomWheelEventHandler 钩子)', () => {
+  function openWithWheelHandler(sessionId: string): {
+    terminal: (typeof createdTerminals)[number]
+    handleWheel: CustomWheelHandler
+  } {
+    openTerminal(sessionId, 10000, makeContainerStub())
+    const terminal = createdTerminals.at(-1)!
+    const handleWheel = terminal.customWheelHandlers.at(-1)!
+    expect(handleWheel, 'openTerminal 应经 attachCustomWheelEventHandler 挂上钩子').toBeDefined()
+    return { terminal, handleWheel }
+  }
+
+  it('Shift+滚轮:scrollLines 以 Math.sign(deltaY)*3 调用且 handler 返回 false(拦掉 xterm 默认)', () => {
+    const { terminal, handleWheel } = openWithWheelHandler('s-wheel')
+    expect(terminal.scrolled, '开终端即挂钩子,但初始无滚动').toEqual([])
+
+    // Shift+滚轮向下(deltaY>0):xterm typings「scrollLines 正值 = 向下滚(负值向上)」,
+    // 与滚轮方向同向 → +3(3 行为约定幅度)
+    expect(handleWheel(makeWheelEvent({ deltaY: 120, shiftKey: true }))).toBe(false)
+    expect(terminal.scrolled).toEqual([3])
+
+    // 反向:deltaY<0 → -3(向上翻 scrollback)
+    expect(handleWheel(makeWheelEvent({ deltaY: -120, shiftKey: true }))).toBe(false)
+    expect(terminal.scrolled).toEqual([3, -3])
+    closeTerminal('s-wheel')
+  })
+
+  it('无 Shift + normal buffer:handler 返回 true、无 scrollLines——交 xterm 默认', () => {
+    const { terminal, handleWheel } = openWithWheelHandler('s-wheel-default')
+
+    // normal buffer + 非 mouse mode:滚轮交 xterm 默认(滚 scrollback viewport),不本地拦;
+    // 交替屏接管已收窄进分支 2.5(见滚轮四分支 describe),normal buffer 仍走 xterm 默认
+    expect(handleWheel(makeWheelEvent({ deltaY: 120 }))).toBe(true)
+    expect(terminal.scrolled).toEqual([])
+    closeTerminal('s-wheel-default')
+  })
+})
+
+describe('use-terminal 滚轮四分支(T3.5:Shift 本地滚 / mouse mode 放大重放 / alt buffer 转翻页键 / xterm 默认)', () => {
+  function openWithReplay(sessionId: string): {
+    terminal: (typeof createdTerminals)[number]
+    handleWheel: CustomWheelHandler
+    dispatched: Array<WheelEvent & { deltaY: number; deltaMode: number }>
+  } {
+    openTerminal(sessionId, 10000, makeContainerStub())
+    const terminal = createdTerminals.at(-1)!
+    const handleWheel = terminal.customWheelHandlers.at(-1)!
+    expect(handleWheel, 'openTerminal 应经 attachCustomWheelEventHandler 挂上钩子').toBeDefined()
+    const dispatched: Array<WheelEvent & { deltaY: number; deltaMode: number }> = []
+    terminal.element = {
+      dispatchEvent: (event: unknown) => {
+        dispatched.push(event as WheelEvent & { deltaY: number; deltaMode: number })
+        return true
+      }
+    }
+    return { terminal, handleWheel, dispatched }
+  }
+
+  it('分支 1 优先:mouse mode 下 Shift+滚轮仍走本地 scrollLines,不放大不重放', () => {
+    const { terminal, handleWheel, dispatched } = openWithReplay('s-w3-shift')
+    terminal.modes.mouseTrackingMode = 'drag'
+    expect(handleWheel(makeWheelEvent({ deltaY: 120, shiftKey: true }))).toBe(false)
+    expect(terminal.scrolled).toEqual([3])
+    expect(dispatched).toEqual([])
+    closeTerminal('s-w3-shift')
+  })
+
+  it('分支 1 守卫:Shift + 水平滚轮(deltaY=0)→ 返回 true、无 scrollLines、无重放——交 xterm 默认', () => {
+    const { terminal, handleWheel, dispatched } = openWithReplay('s-w3-shift-horiz')
+    // 非 mouse mode:Shift + deltaY=0 不进分支 1(本地滚只认垂直滚),直落分支 3 交 xterm 默认
+    // (xterm 对水平滚轮有自己的处理路径,handler 白吞会剥夺该路径)
+    expect(handleWheel(makeWheelEvent({ deltaY: 0, shiftKey: true }))).toBe(true)
+    expect(terminal.scrolled).toEqual([])
+
+    // mouse mode 下同样不得进分支 1 / 分支 2(shouldReplay 同判 deltaY≠0):
+    // 变异点 = 去掉 && event.deltaY !== 0 → 此处 scrollLines(Math.sign(0)*3) no-op 仍返回 false
+    terminal.modes.mouseTrackingMode = 'drag'
+    expect(handleWheel(makeWheelEvent({ deltaY: 0, shiftKey: true }))).toBe(true)
+    expect(terminal.scrolled).toEqual([])
+    expect(dispatched).toEqual([])
+    closeTerminal('s-w3-shift-horiz')
+  })
+
+  it('分支 2:无 Shift + mouse mode → 返回 false,按距离解析 N 个 line-mode 克隆重放(方向归一 ±1)', async () => {
+    const { terminal, handleWheel, dispatched } = openWithReplay('s-w3-replay')
+    terminal.modes.mouseTrackingMode = 'drag'
+    // 桩事件无 wheelDelta/timeStamp → 连续型距离路径:|120|px ÷ 16px/行 = 7.5 → 7 个报告
+    expect(handleWheel(makeWheelEvent({ deltaY: 120 }))).toBe(false)
+    await Promise.resolve() // 重放经 queueMicrotask 排空
+    expect(dispatched.length).toBe(7)
+    for (const clone of dispatched) {
+      expect(clone.deltaMode).toBe(1) // DOM_DELTA_LINE
+      expect(clone.deltaY).toBe(1) // deltaY>0 → 归一 +1(向下)
+    }
+    closeTerminal('s-w3-replay')
+  })
+
+  it('分支 2 反向:deltaY<0 → 克隆 deltaY=-1(向上)', async () => {
+    const { terminal, handleWheel, dispatched } = openWithReplay('s-w3-up')
+    terminal.modes.mouseTrackingMode = 'any'
+    expect(handleWheel(makeWheelEvent({ deltaY: -120 }))).toBe(false)
+    await Promise.resolve()
+    expect(dispatched.length).toBe(7)
+    for (const clone of dispatched) {
+      expect(clone.deltaY).toBe(-1)
+    }
+    closeTerminal('s-w3-up')
+  })
+
+  it('重放克隆再入 handler:识别为重放,返回 true 交 xterm 内建 mouse 路径(防放大递归)', async () => {
+    const { terminal, handleWheel, dispatched } = openWithReplay('s-w3-clone')
+    terminal.modes.mouseTrackingMode = 'drag'
+    expect(handleWheel(makeWheelEvent({ deltaY: 120 }))).toBe(false)
+    await Promise.resolve()
+    expect(dispatched.length).toBe(7)
+    expect(handleWheel(dispatched[0]!)).toBe(true) // 落分支 3:克隆交 xterm 默认转报告
+    await Promise.resolve()
+    expect(dispatched.length, '克隆不再被放大').toBe(7)
+    closeTerminal('s-w3-clone')
+  })
+
+  // 分支 2.5 守卫(评审期第五项修复):交替屏 + 非 mouse mode → 滚轮转翻页键直达 PTY。
+  // 证据链:Windows ConPTY 不透传鼠标模式序列(?1000/?1002/?1006 实测被吞),pi 运行在交替屏
+  // (?1049h)时 xterm 端 mouseTrackingMode 恒 none,滚轮报告发不出去;而 pi 把 PageUp/PageDown
+  // 绑定为滚自己的历史视图(pi 源码 tui.altScreen.pageUp/pageDown),翻页键序列经 ConPTY 实测
+  // 正常直达——滚轮转翻页键:deltaY<0(向上滚)→ PageUp(\x1b[5~),deltaY>0 → PageDown(\x1b[6~)。
+  it('分支 2.5:alt buffer + 非 mouse mode + deltaY<0 → 写 PageUp(\\x1b[5~)给 PTY,返回 false,不本地滚不重放', () => {
+    const { terminal, handleWheel, dispatched } = openWithReplay('s-w4-alt-up')
+    // ConPTY 实况:pi 在交替屏收不到鼠标模式,桩的 mouseTrackingMode 保持默认 'none'
+    terminal.buffer.active.type = 'alternate'
+    expect(handleWheel(makeWheelEvent({ deltaY: -100 }))).toBe(false)
+    expect(vi.mocked(bridge.pty.write).mock.calls.map((call) => call[0].data)).toEqual(['\x1b[5~'])
+    expect(terminal.scrolled).toEqual([])
+    expect(dispatched).toEqual([])
+    closeTerminal('s-w4-alt-up')
+  })
+
+  it('分支 2.5 反向:alt buffer + 非 mouse mode + deltaY>0 → 写 PageDown(\\x1b[6~)给 PTY', () => {
+    const { terminal, handleWheel, dispatched } = openWithReplay('s-w4-alt-down')
+    terminal.buffer.active.type = 'alternate'
+    expect(handleWheel(makeWheelEvent({ deltaY: 100 }))).toBe(false)
+    expect(vi.mocked(bridge.pty.write).mock.calls.map((call) => call[0].data)).toEqual(['\x1b[6~'])
+    expect(terminal.scrolled).toEqual([])
+    expect(dispatched).toEqual([])
+    closeTerminal('s-w4-alt-down')
+  })
+
+  it('分支 2.5 守卫:非 mouse mode + normal buffer → 仍交 xterm 默认(return true),不写翻页键——只在交替屏接管', () => {
+    const { terminal, handleWheel, dispatched } = openWithReplay('s-w4-normal')
+    terminal.buffer.active.type = 'normal'
+    expect(handleWheel(makeWheelEvent({ deltaY: 100 }))).toBe(true)
+    expect(vi.mocked(bridge.pty.write).mock.calls).toEqual([])
+    expect(terminal.scrolled).toEqual([])
+    expect(dispatched).toEqual([])
+    closeTerminal('s-w4-normal')
+  })
+
+  it('分支 3:无 Shift + 非 mouse mode(none)→ 返回 true,不放大不重放', () => {
+    const { terminal, handleWheel, dispatched } = openWithReplay('s-w3-default')
+    // terminal.modes.mouseTrackingMode 默认 'none'
+    expect(handleWheel(makeWheelEvent({ deltaY: 120 }))).toBe(true)
+    expect(terminal.scrolled).toEqual([])
+    expect(dispatched).toEqual([])
+    closeTerminal('s-w3-default')
   })
 })

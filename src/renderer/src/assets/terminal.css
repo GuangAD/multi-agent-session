@@ -1,0 +1,39 @@
+/* Ported from stablyai/orca src/renderer/src/assets/terminal.css (MIT)。
+   只搬本任务相关段::24-27(xterm 铺满)、:29-32(viewport 常驻滚动条沟)、:41-42(圆角滑块)、
+   :497-509(容器盒)。裁剪点:pane 标题条 / 顶部横幅 / 拖拽手柄 / 链接气泡 / 分隔条等
+   pane-manager 专属段不搬(我们没有 pane 拆分体系)。 */
+
+/* terminal.css:24-27(Orca 作用域是 .pane-manager-root .xterm;我们没有 pane-manager-root,
+   xterm 直挂 open 目标容器内,故用全局 .xterm——自上一轮 main.css 迁来,保持单处定义)。
+   Why: xterm.css 默认不给 .xterm 设宽高,元素宽度由打开时内容撑出——容器后续变宽
+   (缩放窗口/收起侧栏)时 xterm 不跟随,右侧露出应用背景(空白带)。 */
+.xterm {
+  height: 100%;
+  width: 100%;
+}
+
+/* terminal.css:29-32。作用域适配:Orca 是 `.pane-manager-root .xterm-viewport`,
+   我们限定在 .xterm-container 内(xterm-container 类挂在 TerminalView 的 open 目标上)。
+   Why: Keep xterm's gutter stable; Linux auto-scrollbar churn can feed resize/reflow jitter. */
+.xterm-container .xterm-viewport {
+  overflow-y: scroll;
+}
+
+/* terminal.css:41-42。Round DOM scrollbar thumbs; xterm's square default has no configuration option. */
+.xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+  border-radius: 4px;
+}
+
+/* terminal.css:497-509 容器盒。Orca 用 CSS 变量 --pane-padding-x/y(Ghostty 导入的窗口边距,
+   pane-divider.ts 注入,回退 4px);我们没有 Ghostty 导入链,直接固定 4px。
+   margin 全向 4px 与 Orca 的 margin-top/left 定向写法等效:宽高已各扣 8px,右/下自然留白。
+   Why (#10481): a blinking cursor otherwise invalidates paint all the way up the pane
+   ancestry; clipping to this box costs no visible chrome. */
+.xterm-container {
+  box-sizing: border-box;
+  position: relative;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  margin: 4px;
+  contain: paint;
+}

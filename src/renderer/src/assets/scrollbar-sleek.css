@@ -1,0 +1,66 @@
+/* Ported from stablyai/orca src/shared/styles/scrollbar-sleek.css (MIT,整文件移植 58 行)。
+   与 Orca 的差异:
+   1. 属性选择器 data-orca-scrollbars → data-scrollbars:Orca 在应用根挂 data-orca-scrollbars,
+      我们把 data-scrollbars='sleek' 挂在 TerminalView 的 xterm-container 容器上,细滚动条只作用
+      于终端容器内部(适配注释,取值 'sleek' 与 Orca 同值)。
+   2. 主题 token --muted-foreground / --foreground 我们尚未定义(T11 主题接入),var() 的缺省
+      回退(#737373 / #171717 灰系)即实际生效色——回退值取自 Orca 源文件自带写法,未改动。 */
+
+/* Mobile defaults stay below explicit scroll-indicator visibility rules. */
+
+.scrollbar-sleek,
+:where([data-scrollbars='sleek'] *) {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground, #737373) 34%, transparent) transparent;
+}
+
+.scrollbar-sleek::-webkit-scrollbar,
+:where([data-scrollbars='sleek'] *)::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.scrollbar-sleek::-webkit-scrollbar-track,
+:where([data-scrollbars='sleek'] *)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-sleek::-webkit-scrollbar-thumb,
+:where([data-scrollbars='sleek'] *)::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground, #737373) 28%, transparent);
+  border: 3px solid transparent;
+  border-radius: 0;
+  background-clip: padding-box;
+  min-height: 28px;
+}
+
+/* Thicker variant for dense data tables where the default 6px-thumb is hard to grab. */
+.scrollbar-sleek-lg {
+  scrollbar-width: auto;
+}
+
+.scrollbar-sleek-lg::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+.scrollbar-sleek-lg::-webkit-scrollbar-thumb {
+  border-width: 3px;
+  min-height: 36px;
+}
+
+.scrollbar-sleek::-webkit-scrollbar-thumb:hover,
+:where([data-scrollbars='sleek'] *)::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--muted-foreground, #737373) 48%, transparent);
+}
+
+.scrollbar-sleek::-webkit-scrollbar-thumb:active,
+:where([data-scrollbars='sleek'] *)::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in srgb, var(--foreground, #171717) 36%, transparent);
+}
+
+.scrollbar-sleek-parent:hover .scrollbar-sleek,
+.scrollbar-sleek:hover,
+:where([data-scrollbars='sleek'] *:hover) {
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground, #737373) 48%, transparent) transparent;
+}

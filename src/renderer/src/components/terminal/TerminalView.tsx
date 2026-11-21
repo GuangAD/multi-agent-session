@@ -34,8 +34,14 @@ export function TerminalView({
   return (
     <div
       ref={containerRef}
-      className="min-h-0 flex-1 overflow-hidden p-1"
-      style={{ display: active ? 'block' : 'none' }}
+      // 本元素即 openTerminal 的 open 目标:xterm-container 类挂 open 目标与 Orca 同构
+      // (pane-dom-creation.ts:45-47 同名类、pane-lifecycle.ts:54 terminal.open(xtermContainer));
+      // calc 宽高与 4px 边距在 assets/terminal.css(flex 尺寸类管弹性占位,视觉类全交 CSS)。
+      // data-scrollbars='sleek' 供 scrollbar-sleek.css 的属性选择器命中(Orca 原名
+      // data-orca-scrollbars 挂应用根,我们收窄到终端容器)。
+      className="xterm-container min-h-0 flex-1 flex flex-col overflow-hidden"
+      data-scrollbars="sleek"
+      style={{ display: active ? 'flex' : 'none' }}
     />
   )
 }

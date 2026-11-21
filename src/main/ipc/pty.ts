@@ -21,13 +21,17 @@ function sendToRenderer(
 export function registerPtyIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(
     IPC_CHANNELS.ptySpawn,
-    async (_event, p: { sessionId: SessionId; agentId: AgentId; cwd: string }): Promise<void> => {
+    // cols/rows = 渲染层 fit 提案(Fix-A),透传注册表;非法值由注册表接缝回退兜底
+    async (
+      _event,
+      p: { sessionId: SessionId; agentId: AgentId; cwd: string; cols: number; rows: number }
+    ): Promise<void> => {
       // agentId 支持别名(kimi-code),经注册表归一后取定义
       const def = agentRegistry.getById(p.agentId)
       if (!def) {
         throw new Error(`未知 agent:${p.agentId}`)
       }
-      await ptyRegistry.spawn({ sessionId: p.sessionId, def, cwd: p.cwd })
+      await ptyRegistry.spawn({ sessionId: p.sessionId, def, cwd: p.cwd, cols: p.cols, rows: p.rows })
     }
   )
 
@@ -41,6 +45,7 @@ export function registerPtyIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(
     IPC_CHANNELS.ptyResize,
     (_event, p: { sessionId: SessionId; cols: number; rows: number }): void => {
+
       ptyRegistry.resize(p.sessionId, p.cols, p.rows)
     }
   )

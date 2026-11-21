@@ -6,6 +6,7 @@ import { useAppStore } from '../../store/app-store'
 import { bridge } from '../../ipc/bridge'
 import { EmptyState } from '../ui/empty-state'
 import { TerminalView } from './TerminalView'
+import { setTerminalReadyHandler } from './use-terminal'
 
 // spec 默认值:xterm scrollback 默认 10000 行(settings 缺读时兜底,与 DEFAULT_STORE 一致)
 const FALLBACK_SCROLLBACK = 10000
@@ -18,6 +19,15 @@ export function TerminalTabs(): React.JSX.Element {
   const closeTab = useAppStore((state) => state.closeTab)
   // scrollback 是创建期参数:tab 挂上后即取 store 设置值(只读一次,无设置界面不会变)
   const [scrollback, setScrollback] = useState(FALLBACK_SCROLLBACK)
+
+  // Fix-B:终端首个 fit 收敛即触发 spawn(带真实 cols/rows);消费逻辑在 sessions-slice,
+  // 重复回调由 pendingSpawns 一次性消费兜住
+  useEffect(() => {
+    setTerminalReadyHandler((sessionId, cols, rows) => {
+      void useAppStore.getState().spawnOnTerminalReady(sessionId, cols, rows)
+    })
+    return () => setTerminalReadyHandler(null)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -37,7 +47,7 @@ export function TerminalTabs(): React.JSX.Element {
   }, [])
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {tabs.length > 0 && (
         <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-zinc-200 px-2 py-1 dark:border-zinc-700">
           {tabs.map((tab) => {

@@ -99,10 +99,10 @@ function App(): React.JSX.Element {
   )
 
   return (
-    <div className="flex h-screen text-zinc-900 dark:text-zinc-100">
+    <div className="flex h-screen overflow-hidden text-zinc-900 dark:text-zinc-100">
       {/* 左栏:项目列表 */}
       {leftOpen && (
-        <aside className="flex w-60 shrink-0 flex-col gap-2 border-r border-zinc-200 p-2 dark:border-zinc-700">
+        <aside className="flex min-h-0 w-60 shrink-0 flex-col gap-2 border-r border-zinc-200 p-2 dark:border-zinc-700">
           <div className="flex items-center justify-between">
             <h1 className="px-1 text-sm font-semibold">项目</h1>
             <Button variant="ghost" aria-label="收起左栏" onClick={() => setLeftOpen(false)}>
@@ -124,7 +124,7 @@ function App(): React.JSX.Element {
       )}
 
       {/* 中间:终端区(标签页 + 常驻 xterm) */}
-      <main className="flex min-w-0 flex-1 flex-col bg-zinc-50 dark:bg-zinc-900">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-zinc-50 dark:bg-zinc-900">
         {(!leftOpen || !rightOpen) && (
           <div className="flex shrink-0 items-center gap-1 px-2 pt-2">
             {!leftOpen && (
@@ -144,7 +144,7 @@ function App(): React.JSX.Element {
 
       {/* 右栏:文件 / Git 面板占位(M5/M6 接入) */}
       {rightOpen && (
-        <aside className="flex w-72 shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-700">
+        <aside className="flex min-h-0 w-72 shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center justify-between p-2">
             <h2 className="px-1 text-sm font-semibold">面板</h2>
             <Button variant="ghost" aria-label="收起右栏" onClick={() => setRightOpen(false)}>

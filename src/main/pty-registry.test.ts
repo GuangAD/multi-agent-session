@@ -4,12 +4,19 @@
 import { EventEmitter } from 'node:events'
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, win32 } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { spawn as ptySpawn, type IPty } from 'node-pty'
+import { spawn as ptySpawn, type IPty, type IWindowsPtyForkOptions } from 'node-pty'
 import { agentRegistry } from './agents/agent-registry'
 import { claudeAgent } from './agents/definitions/claude'
-import { buildSpawnArgv, ptyRegistry, samplingTap } from './pty-registry'
+import {
+  buildShellLaunchLine,
+  buildSpawnArgv,
+  ptyRegistry,
+  resolvePtyFirstSize,
+  samplingTap,
+  UNMEASURED_PTY_SIZE
+} from './pty-registry'
 
 // node-pty 打桩:真实 PTY 不进单测(契约「不起真实 PTY」);spawn 调用参数由用例断言
 vi.mock('node-pty', () => ({ spawn: vi.fn() }))
@@ -87,13 +94,31 @@ describe('buildSpawnArgv', () => {
       ptySpawnMock.mockImplementation(() => makeFakePty())
 
       const projectDir = 'D:\\demo-project'
-      await ptyRegistry.spawn({ sessionId: 's-claude', def: claudeAgent, cwd: projectDir })
+      await ptyRegistry.spawn({ sessionId: 's-claude', def: claudeAgent, cwd: projectDir, cols: 126, rows: 49 })
 
       expect(ptySpawnMock).toHaveBeenCalledTimes(1)
       const [file, args, options] = ptySpawnMock.mock.calls[0]
-      expect(file.endsWith(binName)).toBe(true)
+      // shell 底座(ADR-0004):PTY 交常驻 shell(agent 改经注入行启动),cwd 仍为项目目录;
+      // 解析后的 agent 路径不再作 spawn file,由 buildShellLaunchLine 注入行用例钉住
+      expect(file).toBe(process.env.ComSpec ?? 'cmd.exe')
       expect(args).toEqual([])
       expect(options.cwd).toBe(projectDir)
+
+      // 守卫(T3.5 评审期 Fix):spawn env 注入终端能力标识——TUI 按这些变量决定是否启用鼠标
+      // 上报与真彩,缺失即降级(pi 滚轮失效即此因)。期望值来源:Orca spawn-environment.ts
+      // :183-184 原文(只读参考,MIT);PATH 断言钉住「默认继承 process.env、仅追加覆盖」形态。
+      expect(options.env?.TERM).toBe('xterm-256color')
+      expect(options.env?.COLORTERM).toBe('truecolor')
+      expect(options.env?.PATH).toBe(dir)
+
+      // 守卫(T3.5 评审期 Fix-A):Windows spawn 透传 node-pty 自带的 bundled ConPTY——系统
+      // conhost 的旧 ConPTY 不透传鼠标模式 DECSET(?1000/?1002/?1006),xterm 端
+      // mouseTrackingMode 恒 none,TUI(pi)滚轮失效;bundled 1.23 透传且提供 xterm 期望的
+      // wrap-marker 行为。期望值来源:Orca native-pty-spawn.ts:91 原文
+      // (...(process.platform === 'win32' ? { useConptyDll: true } : {}));非 win32 展开为空、
+      // 字段缺席,断言同步按平台收窄。useConptyDll 属 spawn options 联合的 Windows 支,经其类型读。
+      const windowsOptions = options as Partial<IWindowsPtyForkOptions>
+      expect(windowsOptions.useConptyDll).toBe(process.platform === 'win32' ? true : undefined)
     } finally {
       await rm(dir, { recursive: true, force: true })
       ptyRegistry.killAll()
@@ -105,6 +130,54 @@ describe('buildSpawnArgv', () => {
     expect(def, 'kimi-code 别名应归一到 kimi 定义').toBeDefined()
     expect(buildSpawnArgv(def!)).toEqual(['kimi'])
     expect(buildSpawnArgv(def!)![0]).not.toBe('kimi-code')
+  })
+})
+
+describe('buildShellLaunchLine', () => {
+  it('含空格路径:统一双引号包裹(测试规格 #1,构造反例)', () => {
+    // 手算字面量:规则 = 命令整体包一层双引号,不做其他加工
+    expect(buildShellLaunchLine('C:\\Program Files\\nodejs\\pi.cmd')).toBe(
+      '"C:\\Program Files\\nodejs\\pi.cmd"'
+    )
+  })
+
+  it('无空格路径:同样双引号包裹(测试规格 #2,统一规则)', () => {
+    expect(buildShellLaunchLine('C:\\tools\\pi.cmd')).toBe('"C:\\tools\\pi.cmd"')
+  })
+
+  it('注入行拼装:PTY 交 shell(file=ComSpec、args 空),spawn 后经 pty.write 写「引号绝对路径 + \\r」(测试规格 #3)', async () => {
+    // 独立事实源:fixture 可执行体确实位于 join(dir, binName);期望注入行 =
+    // 引号包裹的该文件 win32 原生分隔符形态(stdlib 规整) + '\r' 结尾。
+    // resolveCommandPath 输出的混排斜杠是实现细节,注入行必须规整为原生形态。
+    const dir = await mkdtemp(join(tmpdir(), 'agent-sessions-inject-'))
+    try {
+      const binName = process.platform === 'win32' ? 'claude.EXE' : 'claude'
+      await writeFile(join(dir, binName), '')
+      process.env.PATH = dir
+      const fake = makeFakePty()
+      const writes: string[] = []
+      fake.write = (data: string) => {
+        writes.push(data)
+      }
+      ptySpawnMock.mockImplementation(() => fake)
+
+      await ptyRegistry.spawn({ sessionId: 's-inject', def: claudeAgent, cwd: 'D:\\demo-project', cols: 80, rows: 24 })
+
+      // shell 底座(ADR-0004):node-pty 收到的是常驻 shell,且不带参数
+      const [file, args] = ptySpawnMock.mock.calls[0]
+      expect(file).toBe(process.env.ComSpec ?? 'cmd.exe')
+      expect(args).toEqual([])
+      // 注入行与用户键入同通道:走 pty.write,全文 = 引号路径 + \r
+      const realPath = join(dir, binName)
+      const expected =
+        process.platform === 'win32'
+          ? `"${win32.normalize(realPath)}"\r`
+          : `"${realPath}"\r`
+      expect(writes).toEqual([expected])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+      ptyRegistry.killAll()
+    }
   })
 })
 
@@ -179,6 +252,53 @@ describe('samplingTap', () => {
     } finally {
       process.off('uncaughtException', onUncaught)
       errorSpy.mockRestore()
+    }
+  })
+})
+
+// —— T3.5 评审期 Fix-A:spawn 初始尺寸(接缝 resolvePtyFirstSize)——
+// 期望值来源:Orca pty-first-size 兜底常量 120×40(外部锚点 .reference/orca-1.4.265/
+// src/main/ipc/pty/delivery/pty-first-size.ts)+ 手算的合法/非法输入反例。
+describe('resolvePtyFirstSize', () => {
+  it('渲染层真实提案:原样采用(手算:126×49 → 126×49)', () => {
+    expect(resolvePtyFirstSize(126, 49)).toEqual({ cols: 126, rows: 49 })
+  })
+
+  it('边界合法值:1 与 500 均采用(手算:范围闭区间 1-500)', () => {
+    expect(resolvePtyFirstSize(1, 1)).toEqual({ cols: 1, rows: 1 })
+    expect(resolvePtyFirstSize(500, 500)).toEqual({ cols: 500, rows: 500 })
+  })
+
+  it('非整数/越界/缺省:回退未测量兜底 120×40(Orca UNMEASURED_PTY_SIZE 同款)', () => {
+    expect(resolvePtyFirstSize(0, 49)).toEqual(UNMEASURED_PTY_SIZE)
+    expect(resolvePtyFirstSize(501, 49)).toEqual(UNMEASURED_PTY_SIZE)
+    expect(resolvePtyFirstSize(100.5, 49)).toEqual(UNMEASURED_PTY_SIZE)
+    expect(resolvePtyFirstSize(126, -3)).toEqual(UNMEASURED_PTY_SIZE)
+    expect(resolvePtyFirstSize(undefined, undefined)).toEqual(UNMEASURED_PTY_SIZE)
+    expect(resolvePtyFirstSize(Number.NaN, 49)).toEqual(UNMEASURED_PTY_SIZE)
+  })
+
+  it('守卫:ptySpawn 收到的初始尺寸 = 传入的 fit 提案(不是硬编码 80×24)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'agent-sessions-size-'))
+    try {
+      const binName = process.platform === 'win32' ? 'claude.EXE' : 'claude'
+      await writeFile(join(dir, binName), '')
+      process.env.PATH = dir
+      ptySpawnMock.mockImplementation(() => makeFakePty())
+
+      await ptyRegistry.spawn({
+        sessionId: 's-size',
+        def: claudeAgent,
+        cwd: 'D:\demo-project',
+        cols: 160,
+        rows: 46
+      })
+
+      const [, , options] = ptySpawnMock.mock.calls[0]
+      expect(options.cols).toBe(160)
+      expect(options.rows).toBe(46)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
     }
   })
 })

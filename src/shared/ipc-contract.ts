@@ -54,7 +54,10 @@ export interface PtyExitEvent {
 }
 
 export interface PtyApi {
-  spawn: (p: { sessionId: SessionId; agentId: AgentId; cwd: string }) => Promise<void>
+  // cols/rows = 渲染层 fit 提案(T3.5 评审期 Fix-A):启动尺寸用渲染层已测值,避免 80×24 起步
+  // 导致 TUI 错宽(pi 收不到 ConPTY 的 resize 通知,启动宽度即终身宽度);主进程对非法值
+  // 回退未测量兜底 120×40。Orca pty-first-size 同思路(src/main/ipc/pty/delivery/pty-first-size.ts)。
+  spawn: (p: { sessionId: SessionId; agentId: AgentId; cwd: string; cols: number; rows: number }) => Promise<void>
   write: (p: { sessionId: SessionId; data: string }) => Promise<void>
   resize: (p: { sessionId: SessionId; cols: number; rows: number }) => Promise<void>
   kill: (sessionId: SessionId) => Promise<void>

@@ -1,2 +1,5 @@
 /* Tailwind CSS 4:class 策略;dark: 变体默认 media(跟随系统),主题手动切换在 T11 */
 @import 'tailwindcss';
+/* Orca 同款引链(main.css:9 / :12):终端布局层 + 全局细滚动条样式(各自文件头注明移植来源) */
+@import './terminal.css';
+@import './scrollbar-sleek.css';

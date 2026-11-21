@@ -1,16 +1,133 @@
 // xterm 生命周期容器:每会话一个常驻实例(Map),tab 切换仅切可见性,tab 关闭才 dispose
 // (契约:容器持 Map;数据经 bridge 事件按 sessionId 分发直灌实例,不进 React state)
+// + 滚轮处理(ADR-0004 修订 + T3.5 评审增量):经 xterm 官方钩子 attachCustomWheelEventHandler
+//   挂单 handler 四分支(Shift 本地滚 / mouse mode 放大重放 / alt buffer 非 mouse 转翻页键 / xterm 默认)
+// + 窗口跟随:每终端 ResizeObserver 观察容器 + RAF 稳定帧收敛
 import { Terminal } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
+// Fix-B 右侧空白治理:提案 = 盒子的纯函数(device/dpr cell 尺寸,与当前列数解耦),见 stable-cell-fit-addon.ts
+import { StableCellFitAddon } from './stable-cell-fit-addon'
 import { bridge } from '../../ipc/bridge'
+import {
+  createTerminalMouseWheelReplayState,
+  replayTerminalMouseWheel,
+  shouldReplayTerminalMouseWheel
+} from './mouse-wheel-replay'
 import type { SessionId } from '../../../../shared/types'
 
 interface TerminalEntry {
   terminal: Terminal
-  fitAddon: FitAddon
+  fitAddon: StableCellFitAddon
+  // 窗口跟随:容器观察者与稳定帧循环的待决 RAF id(closeTerminal 时显式撤销)
+  fitResizeObserver: ResizeObserver | null
+  pendingFitRafId: number | null
+}
+
+// Shift+滚轮本地滚动幅度:一格滚轮 3 行(常见终端惯例,可调)
+const SHIFT_WHEEL_SCROLL_LINES = 3
+// 字体度量必须与 Orca 对齐:canvas 测量和 DOM 渲染对通用 monospace 的回退字体
+// 可能不一致,出现网格按 8px/格计算但文本实际 7px/格推进,右侧固定留白。
+const TERMINAL_FONT_FAMILY =
+  '"SF Mono", "Menlo", "Monaco", "Cascadia Mono", "Consolas", "DejaVu Sans Mono", "Liberation Mono", "Symbols Nerd Font Mono", "MesloLGS Nerd Font", "JetBrainsMono Nerd Font", "Hack Nerd Font", monospace'
+const TERMINAL_FONT_SIZE = 14
+const TERMINAL_FONT_WEIGHT = '300'
+const TERMINAL_FONT_WEIGHT_BOLD = '500'
+
+// —— 窗口跟随:ResizeObserver + RAF 稳定帧收敛 ——
+// Ported from stablyai/orca src/renderer/src/lib/pane-manager/terminal-fit/pane-fit-resize-observer.ts (MIT)
+// Why: window resize→fitAll 挂钩测不到布局级容器变化(侧栏开合/面板拖拽),且高频拖拽下
+// fit 直接收敛会振荡;改为每终端用自己的 ResizeObserver 观察容器,经 RAF 帧循环等「提出尺寸
+// 稳定」再收敛。裁剪点:去掉 Orca 的 continuation registry/callbacks 泛化与可见性探测——
+// 隐藏实例(display:none)不触发尺寸变化,FitAddon.proposeDimensions 对隐藏容器返回
+// undefined、fit() 自动跳过,无需显式 hidden 检查;切回显示由 activateTerminal 的现有 fit 兜住。
+type ProposedDimensions = {
+  cols: number
+  rows: number
+}
+
+// 收敛兜底帧数:Windows 拖拽滚动条等永不稳定的布局抖动,满 8 帧强制收敛,防 SIGWINCH 式振荡
+const MAX_STABILITY_FRAMES = 8
+
+function getProposedDimensions(entry: TerminalEntry): ProposedDimensions | null {
+  try {
+    return entry.fitAddon.proposeDimensions() ?? null
+  } catch {
+    return null
+  }
+}
+
+function dimensionsEqual(a: ProposedDimensions | null, b: ProposedDimensions | null): boolean {
+  return a?.cols === b?.cols && a?.rows === b?.rows
+}
+
+function terminalDimensionsEqual(entry: TerminalEntry, dims: ProposedDimensions): boolean {
+  return entry.terminal.cols === dims.cols && entry.terminal.rows === dims.rows
+}
+
+function finishStableFit(entry: TerminalEntry): void {
+  entry.pendingFitRafId = null
+  entry.fitAddon.fit()
+}
+
+// 稳定帧循环:RAF 逐帧取 fit 提案,与 terminal 现值一致 / 连续两帧相同 / 满 8 帧 → fit 收敛退出
+function requestStableFit(entry: TerminalEntry): void {
+  if (entry.pendingFitRafId !== null) {
+    return // 循环已在跑:ResizeObserver 高频触发合并进现有循环
+  }
+  let previous = getProposedDimensions(entry)
+  let frameCount = 0
+  const waitForStableGrid = (): void => {
+    entry.pendingFitRafId = requestAnimationFrame(() => {
+      entry.pendingFitRafId = null
+      const next = getProposedDimensions(entry)
+      frameCount += 1
+      if (!next || terminalDimensionsEqual(entry, next) || dimensionsEqual(previous, next)) {
+        finishStableFit(entry)
+        return
+      }
+      previous = next
+      if (frameCount >= MAX_STABILITY_FRAMES) {
+        finishStableFit(entry)
+        return
+      }
+      waitForStableGrid()
+    })
+  }
+  waitForStableGrid()
+}
+
+function attachTerminalFitResizeObserver(entry: TerminalEntry, container: HTMLElement): void {
+  if (typeof ResizeObserver === 'undefined') {
+    return
+  }
+  const observer = new ResizeObserver(() => {
+    requestStableFit(entry)
+  })
+  observer.observe(container)
+  entry.fitResizeObserver = observer
+}
+
+function detachTerminalFitResizeObserver(entry: TerminalEntry): void {
+  entry.fitResizeObserver?.disconnect()
+  entry.fitResizeObserver = null
+  if (entry.pendingFitRafId !== null) {
+    cancelAnimationFrame(entry.pendingFitRafId)
+    entry.pendingFitRafId = null
+  }
 }
 
 const terminals = new Map<SessionId, TerminalEntry>()
+
+// Fix-B:终端首个 fit 收敛后的回调(会话切片注册它,据此带真实 cols/rows 发起 spawn)。
+// Why: 模块级单槽而非组件 prop——终端生命周期常驻于此模块,回调只需一个消费者(store 切片)。
+let terminalReadyHandler:
+  | ((sessionId: SessionId, cols: number, rows: number) => void)
+  | null = null
+
+export function setTerminalReadyHandler(
+  handler: ((sessionId: SessionId, cols: number, rows: number) => void) | null
+): void {
+  terminalReadyHandler = handler
+}
 
 // Why: spawn await 返回后子进程即可产出,而终端注册发生在 React 提交后的 effect 里,
 // 期间到达的 pty:data(快启动 CLI 的 banner/首帧)不能直接丢——按 sessionId 暂存,
@@ -35,21 +152,6 @@ function ensureDataBus(): void {
   })
 }
 
-// 窗口尺寸变化 → 重排全部实例(隐藏实例无尺寸,FitAddon 自动跳过,不会提出 0 列 resize)
-function fitAll(): void {
-  for (const entry of terminals.values()) {
-    entry.fitAddon.fit()
-  }
-}
-let resizeBound = false
-function ensureWindowResize(): void {
-  if (resizeBound) {
-    return
-  }
-  resizeBound = true
-  window.addEventListener('resize', fitAll)
-}
-
 // tab 挂载时创建实例;重入(StrictMode 双挂载等)时已有实例则不动
 export function openTerminal(
   sessionId: SessionId,
@@ -57,12 +159,27 @@ export function openTerminal(
   container: HTMLElement
 ): void {
   ensureDataBus()
-  ensureWindowResize()
   if (terminals.has(sessionId)) {
     return
   }
-  const terminal = new Terminal({ scrollback })
-  const fitAddon = new FitAddon()
+  // Orca 同款渲染选项(Ported from stablyai/orca src/renderer/src/lib/pane-manager/
+  // pane-terminal-options.ts:9-10/:65-68,MIT;normalize 函数不移植,直接落常量)。
+  // 选项名/形状已对本仓 @xterm/xterm 6.1.0-beta.336 typings 核对(IScrollbarOptions.width):
+  // 细滚动条 7px(启用 xterm 概览标尺,代价约一列宽的沟槽——网格侧由 StableCellFitAddon
+  // 经 terminal.options.scrollbar 同步预留该宽度);滚动灵敏度取 Orca DEFAULT_* 常量值;
+  // scrollOnUserInput 与 xterm 默认一致,按 Orca 显式落定。
+  const terminal = new Terminal({
+    scrollback,
+    fontFamily: TERMINAL_FONT_FAMILY,
+    fontSize: TERMINAL_FONT_SIZE,
+    fontWeight: TERMINAL_FONT_WEIGHT,
+    fontWeightBold: TERMINAL_FONT_WEIGHT_BOLD,
+    scrollbar: { width: 7 },
+    scrollSensitivity: 1.15,
+    fastScrollSensitivity: 5,
+    scrollOnUserInput: true
+  })
+  const fitAddon = new StableCellFitAddon()
   terminal.loadAddon(fitAddon)
   terminal.open(container)
   // 键入 → PTY;fit 提出的尺寸变化 → pty:resize 回传
@@ -70,24 +187,86 @@ export function openTerminal(
     void bridge.pty.write({ sessionId, data })
   })
   terminal.onResize(({ cols, rows }) => {
+
     void bridge.pty.resize({ sessionId, cols, rows })
   })
-  terminals.set(sessionId, { terminal, fitAddon })
+  // 滚轮四分支(T3.5 评审增量;单 handler:xterm 钩子单槽,后挂替换先挂)
+  // 分支 1 Shift+滚轮本地滚动(ADR-0004,controller 定夺修订):挂 terminal 实例上
+  // 随 dispose 自清,不在容器挂监听。handler 返回 false → xterm 取消该滚轮事件的全部默认处理
+  // (CoreBrowserTerminal.ts:642/:810——不进 mouse 转发也不进 viewport 滚动);返回 true → 交
+  // xterm 默认(有 mouse mode 时滚轮序列发应用,否则 xterm 滚 scrollback viewport)。
+  // Shift+滚轮的本地滚在 alt buffer 下是 no-op 但仍返回 false 拦掉默认防误发(复审确认口径):
+  // BufferService.scrollLines 把 ydisp 夹逼在 [0, ybase](xterm src/common/services/
+  // BufferService.ts),alt buffer 无 scrollback(ybase = 视口),真正的交替屏滚动走分支 2.5
+  // 翻页键。xterm typings:scrollLines 正值 = 向下滚(负值向上),与滚轮 deltaY 同向。
+  // 分支 2 无 Shift + mouse mode(terminal.modes.mouseTrackingMode)→ 放大重放(Orca 移植,
+  // 见 tui-wheel-reports.ts / mouse-wheel-replay.ts):按距离解析成 N 个 line-mode 克隆事件
+  // 重放给 xterm,由其内建 mouse 路径逐条转报告发 TUI;重放克隆带标记再入时落分支 3,防放大递归。
+  // 分支 2.5(评审期第五项修复):交替屏 + 非 mouse mode + deltaY≠0 → 滚轮转翻页键直达 PTY。
+  // Why: Windows ConPTY 不透传鼠标模式序列(?1000/?1002/?1006 实测在转发中被吞),pi 运行在
+  // 交替屏(?1049h)时 xterm 端 mouseTrackingMode 恒 none,滚轮报告永远发不出去——分支 3 的
+  // 「交 xterm 默认」在此只会空滚视口,pi 无感。与生态方案同构(wmux#42「mouse off 时滚轮
+  // 回退方向键」):滚轮转成应用已绑定的按键直达。pi 实测 PageUp/PageDown(\x1b[5~/\x1b[6~)
+  // 经 ConPTY 正常可达,且绑定在滚自己的历史视图上(pi 源码 tui.altScreen.pageUp/pageDown);
+  // 其方向键绑定在移动选择项上、方向语义有歧义,故取翻页键整页滚动:deltaY<0(向上滚)→
+  // PageUp,deltaY>0 → PageDown,返回 false 拦掉 xterm 默认。显式查 mouseTrackingMode 为排除
+  // 重放克隆:克隆只在 mouse mode 下产生,须落分支 3 防放大递归。
+  // 分支 3 其余(deltaY=0 水平滚轮、重放克隆、非 mouse mode 的 normal buffer)→ 返回 true 交 xterm 默认。
+  const wheelReplayState = createTerminalMouseWheelReplayState()
+  terminal.attachCustomWheelEventHandler((event) => {
+    if (event.shiftKey && event.deltaY !== 0) {
+      terminal.scrollLines(Math.sign(event.deltaY) * SHIFT_WHEEL_SCROLL_LINES)
+      return false
+    }
+    if (shouldReplayTerminalMouseWheel(terminal, event)) {
+      replayTerminalMouseWheel(wheelReplayState, terminal, event)
+      return false
+    }
+    if (
+      terminal.modes.mouseTrackingMode === 'none' &&
+      terminal.buffer.active.type === 'alternate' &&
+      event.deltaY !== 0
+    ) {
+      void bridge.pty.write({ sessionId, data: event.deltaY < 0 ? '\x1b[5~' : '\x1b[6~' })
+      return false
+    }
+    return true
+  })
+  const entry: TerminalEntry = {
+    terminal,
+    fitAddon,
+    fitResizeObserver: null,
+    pendingFitRafId: null
+  }
+  terminals.set(sessionId, entry)
+  // 窗口跟随:observer 观察容器,尺寸变化(含窗口/侧栏/面板引发的)经稳定帧循环收敛 fit
+  attachTerminalFitResizeObserver(entry, container)
   // 注册即放:注册前暂存的启动输出立即写入,先于此后到达的直灌数据
   const pending = pendingData.get(sessionId)
   if (pending !== undefined) {
     pendingData.delete(sessionId)
     terminal.write(pending)
   }
-  // 首帧布局稳定后再 fit(容器刚挂载时尺寸未定)
+  // 首帧布局稳定后再 fit(容器刚挂载时尺寸未定);ResizeObserver 初次回调亦会触发收敛,此处兜底
   requestAnimationFrame(() => {
-    terminals.get(sessionId)?.fitAddon.fit()
+    const entry = terminals.get(sessionId)
+    if (!entry) {
+      return // 已在同一帧内被关闭
+    }
+    entry.fitAddon.fit()
+    // Fix-B:首个 fit 收敛后回调——此时 cols/rows 是真实尺寸,spawn 用它作初始尺寸,
+    // TUI(pi 等)启动即正确宽度(它收不到后续 resize 通知,见 sessions-slice 的 Why)
+    terminalReadyHandler?.(sessionId, entry.terminal.cols, entry.terminal.rows)
   })
 }
 
 // tab 关闭(组件卸载)才 dispose
 export function closeTerminal(sessionId: SessionId): void {
-  terminals.get(sessionId)?.terminal.dispose()
+  const entry = terminals.get(sessionId)
+  if (entry) {
+    detachTerminalFitResizeObserver(entry) // observer 与待决 fit 帧不随 dispose 自清,显式撤销
+    entry.terminal.dispose() // 滚轮钩子随 dispose 自清,无需摘除
+  }
   terminals.delete(sessionId)
   pendingData.delete(sessionId) // 暂存随 tab 清理,防泄漏/串台到此后新开的终端
 }
