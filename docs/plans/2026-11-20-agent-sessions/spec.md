@@ -2,7 +2,7 @@
 
 ## 整体实现
 
-Electron 单窗口单进程桌面应用:主进程独占全部 Node 能力,渲染层纯 UI,进程间走类型化契约桥;agent 接入用配置驱动的定义表,新增 agent 零框架改动;状态识别走「标题事件 + 屏幕快照 + 字节流缓冲」三源;终端容器用每会话常驻 xterm 实例;持久化用应用数据目录的单个 store 文件整文件原子写。数据主干:用户添加项目目录 → 项目与会话记录写入应用数据目录的单个 store 文件(原子写)→ 新建会话时主进程 spawn 常驻 shell 的 node-pty(PTY=shell 底座,ADR-0004)、把 agent 启动命令注入 shell、把字节流推给渲染层对应 xterm;CLI 退出后回 shell 提示符,标签页保留可继续交互 → 状态识别引擎在主进程消费同一份数据流(标题事件、屏幕快照、字节缓冲)产出会话状态 → 渲染层状态点与通知消费状态变化。会话导入是另一条只读数据流:按 agent 定义定位其存储目录、解析会话元数据、按项目目录匹配、去重与忽略清单过滤后并入 store。应用退出时主进程全量杀掉 PTY,不留孤儿。
+Electron 单窗口单进程桌面应用:主进程独占全部 Node 能力,渲染层纯 UI,进程间走类型化契约桥;agent 接入用配置驱动的定义表,新增 agent 零框架改动;状态识别走「标题事件 + 屏幕快照 + 字节流缓冲」三源;终端容器用每会话常驻 xterm 实例;持久化用应用数据目录的单个 store 文件整文件原子写。数据主干:用户添加项目目录 → 项目与会话记录写入应用数据目录的单个 store 文件(原子写)→ 新建会话时主进程 spawn 常驻 shell 的 node-pty(PTY=shell 底座,ADR-0004)、把 agent 启动命令注入 shell、把字节流推给渲染层对应 xterm;CLI 退出后回 shell 提示符,标签页保留可继续交互 → 状态识别引擎在主进程消费同一份数据流(标题事件、屏幕快照、字节缓冲)产出会话状态 → 渲染层状态点与通知消费状态变化。会话导入是另一条只读数据流:按 agent 定义定位其存储目录、解析会话元数据、按项目目录匹配、去重后并入 store(删除记录不登记忽略项,故再次导入会重新入库)。应用退出时主进程全量杀掉 PTY,不留孤儿。
 ## 流程图
 
 ```mermaid
@@ -77,14 +77,12 @@ interface Settings {
   theme: 'system' | 'light' | 'dark'
 }
 
-interface IgnoreEntry { agentId: AgentId; externalSessionId: string }
 
 interface AppStore {
   version: 1
   projects: Project[]
   sessions: Session[]
   settings: Settings
-  ignoreList: IgnoreEntry[]
 }
 ```
 
@@ -169,8 +167,8 @@ interface GitStatus { branch: string; entries: Array<{ path: string; staged: str
 - `src/main/command-path/command-path-resolver.ts` — PATH 探测(移植 Orca,Windows PATHEXT/引号剥离)
 - `src/main/pty-registry.ts` — PTY(shell 底座,ADR-0004)创建/写入/resize/杀/退出事件 + 采样落盘开关
 - `src/main/agent-state/state-parser.ts` — 三源状态引擎(标题/屏幕快照/字节缓冲 → 状态,去抖 + 证据分级);`src/main/agent-state/__fixtures__/` — 五家正反样本
-- `src/main/session-store/store-persistence.ts` — store 文件原子读写与损坏兜底;`src/main/session-store/session-records.ts` — 会话记录 CRUD/重命名/删除/忽略清单登记
-- `src/main/session-store/session-import/` — `index.ts`(runImport 编排:定位→解析→匹配→去重→忽略清单)、`path-match.ts`(cwd 归一化匹配)、`{claude,codex,pi,kimi,antigravity}.ts`(各家适配)、`__fixtures__/`(脱敏真实样本)
+- `src/main/session-store/store-persistence.ts` — store 文件原子读写与损坏兜底;`src/main/session-store/session-records.ts` — 会话记录 CRUD/重命名/删除
+- `src/main/session-store/session-import/` — `index.ts`(runImport 编排:定位→解析→匹配→去重)、`path-match.ts`(cwd 归一化匹配)、`{claude,codex,pi,kimi,antigravity}.ts`(各家适配)、`__fixtures__/`(脱敏真实样本)
 - `src/main/fs-tree.ts` — 目录树扫描(忽略 .git/node_modules/dist/.reference 等)
 - `src/main/file-content.ts` — 单句柄读取 + 二进制探测 + 截断
 - `src/main/git-service.ts` — simple-git 封装 + porcelain/diff 解析纯函数
@@ -284,7 +282,7 @@ interface GitStatus { branch: string; entries: Array<{ path: string; staged: str
 | Windows 大小写 | 仅大小写不同 | 仍命中 | `matchProjectDir` | T6 用例 2 |
 | 非本项目 | 其他目录会话 | 排除 | `matchProjectDir` | T6 用例 3 |
 | 重复导入 | 同 (agentId,externalSessionId) | 去重,不产生第二条 | `runImport` | T6 用例 4 |
-| 忽略清单命中 | 已删除会话再次被扫到 | 跳过 | `runImport` | T6 用例 5 |
+| 删除后再导入 | 已删除记录的会话再次被扫到 | 重新入库(不登记忽略项) | `runImport` | T6 用例 5 |
 
 ### 接缝 scanClaude(模块行为)——完整档,落在 T6
 
@@ -385,7 +383,7 @@ diff 行解析为抽样档(单向行分类):
 - `sessionRecords.create / .rename / .remove / .listByProject / .get` -- 接缝 -- 会话记录 CRUD
 - `createTracker` -- 接缝 -- 每会话创建状态追踪器
 - tracker 实例 -- 非接缝 -- 有状态:事件喂入累积;exited 为终态,其后一切输入忽略
-- `runImport` -- 接缝 -- 导入编排(匹配/去重/忽略清单)
+- `runImport` -- 接缝 -- 导入编排(匹配/去重)
 - `matchProjectDir` -- 接缝 -- cwd 归一化匹配
 - `scanClaude / scanCodex / scanPi / scanKimi / scanAntigravity` -- 接缝 -- 各家存储扫描
 - `dedupeKey` -- 非接缝 -- 去重键构造,纯函数

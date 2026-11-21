@@ -21,8 +21,8 @@
 - [x] **T5 状态识别三源引擎**
       交付:真实跑 agent 时会话行状态点正确切换(kimi 允许降级);五家正反样本 fixture 回放绿
       挡谁:T11(等输入通知以 waiting 状态为触发)
-- [ ] **T6 会话导入:框架与 claude/codex**
-      交付:对装 claude/codex 的项目导入,历史会话出现;点击拉起与新建一致;重复导入去重;删除后不再被扫回
+- [x] **T6 会话导入:框架与 claude/codex**
+      交付:对装 claude/codex 的项目导入,历史会话出现;点击拉起与新建一致;重复导入去重;删除后再次导入会重新出现(2026-11-21 重过门 1,ADR-0005)
       挡谁:T7(其余三家适配复用导入框架)
 - [ ] **T7 会话导入:pi/kimi/antigravity 适配**
       交付:5 个 agent 的历史会话都能导入(存储路径本机实测核对)
@@ -163,5 +163,29 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 口径登记:①契约步骤 6「35 passed」过期,实况基线 82/11,本轮期望改为 93/12,冒烟修复后 95/12;②spec 覆盖标准接缝 stateTracker 第 3 行「pi 标题×π⠋/π-」被实证推翻,**已就地改为「pi 屏幕×点阵帧」**(spec.md 同步修改),属回退协议允许的 spec 修订,不重过门;③`state:title`/`state:snapshot` 两条上行通道与 `ipc/state.ts` 编排层为契约外增补(机械必要,按 T3 先例登记)
   - 下游结论(T6+ 用):①字节证据的生命周期 = 「两次快照之间」,快照是证据代际边界;给五家填 `bytes` 规则时只需保证画面静止时快照仍在跑,waiting 误报就下一帧自愈,不需要 TTL;②事实型状态(exited)与判定型状态(working/waiting)走不同落地路径(`publish()` 直落 vs `requestState()` 去抖),后续加 `'starting'` 之类事实态同理;③编排层新建 tracker 必须显式表态是否播种,新增事件源先问「会不会替退出后的会话复活 tracker」,守卫模板 = `activeSessionIds()`;④`AgentStateRules` 的 `title.working`/`screen.waiting` 等槽位必填,「不提供」要写成空数组而不是省略
   - 文档变更登记:spec.md 一行(覆盖标准 stateTracker 第 3 行)按实证修订;brief/tasks 未动;CONTEXT.md/ADR/AGENTS.md 无改动;plan.md 勾选 T5 + 本章
-  - **提交状态**:已提交 3919cbdc(代码与冒烟修复合并,24 文件:13 改 + 11 增,commit 信息待用户确认);review diff `.review/T5.patch`、`.review/T5-fix.patch` 提交后删除
+  - **提交状态**:已提交 3919cbdc(代码与冒烟修复合并,24 文件:13 改 + 11 增,用户已确认);review diff `.review/T5.patch`、`.review/T5-fix.patch` 提交后删除
+- 2026-11-21 17:48 | 需求变更(重过门 1):取消忽略清单,删除后的导入会话再次导入直接重新入库
+  - 触发:T6 冒烟时用户提出「删掉这两条导入的会话 → 再导一次应能再次导入」。这与 brief 第 5 节「忽略清单防导入扫回」及验收 7.1「再次导入不再出现」正面冲突,按回退协议停下、给三种方案(A 保留拦截+显式恢复 / B 导入时列出已删项 / C 彻底取消)并说明代价,用户选「再次导入时直接导入」= C,并确认重过门 1。
+  - 文档修订:brief 第 5 节与 7.1 两行改写;spec 四处(整体实现末句、IgnoreEntry/AppStore.ignoreList、模块划分两行、覆盖标准接缝 path-match/runImport 第 5 行、接口面清单 runImport 行);CONTEXT.md 删除「忽略清单」词条;PLAN.md M4 段改写 + 修订历史追加一行;新增 `docs/adr/0005-删除不登记忽略清单.md`,并在 ADR-0003 头部标注「忽略清单机制条已被 0005 取代,核心决策不变」(ADR 不可改,只标注被取代关系)
+  - 代码变更:`AppStore` 去掉 `ignoreList`/`IgnoreEntry`;`DEFAULT_STORE` 与 `loadStore` 不再读写该字段(旧 store.json 残留字段在下次整文件写入时自然丢弃,无需迁移);`session-import/index.ts` 去掉忽略清单过滤;`ipc/sessions.ts` 删除 `registerIgnoreEntry` 与调用;相关注释(ipc-contract/sessions-slice)同步
+  - 用例变更:T6 用例 5 语义反转——原「忽略清单命中 → 跳过」改为「删除该会话后再导入 → 重新入库(imported 1 / skipped 0)」;`store-persistence.test.ts` 与 `session-records.test.ts` 的 store 字面量去掉 ignoreList
+  - 验证:typecheck 双投影 0 error;`pnpm test` 118 passed / 19 files;eslint 0 error(仅仓内既有 CRLF warning)
+  - 遗留语义(记录在 ADR-0005 后果节):「删了又被扫回来」重新成为可能,用户如需永久隐藏目前没有手段;若将来有这个诉求,方案应是「导入时列出已删项由用户勾选」而不是恢复自动拦截
+- 2026-11-21 17:54 | T6 开发与评审闭环(冒烟经用户确认 + 需求变更重过门 1,代码待确认提交)
+  - BASE=7756ea49;本任务与「取消忽略清单」需求变更合并进同一个 feat 提交(变更发生在任务提交前,属该任务闭环)
+  - implementer(worker subagent)按契约完成:`session-import/path-match.ts`(分隔符归一、去尾分隔符、**按路径语法**判 Windows 再折叠大小写,不做前缀/子目录匹配);`session-import/index.ts`(dedupeKey = agentId + NUL + externalSessionId;runImport 取扫描器 → 候选 → cwd 匹配 → 去重 → 入库,记 origin=imported/externalTitle/externalFilePath/activityAt);`session-import/claude.ts`(编码桶定位 + jsonl 解析:custom-title > ai-title > 首条真实用户提示 > agent-name,跳过半截行/索引/子目录);`session-import/codex.ts`(递归 rollout、session_meta 定 id/cwd/标题、首条 UserMessage 兜底、.zst 用 `zlib.zstdDecompressSync`、双形态按 Orca plainWins、同 thread id 多份去重);移植件 `claude-project-dir-encoding.ts`(复制+裁剪,保留三个函数)、`runtime-path-separators.ts`、`codex-rollout-files.ts`(thread id 正则 + twin + plainWins),文件头 `Ported from stablyai/orca … (v1.4.265, MIT)`;接线 `sessions:import` handler(projectPath 由主进程取)、`agents:list` 出站剥离 sessions 函数、渲染层 ImportMenu + `session-order.ts`(activityAt ?? createdAt 倒序 + 折叠 8)+ ProjectGroup 折叠 + `sessions-slice.importSessions`
+  - controller 亲跑验证:typecheck 双投影 0 error;`pnpm test` 119 passed / 19 files;eslint 0 error(仅仓内既有 CRLF warning);移植件与 Orca 原件逐行 diff 核对(保留的三个导出函数逻辑一致,裁剪的四个 scope helper 在文件头写明)
+  - 首轮评审(reviewer subagent,对照 .review/T6.patch 1892 行):规格符合 ✅、无 Critical、代码质量通过;Important 1 = **领域横向依赖**(`session-import/index.ts` → `agent-registry`,`definitions/{claude,codex}.ts` → `session-import/*` 形成双向边),评审指出这条边由契约逼出、建议记账而非改代码;Minor 5(硬链接 inode 秩未搬、定义↔注册表接线无覆盖、fixture 路径读 cwd、ImportMenu 把「不支持导入」与「没有历史会话」压成一句、移植件头注释自相矛盾)
+  - controller 裁定 Important-1:用户拍板「AGENTS.md 记一条显式例外」——工程边界新增「领域横向依赖的唯一例外」条目,理由=「新 agent = 只加一个定义文件」的扩展点要求;不改契约、不重写代码
+  - Minor 修复(原 implementer,3 条):①新增 `scan-wiring.test.ts`(不 mock 注册表,断言 claude/codex 都挂了 scan;mutation check:删 `scan: scanClaude` → 转红 → 还原绿)②fixture 路径改 `import.meta.dirname`,去掉对 `process.cwd()` 的隐式依赖 ③移植件头注释改「复制+裁剪」并点名保留/裁剪的符号。余下 Minor 2 条挂账(硬链接 inode 秩 → T7 多根时补;ImportMenu 提示合一 → T7 加能力位时区分)
+  - 需求变更(用户冒烟期提出,重过门 1):取消忽略清单,删除后再导入直接重新入库——详见本章上一条独立登记(2026-11-21 17:48 块)与 ADR-0005;控制器亲手实现,另有独立复审(见下)
+  - 变更复审(reviewer magpie/zhipu/glm-5.3-flash:low,对照 .review/T6-change.patch 226 行):七个变更点全部 ADDRESSED,无新增 Critical/Important,裁决可提交;建议两条已收:①补 5b「走真实 `sessionRecords.remove` 后再导入 → 仍重新入库」的组合用例(堵住「只在删除路径偷偷登记忽略项」)②两处「brief 第 5 节」注释改为准确指向(brief 7.1 / ADR-0005;另两处 activityAt 注释改指 T6 契约)
+  - **样本来源(口径登记)**:本机未安装 claude/codex,契约步骤 1「从本机取样本」不可执行。codex 两份 fixture 移植自 Orca 真实 rollout(`codex-rollout-a/c-0.162.1.jsonl`,用户名脱敏 + 首行 provenance);claude 无原始 transcript fixture,按 Orca 解码器实际读取的行形状构造(含三级标题优先级);三份 fixture 均写明来源,**未伪造「本机真实采样」**。未移植 r24 样本(无 UserMessage,覆盖不到标题路径)
+  - **冒烟实测(用户确认)**:用 `AGENT_SESSIONS_AGENT_HOME` 指向 `.tmp/t6-home` 临时存储(本机无真实 agent 存储;该 env 覆盖是本次新增的开发/冒烟通道,带 3 条优先级守卫):导入 claude 1 条 → 再导 0 条(去重)→ 删除 → 再导 **1 条**(新语义)→ codex 同;`store.json` 实况 keys = version/projects/sessions/settings(**无 ignoreList**);`.tmp/t6-home` 两份 fixture mtime 未变(17:33:57 生成,冒烟在 17:45 之后)= 导入全程只读,未写 agent 存储
+  - TDD 口径登记:契约步骤 3/5 的「10 failed / 5 failed」实际形态是 module-not-found(先写测试、不留占位实现);步骤 4/6 的「10/15 passed」实际 11/16(多出 dedupeKey 独立用例);步骤 8「50 passed」过期,实况 119/19
+  - 测试基数:mutation check 共 8 条留痕(path-match 去 toLowerCase、编码件删 200 字符 hash 分支、codex 翻转 plainWins、index 去 ignoredKeys 判定、claude 桶名去 toLowerCase、scan-wiring 删 scan、agent-home 去 env 分支、5b 组合用例)
+  - 下游结论(T7+ 用):①T7 接 pi/kimi/antigravity 只需新增 `session-import/{pi,kimi,antigravity}.ts` 并在各自定义挂 scan,runImport/IPC/UI 零改动 ②标题口径 `collapseWhitespace + 96 字符截断` 两家各自一份,规则同 Orca normalizeTitleText ③`scan` 的 `ctx.homeDir` 与 `AGENT_SESSIONS_AGENT_HOME` 是唯一注入点;codex `.zst` 可用 Node 24 `zstdCompressSync` 现造样本,无需入库二进制 ④扫描结果按 activityAt 倒序返回,runImport 不依赖顺序 ⑤编排层新建 tracker/登记类逻辑必须显式表态「这条路径会不会在删除后留下拦截」——本次整改的教训
+  - **未验证/本机不可达**:契约步骤 9「对装 claude 的项目导入」用的是临时构造存储,不是真实 claude/codex 安装;真实 CLI 的存储格式兼容性(尤其 claude 新版 jsonl 字段变化、codex 新版本 rollout 结构)只由移植自 Orca 的 fixture 代表,待用户机器上装 claude/codex 后复核
+  - 文档变更登记:brief 两行(第 5 节 + 7.1)、spec 五处、CONTEXT.md 删「忽略清单」词条、PLAN.md M4 段 + 修订历史一行、新增 `docs/adr/0005-删除不登记忽略清单.md`、ADR-0003 头部标注被 0005 取代、AGENTS.md 新增「领域横向依赖的唯一例外」、plan.md 勾选 T6 + 两条记账
+  - **提交状态**:已提交 7b8a8aa5(代码 30 文件:18 改 + 12 增,用户确认)+ 本条 docs 提交(8 文件);T7 BASE=本条 docs;review diff `.review/T6*.patch` 提交后删除
 <!-- 四层文档的任何改动都在这里另行留一行 -->
