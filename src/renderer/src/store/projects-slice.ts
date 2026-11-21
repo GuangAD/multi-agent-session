@@ -1,7 +1,7 @@
 // 项目目录切片:经 bridge 调 projects IPC,主进程负责去重与落盘
 // 选中态(T3):新建会话链路需要目标项目,点击项目行选中(NewSessionMenu 据此创建)
 import type { StateCreator } from 'zustand'
-import type { Project, ProjectId } from '../../../shared/types'
+import type { Project, ProjectId, SessionId } from '../../../shared/types'
 import { bridge } from '../ipc/bridge'
 import type { AppState } from './app-store'
 
@@ -14,7 +14,7 @@ export interface ProjectsSlice {
   removeProject: (id: ProjectId) => Promise<void>
 }
 
-export const createProjectsSlice: StateCreator<AppState, [], [], ProjectsSlice> = (set) => ({
+export const createProjectsSlice: StateCreator<AppState, [], [], ProjectsSlice> = (set, get) => ({
   projects: [],
   selectedProjectId: null,
 
@@ -38,7 +38,17 @@ export const createProjectsSlice: StateCreator<AppState, [], [], ProjectsSlice> 
   },
 
   removeProject: async (id) => {
-    await bridge.projects.remove(id)
+    let closedTabs: SessionId[] // try 内必然赋值,catch 直接 return,无需初始值
+    try {
+      closedTabs = (await bridge.projects.remove(id)).closedTabs
+    } catch (error) {
+      console.error('删除项目失败:', error)
+      return
+    }
+    // 连带关闭该项目下的标签页(杀 shell 编排在 closeTab 内,与 sessions:remove 同款)
+    for (const tabId of closedTabs) {
+      await get().closeTab(tabId)
+    }
     set((state) => ({
       projects: state.projects.filter((p) => p.id !== id),
       // 移除的是选中项时清空选中,避免 NewSessionMenu 指向已删除项目

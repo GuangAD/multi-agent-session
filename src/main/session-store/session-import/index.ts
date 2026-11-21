@@ -18,10 +18,14 @@ function keyOf(agentId: AgentId, externalSessionId: string): string {
 
 // 已有记录里带 externalSessionId 的(导入来的 + T8 回填过的)都算「已存在」:
 // 回填过的自建会话与导入的同一对话是同一条,不该被再导一次。
+// 孤儿记录(其 projectId 对应的项目已删除,永不可见)不参与去重:
+// 否则删除项目重新添加后(id 变化)旧记录占着键,同会话永远无法导入回可见列表
+// (2026-11-21 T8 冒烟期本机实况:4 条孤儿拦截,提示「跳过 6 条」而列表只有 2 条)。
 function existingSessionKeys(store: AppStore): Set<string> {
+  const liveProjects = new Set(store.projects.map((project) => project.id))
   const keys = new Set<string>()
   for (const session of store.sessions) {
-    if (session.externalSessionId) {
+    if (session.externalSessionId && liveProjects.has(session.projectId)) {
       keys.add(keyOf(session.agentId, session.externalSessionId))
     }
   }

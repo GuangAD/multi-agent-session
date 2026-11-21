@@ -48,5 +48,17 @@ export const sessionRecords = {
 
   get(store: AppStore, id: SessionId): Session | undefined {
     return store.sessions.find((session) => session.id === id)
+  },
+
+  // 按项目批量移除:删除项目时连带删其下会话记录(2026-11-21 变更,根治孤儿记录),
+  // 返回被移除的 id 供 IPC 层连带关闭标签页;未知项目 = 空操作
+  removeByProject(store: AppStore, projectId: ProjectId): SessionId[] {
+    const removed = store.sessions.filter((session) => session.projectId === projectId)
+    if (removed.length === 0) {
+      return []
+    }
+    const removedIds = new Set(removed.map((session) => session.id))
+    store.sessions = store.sessions.filter((session) => !removedIds.has(session.id))
+    return removed.map((session) => session.id)
   }
 }

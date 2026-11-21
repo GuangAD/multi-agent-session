@@ -106,3 +106,18 @@ it('listByProject:只含该项目记录,创建时间倒序', () => {
   ])
   expect(sessionRecords.listByProject(store, 'P3')).toEqual([])
 })
+
+it('removeByProject:只移除目标项目的记录并返回其 id,其他项目不动', () => {
+  // 2026-11-21 变更:删除项目连带删除其下会话记录(plan 开发记录 20:15 条相邻裁决),
+  // 根治 T4 已知空白①「projects:remove 不清理该项目 sessions」的孤儿记录。
+  const store = emptyStore()
+  const p1a = sessionRecords.create(store, { projectId: 'p1', agentId: 'claude' })
+  const p1b = sessionRecords.create(store, { projectId: 'p1', agentId: 'pi' })
+  const p2 = sessionRecords.create(store, { projectId: 'p2', agentId: 'kimi' })
+
+  const removed = sessionRecords.removeByProject(store, 'p1')
+
+  expect(removed.sort()).toEqual([p1a.id, p1b.id].sort()) // 返回被移除的 id,供连带关闭标签页
+  expect(store.sessions.map((session) => session.id)).toEqual([p2.id])
+  expect(sessionRecords.removeByProject(store, 'gone')).toEqual([]) // 不存在的项目:空操作
+})

@@ -45,7 +45,7 @@ export const IPC_CHANNELS = {
 export interface ProjectsApi {
   list: () => Promise<Project[]>
   add: () => Promise<Project | null> // null:用户取消了目录选择
-  remove: (id: ProjectId) => Promise<void>
+  remove: (id: ProjectId) => Promise<{ closedTabs: SessionId[] }> // 删除项目连带删其下会话记录(2026-11-21 变更);closedTabs = 需关闭的标签页
 }
 
 export interface AgentsApi {
@@ -59,7 +59,7 @@ export interface SessionsApi {
   rename: (p: { id: SessionId; title: string }) => Promise<void>
   // 删除记录;closedTabs = 需连带关闭的标签页(主进程按活动 PTY 判定)
   remove: (id: SessionId) => Promise<{ closedTabs: SessionId[] }>
-  // 重开:记录存在则更新 lastOpenedAt 并返回(T4 = 原样拉起,resume 参数由 T8 接入)
+  // 重开:记录存在则更新 lastOpenedAt 并返回;续接决策由渲染层在 pty:spawn 载荷以可选 resume 透传(T8)
   open: (id: SessionId) => Promise<Session>
   list: (projectId: ProjectId) => Promise<Session[]>
   // T6:扫描该 agent 在本项目目录下的历史会话并入库(按 (agentId, externalSessionId) 去重);skipped = 去重命中数

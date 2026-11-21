@@ -160,3 +160,32 @@ describe('runImport', () => {
     expect(second).toEqual({ imported: 1, skipped: 0 })
   })
 })
+
+  it('6. 孤儿记录(项目已删除)不拦截导入 → 重新入库挂当前项目', async () => {
+    // 2026-11-21 缺陷回归:T8 冒烟期发现——用户删除项目重新添加后 projectId 变化,
+    // 旧导入记录成孤儿(永不可见)却仍占 dedupeKey,拦截了同会话重新导入(本机实况:
+    // 4 条本项目记录挂旧 id,再导入提示「跳过 6 条」而列表只有 2 条)。
+    // 期望:去重只统计项目仍存在的记录,孤儿不再拦截。
+    const store = emptyStore()
+    store.sessions.push({
+      id: 'orphan-1',
+      projectId: 'gone-project', // projects 数组里只有 p1:此记录的项目已删除
+      agentId: 'claude',
+      title: '孤儿',
+      createdAt: '2026-11-19T00:00:00.000Z',
+      origin: 'imported',
+      externalSessionId: 'ext-orphan'
+    })
+    mocks.scan.mockResolvedValue([candidate('ext-orphan', PROJECT_PATH)])
+
+    const result = await runImport(store, {
+      projectId: 'p1',
+      agentId: 'claude',
+      projectPath: PROJECT_PATH
+    })
+
+    expect(result).toEqual({ imported: 1, skipped: 0 })
+    const live = store.sessions.filter((session) => session.projectId === 'p1')
+    expect(live).toHaveLength(1)
+    expect(live[0]).toMatchObject({ externalSessionId: 'ext-orphan', projectId: 'p1' })
+  })
