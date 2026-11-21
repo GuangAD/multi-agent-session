@@ -13,7 +13,7 @@
 - [ ] **T3 PTY 注册表与会话终端**
 - [x] **T3 PTY 注册表与会话终端**
       挡谁:T4(会话记录与标签页绑定)、T5(状态引擎吃 PTY 数据流)
-- [ ] **T3.5 shell 底座改造(ADR-0004,变更任务)**
+- [x] **T3.5 shell 底座改造(ADR-0004,变更任务)**
       交付:PTY 跑常驻 shell(cmd),agent 由应用在 shell 内启动;CLI 退出回 shell 提示符可继续交互、可再次进入;Shift+滚轮强制本地滚动(scrollback);shell 命令行注入的转义规则有测试
       挡谁:T4(重开会话形态=新 shell+注入 resume)、T5(exited 语义=PTY 退出)、T8(resume 注入形态)
       对应:ADR-0004;T3 冒烟两项发现(退出后不可交互、TUI 接管滚轮)的修复载体
@@ -105,4 +105,33 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 下游结论(T3.5/T4/T5 用):pendingData 对「已 spawn 未 open」会话无上限累加(终审评估加上限);采样写盘原始字节追加无 UTF-8 往返衰减,数据泵整段字符串直灌 xterm;TerminalView effect 依赖 [sessionId, scrollback],设置变更会重建实例(暂存会 flush 进新实例不丢);msys 的 TZ 变量不可信,记账时间一律 node Date + timeZone
   - 文档变更登记:本轮含实质变更(shell 底座)——CONTEXT.md/spec.md/plan.md/ADR-0004 四处,随本任务 docs commit 入库
   - 已提交 02ca380e(代码);T3.5 BASE=02ca380e
+- 2026-11-21 00:30 | T3.5 冒烟迭代登记(shell 底座功能达成,样式问题记录待深挖)
+  - 用户冒烟确认:窗口缩放实时跟随 ✓;pi 退出回 shell、dir 回显、再进 pi ✓;应用整体不再出滚动条、终端继承高度(布局四处 min-h-0/overflow-hidden 修复,controller 会话内直修 App.tsx)✓;**pi 里滚轮已能翻历史**(滚轮→翻页键转发)✓
+  - 滚轮问题诊断链(留档):采样实锤 pi 交替屏(?1049h 无 ?1049l)且鼠标模式序列缺失 → TERM 注入(xterm-256color/truecolor,Ported Orca spawn-environment)使 pi 开了 focus reporting(?1004h)但鼠标三件套仍缺 → 判定 Windows ConPTY 不透传鼠标模式序列(xterm 端 mouseTrackingMode 恒 none),滚轮直达 pi 不可行 → 采翻页键转发(交替屏+非 mouse mode 下滚轮→PTY 写 PageUp/PageDown;pi 源码 chunk-4EYXVSA5 实证其 tui.altScreen.pageUp/pageDown 绑定与 parseWheelEvent/routeWheel 完整滚轮支持)
+  - xterm 6.1.0-beta.336 升级(对齐 Orca 同版):上游 6.0.0 有 alt buffer 滚轮回归(vscode#331756 等佐证),升级后 shell 滚动正常;@xterm/addon-fit 同步 0.12.0-beta.332
+  - **遗留问题(用户不接受现状,要求详细调研 Orca 后重做)**:①滚动条错位(pi 运行中,截图 pi-clipboard-668de77d);②终端右侧空白依旧;③滚轮→翻页键是权宜方案(整页步长、非鼠标模式),期望对齐 Orca 的真实实现。待调研点:Orca spawn env 全貌(除 TERM 外的能力信号)、node-pty spawn 参数差异(ConPTY 配置)、pane 渲染架构(headless emulator + serialize 重放 vs 我们的直挂 xterm)与滚动条样式、fit/空白处理
+  - 布局修复与 xterm 升级为本轮已确认有效改动,随 T3.5 提交;样式三问题不阻塞提交但登记为后续任务输入
+- 2026-11-21 | T3.5 样式问题暂停:用户不接受方案,要求重开会话讨论**
+  - 本轮已解决并验证(不得回退):滚轮在 pi 内可用(ConPTY 透传鼠标模式 + 鼠标报告放大)、窗口缩放跟随(ResizeObserver 稳定帧)、应用整体不出滚动条与终端继承高度(min-h-0 链)、DOM 几何对齐(container=.xterm=viewport=351px,screen=344px)、spawn 初始尺寸=真实 fit 提案(Fix-A/B,含 resolvePtyFirstSize 兜底 120×40)
+  - 未解决:pi 运行中右侧空白带 + pi 自绘滚动条错位。全链路已实证到 pi 感知 resize 为止(xterm 重算/IPC/ConPTY 缓冲均正常;pi 在 Windows ConPTY 下收不到 stdout resize 事件),但**即使 spawn 尺寸正确,pi 内容仍比终端窄约 5-6 列**,残差待查
+  - **完整问题记录与实证数据见 docs/issues/2026-11-21-terminal-rendering.md**(含三段可疑方向:H1 xterm 6.1 viewport 上游补丁未移植 / H2 双滚动条并存 / H3 pi 自绘滚动条占列)
+  - 状态:T3.5 改动全部留在工作区**未提交**(typecheck 0 error,vitest 75 passed/10 files);下个会话据此文档继续讨论方案
+  - 方法论教训:本轮多轮「改动—冒烟—被打回」源于在渲染管线上逐个试参数(TERM/env/CSS/fit/尺寸)而未先做 DOM 级定量定位;下轮应先建立「pi 内容右界 / xterm 右界 / 滚动条槽」三者的像素级对照,再改代码
+- 2026-11-21 04:43 | T3.5 终端右侧固定空白带根因闭环:字体度量不一致
+  - 现场 DOM 定量:122 列时文本最后字符只推进到屏幕约 88%,xterm 网格按 8px/格计算而 DOM 文本按 7px/格推进;空白随列数线性增长,不是旧 spawn 尺寸或 shell 差异
+  - 根因:当前 Terminal 使用 xterm 默认 `fontFamily:'monospace'`,canvas 测量与 DOM 渲染回退字体不一致;Orca `pane-terminal-options.ts` 显式设置完整字体族/14px/300/500,无此问题
+  - 修复:`src/renderer/src/components/terminal/use-terminal.ts` 移植 Orca 字体族/字号/字重常量;新增回归测试校验 Terminal 选项
+  - 验证:`pnpm typecheck` 0 error;`pnpm test` 76 passed/10 files;现场放大窗口并重启 pi 后分隔线落到末列,空白只剩 pi 自绘滚动条 1 列 + xterm 7px 沟槽
+- 2026-11-21 04:43 | 文档同步:AGENTS.md 增终端外观配置约束,问题档案第七节记录后续主题/终端配置接入规则
+
+- 2026-11-21 12:53 | T3.5 闭环(shell 底座 + 终端渲染问题全部解决)
+  - 交付达成:PTY 跑常驻 cmd、agent 注入启动;pi 退出回 shell 提示符可继续交互、可再进 pi;窗口缩放实时跟随;应用整体不出滚动条、终端继承高度;pi 内滚轮可用;pi 界面右侧空白带消除
+  - **空白带/滚动条错位最终根因(用户定位)**:Terminal 用 xterm 默认 `fontFamily: monospace`,canvas 测量与 DOM renderer 回退到不同字体度量 —— 122 列时网格按 8px/格、文本按 7px/格推进,末列只到屏幕约 88%,空白随列数线性增长。修复:按 Orca `pane-terminal-options.ts` 同款显式设置字体族/fontSize 14/fontWeight 300/fontWeightBold 500,canvas 与 DOM 同一套度量 + 回归测试钉住 Terminal 选项;实测 122 列下末字符 Range 右缘与 screen.width/cols 一致
+  - 本轮其余落地(均有守卫或台架):CONPTY 透传鼠标模式(useConptyDll:true → 采样出现 ?1000h/?1002h/?1003h/?1006h,pi 滚轮走鼠标报告路径)、鼠标报告放大(mouse-wheel-replay/tui-wheel-reports 移植)、滚轮四分支(Shift 本地 / mouse 模式重放 / 交替屏翻页键兜底 / 默认交 xterm)、孤儿树杀(killProcessTree:PowerShell CIM 后备树快照 + taskkill,跨控制台子进程台架)、StableCellFitAddon + terminal-grid-size-for-box 移植、terminal.css(.xterm-container calc + contain:paint、.xterm 100%、viewport overflow-y:scroll、滑块圆角)、scrollbar-sleek.css、xterm 6.1.0-beta.336 + addon-fit 0.12.0-beta.332(对齐 Orca)、布局 min-h-0 链、spawn 初始尺寸=真实 fit 提案(resolvePtyFirstSize + 先开 tab 后 spawn)
+  - 测试基线:76 passed / 10 files;typecheck 双投影 0 error(controller 亲跑复核);mutation check 均留痕(resolvePtyFirstSize 兜底、滚轮四分支、树杀、spawn 尺寸透传、sessions-slice 一次性消费与失败撤 tab)
+  - 诊断链路留档(docs/issues/2026-11-21-terminal-rendering.md 三~六节):xterm 重算 ✅ / resize IPC ✅ / ConPTY 缓冲 ✅(mode con 报 160 列)/ pi 感知运行期 resize ❌(nodejs#13197 域,pi 用启动宽度)/ **真因=字体度量不一致**;排除项:PowerShell vs cmd、旧 pi 进程、H1(xterm patch)/H2(双滚动条)/H3 单独作用
+  - 文档变更登记:AGENTS.md 新增工程边界条「终端外观配置:xterm options 单一来源、度量类变更须 refit 并同步 PTY 网格、颜色类不 refit」;新增 docs/issues/2026-11-21-terminal-rendering.md(六节定位 + 七节后续约束);本 plan 勾选 T3.5 与本章记账
+  - 方法论教训(本轮真实代价):多轮「改参数—冒烟—被打回」源于未先做像素级定量定位;正确顺序是先量「网格 cell 宽 vs 实际文本推进宽」(Range API/canvas measureText),再改配置
+  - 下游结论(T4+ 用):Terminal 构造必须显式传字体四项,勿依赖 xterm 默认;颜色类配置可运行时更新不 refit,字体类必须 refit + onResize→pty:resize 同步;pty:spawn 载荷已含 cols/rows(渲染层 fit 提案,缺省/非法回退 120×40);sessions-slice 新增 spawnOnTerminalReady(pendingSpawns 一次性消费,失败撤 tab)
+  - 状态:T3.5 全部改动在工作区未提交(等用户确认后提交);已提交历史停在 cdf54d1a(docs 记账 for T3)
 <!-- 四层文档的任何改动都在这里另行留一行 -->
