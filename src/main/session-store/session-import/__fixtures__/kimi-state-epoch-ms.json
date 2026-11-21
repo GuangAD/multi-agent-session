@@ -1,0 +1,11 @@
+{
+  "fixture_provenance": {
+    "source": "构造:字段取自 stablyai/orca src/main/ai-vault/scanners/kimi/session-scanner-kimi-parser.ts 读取的 state.json 键(title/lastPrompt/createdAt/updatedAt/agents)(v1.4.265);时间戳为本文件唯一一处 epoch 毫秒形态(v2 kimi state),无 title 字段以覆盖 lastPrompt 兜底",
+    "import": "constructed",
+    "desensitized": "本机未装 kimi,非本机采样;提示文本虚构"
+  },
+  "lastPrompt": "把侧栏的排序改成按活动时间倒序",
+  "createdAt": 1794450600456,
+  "updatedAt": 1794450600456,
+  "agents": { "main": { "type": "main", "parentAgentId": null } }
+}

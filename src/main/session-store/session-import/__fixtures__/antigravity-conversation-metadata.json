@@ -1,0 +1,15 @@
+{
+  "fixture_provenance": {
+    "source": "构造:字段取自 stablyai/orca src/main/ai-vault/scanners/antigravity/session-scanner-antigravity-metadata.ts 读取的 cache/conversation_metadata.json 形状(conversations[id].summary.WorkspaceURIs / ProjectID)(v1.4.265)",
+    "import": "constructed",
+    "desensitized": "本机未装 antigravity,非本机采样;uri 中的项目目录为虚构。键 4f8e2a1c-9b3d-4e57-8c21-1d0e5b9a7c30 与 antigravity.test.ts 的 WORKSPACE_URI_CONVERSATION_ID 一致"
+  },
+  "conversations": {
+    "4f8e2a1c-9b3d-4e57-8c21-1d0e5b9a7c30": {
+      "summary": {
+        "ProjectID": "proj-alpha",
+        "WorkspaceURIs": ["file:///D%3A/%E5%B7%A5%E4%BD%9C%E5%8C%BA/alpha-app"]
+      }
+    }
+  }
+}

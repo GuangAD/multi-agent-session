@@ -1,0 +1,3 @@
+{"type":"fixture_provenance","source":"构造:字段取自 stablyai/orca src/main/ai-vault/scanners/kimi/session-scanner-kimi-paths.ts 的 parseKimiSessionIndex 读取键(sessionId/workDir)(v1.4.265)","import":"constructed","desensitized":"本机未装 kimi,Orca 无 kimi 原始样本,故按上述读取键构造;会话 id/项目路径/标题均为虚构,不含任何真实用户数据"}
+{"sessionId":"session_01a1f9ad-1111-7001-9001-00000000000a","workDir":"D:\\工作区\\alpha-app"}
+{"sessionId":"session_01a1f9ad-2222-7002-9002-00000000000b","workDir":"D:\\工作区\\beta-app"}

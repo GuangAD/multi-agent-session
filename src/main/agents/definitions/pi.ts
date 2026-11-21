@@ -2,6 +2,8 @@
 // 状态规则按**本机安装的 pi 1.5.0** 校准(2026-11-21 冒烟回归:初版照 Orca pi.json 锚点写的
 // `π ⠋` 干活标题在该版本已不存在,pi 会话的状态点永远停在 idle)
 import type { AgentDefinition } from '../../../shared/agents'
+// T6 登记的领域双向依赖例外:sessions-import 按 agentId 取定义,定义挂自己的 scan
+import { scanPi } from '../../session-store/session-import/pi'
 
 // working 地标 = pi 的 working 指示器旋转帧:bundle 的 Loader DEFAULT_FRAMES
 // = U+280B U+2819 U+2839 U+2838 U+283C U+2834 U+2826 U+2827 U+2807 U+280F,80ms 换一帧,
@@ -34,5 +36,9 @@ export const piAgent: AgentDefinition = {
     // 不凭猜测提前写。
     // idle 安静门槛:指示器 80ms 一帧、干活期输出不断流,安静 2s 即回合结束。
     idleQuietMs: 2000
+  },
+  sessions: {
+    // T7:导入扫描(home = <home>/.pi/agent/sessions);resumeArgv 属 T8
+    scan: scanPi
   }
 }

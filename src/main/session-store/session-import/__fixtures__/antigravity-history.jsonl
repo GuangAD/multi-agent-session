@@ -1,0 +1,4 @@
+{"type":"fixture_provenance","source":"移植自 stablyai/orca src/main/ai-vault/scanners/antigravity/session-scanner-antigravity-history.ts 的行形状(display/workspace/timestamp 以秒计,antigravity-opening-prompt-workspace.test.ts 的 historyRow)(v1.4.265, MIT)","import":"ported","desensitized":"本机未装 antigravity,非本机采样;工作目录与提示文本均为虚构。第三行是诱饵:display 与任何提示都对不上,不得参与关联"}
+{"display":"校准终端字体度量","workspace":"D:\\工作区\\alpha-app","timestamp":1777629600.1}
+{"display":"再补一条守卫用例","workspace":"D:\\工作区\\beta-app","timestamp":1777629660.05}
+{"display":"与任何提示都对不上的历史行","workspace":"D:\\工作区\\beta-app","timestamp":1777629605}

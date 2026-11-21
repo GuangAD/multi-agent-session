@@ -1,6 +1,8 @@
 // Antigravity CLI 定义(brief 第 5 节固定清单;命令名 agy 沿用 Orca catalog)
 // 状态规则初版照抄 Orca agent-state-rules/antigravity.json 的信号要点;规则引擎 T5 落地,此处只提供数据。
 import type { AgentDefinition } from '../../../shared/agents'
+// T6 登记的领域双向依赖例外:sessions-import 按 agentId 取定义,定义挂自己的 scan
+import { scanAntigravity } from '../../session-store/session-import/antigravity'
 
 export const antigravityAgent: AgentDefinition = {
   id: 'antigravity',
@@ -17,5 +19,9 @@ export const antigravityAgent: AgentDefinition = {
     },
     // idle 安静门槛初值;五家统一 2000,T5 校准。
     idleQuietMs: 2000
+  },
+  sessions: {
+    // T7:导入扫描(brain transcript + history/WorkspaceURIs 关联 cwd);resumeArgv 属 T8
+    scan: scanAntigravity
   }
 }

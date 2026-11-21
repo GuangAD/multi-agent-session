@@ -1,0 +1,5 @@
+{"type":"fixture_provenance","source":"移植自 stablyai/orca src/main/ai-vault/scanners/antigravity/session-scanner-antigravity-fixtures.ts 的记录工厂(source/type/content/created_at 四键)与 antigravity-opening-prompt-workspace.test.ts 的开场提示形状(v1.4.265, MIT)","import":"ported","desensitized":"本机未装 antigravity,非本机采样;项目路径与提示文本均为虚构,仍保留 USER_REQUEST 包裹与 USER_EXPLICIT/USER 两种 source 形态"}
+{"source":"SYSTEM","type":"CHECKPOINT","created_at":"2026-05-01T09:59:00.000Z","content":"Earlier system metadata is not the first prompt"}
+{"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-01T10:00:00.000Z","content":"<USER_REQUEST>校准终端字体度量</USER_REQUEST>"}
+{"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-05-01T10:00:30.000Z","content":"先看 xterm options 的字体度量来源。"}
+{"source":"USER","type":"REQUEST","created_at":"2026-05-01T10:01:00.000Z","content":"<USER_REQUEST>再补一条守卫用例</USER_REQUEST>"}

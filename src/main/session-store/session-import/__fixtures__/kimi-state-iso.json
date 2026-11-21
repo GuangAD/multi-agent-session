@@ -1,0 +1,12 @@
+{
+  "fixture_provenance": {
+    "source": "构造:字段取自 stablyai/orca src/main/ai-vault/scanners/kimi/session-scanner-kimi-parser.ts 读取的 state.json 键(title/lastPrompt/createdAt/updatedAt/agents)(v1.4.265);时间戳为本文件唯一一处 ISO 串形态(旧版 kimi state)",
+    "import": "constructed",
+    "desensitized": "本机未装 kimi,非本机采样;标题/提示文本虚构"
+  },
+  "title": "终端渲染字体度量校准",
+  "lastPrompt": "帮我校准终端字体的度量参数",
+  "createdAt": "2026-11-05T09:00:00.123Z",
+  "updatedAt": "2026-11-05T09:40:00.789Z",
+  "agents": { "main": { "type": "main", "parentAgentId": null } }
+}
