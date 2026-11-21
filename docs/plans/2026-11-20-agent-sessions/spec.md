@@ -388,8 +388,11 @@ diff 行解析为抽样档(单向行分类):
 - `scanClaude / scanCodex / scanPi / scanKimi / scanAntigravity` -- 接缝 -- 各家存储扫描
 - `dedupeKey` -- 非接缝 -- 去重键构造,纯函数
 - `BackfillCoordinator` -- 接缝 -- 待回填资格协调(claim/resolve/release)
+- `BackfillCoordinator` -- 接缝 -- 待回填资格协调(claim/poll/release/releaseAll/pollingSessions)【登记二:T8 契约命名,resolve≈poll 同义】
+- `filterFreshCandidates` -- 接缝 -- 回填候选新鲜度过滤与排序(mtime > claim 时刻,升序取最早;评审 Important-1 护栏,T8)
+- `quoteLaunchArg` / `buildAgentLaunchLine` -- 接缝 -- shell 注入行的参数引号包裹与拼串(T8)
 - `resumeArgv` -- 接缝 -- 五家续接命令构造
-- `scanTree` -- 接缝 -- 目录树扫描
+- `ResumeRef` -- 非接缝 -- 重开续接定位原料({id?, filePath?}),渲染层从记录构造、pty:spawn 透传(T8)
 - `shouldIgnore` -- 接缝 -- 忽略规则判定
 - `readFilePreview` -- 非接缝 -- 文件读取编排(二进制探测+截断),行为靠冒烟
 - `openInEditor` -- 非接缝 -- 外部编辑器打开编排(code 优先,回退系统默认应用),行为靠冒烟

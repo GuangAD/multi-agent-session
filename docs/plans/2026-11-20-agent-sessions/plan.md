@@ -27,7 +27,8 @@
 - [x] **T7 会话导入:pi/kimi/antigravity 适配**
       交付:5 个 agent 的历史会话都能导入(存储路径本机实测核对;pi 已实测,claude/codex/kimi/antigravity 本机未装 → 构造/移植样本)
       挡谁:无
-- [ ] **T8 回填与自动续接**
+- [x] **T8 回填与自动续接**
+- [x] **T8 回填与自动续接**
       交付:自建会话重开自动续接对话;并发资格规则与禁止双开生效;五家 resume 参数核对通过
       挡谁:无
 - [ ] **T9 文件浏览**
@@ -203,4 +204,21 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 下游结论(T8+ 用):①T8 的续接原料已就位:pi = `externalFilePath`(实测 5/5 存在)、kimi = `externalSessionId`(含 `session_` 前缀,`kimi --session <id>`)、antigravity = `externalSessionId`(brain 目录名即会话 id)②pi 的会话子目录与 `subagent-artifacts/` 永远不能当会话,任何后续改动必须守住「只扫桶顶层」,已有嵌套诱饵用例守着 ③`AGENT_SESSIONS_AGENT_HOME` 可复用来做三家的端到端冒烟(造 `<tmp>/.pi`、`<tmp>/.kimi-code`、`<tmp>/.gemini`)④kimi 索引的配对键是带 `session_` 前缀的目录名;若真机实测索引行不带前缀,改点在 `parseKimiSession` 的查找键(一行)
   - 文档变更登记:四层文档无实质变更(brief/spec/tasks 未动;spec 的 scanPi/scanKimi/scanAntigravity 覆盖行与实现一致);CONTEXT/ADR/AGENTS 无改动;plan.md 勾选 T7 + 本章
   - **提交状态**:已提交 2771e0a9(代码 17 文件:4 改 + 13 增,用户确认)+ 本条 docs 提交;T8 BASE=本条 docs;review diff `.review/T7*.patch` 提交后删除
+- 2026-11-21 20:15 | 需求变更(T8 冒烟期提出,经用户确认):导入会话重开由「原样拉起」改为「续接该历史对话」
+  - 触发:用户冒烟期提出——导入的历史会话(典型来源:PowerShell 等应用外创建的对话)点击打开时应继续该对话、可见此前内容,而非全新对话
+  - 决策:①渲染层 reopenSession 去掉 `origin !== 'imported'` 过滤,有 externalSessionId 即带 resume ref(一行条件;五家 resume 原料导入时已入库——externalSessionId 必有,pi 另有 externalFilePath 实测 5/5,与自建回填共用同一套注入链路)②老会话转录文件已被清理时不加前置存在性检查:pi 报错退回 shell 提示符,如实可见,不为低概率场景加复杂处理(冒烟后体验不佳再补)③不立新 ADR:决策可逆,一行条件可改回
+  - 文档修订(brief 冻结条目,按回退协议):brief 7.1「点击拉起行为与新建一致」改写为「点击导入会话续接该历史对话」;spec 的 Session.externalSessionId 注释(「imported:去重键」→ 同时是重开续接定位)同步;实施时一并修订
+  - 实施时点:T8 按冻结契约完成冒烟并提交后实施(用户指令「先记录,先跑完冒烟」)——T8 冒烟项「imported 原样拉起」仍按现契约验收;变更落地后另行冒烟「imported 续接」。本机可测仅 pi,其余四家逻辑同源,装后复核
+- 2026-11-21 20:40 | T8 开发与评审闭环(冒烟经用户确认,代码已提交)
+  - BASE=a9a93b4b;implementer(worker subagent)按契约完成:接缝 `src/main/session-store/backfill.ts`(claim 纯判定 + 内表双核 / poll 节流轮询 / release / releaseAll / pollingSessions;档位 [750,2000,3000]→15000 封顶移植 Orca agent-completion-poll-cadence,放弃时限 300_000ms 从 claim 起算;release 即时中止在途轮询——scan await 前后双重核对持有状态,防已死会话误捞接棒会话文件串线,系超出裁决字面的补强);五家 resumeArgv(返回参数部分,见口径③);重开链路(`ResumeRef` → pty:spawn 载荷可选 resume → ipc/pty 经 resumeArgv 构造 → ptyRegistry 载荷可选 launchArgs 注入行);回填接线(spawn 成功后 created 且无 id → scan 闭包(按该 agentId 已有 id 集合过滤只留新会话)→ claim → poll → 写回 id+filePath+scheduleSave;释放三路径 ptyKill/sessionsRemove/before-quit releaseAll 先于 flush;registerPtyIpc 扩签名收 store+scheduleSave,入口组合注入不跨域 import);双开拦截核对:前端 tabs 聚焦 + spawn sessionId 冲突拒绝两道防线完好未触碰
+  - controller 亲跑验证:typecheck 双投影 0 error;vitest 141 passed/23 files(130 基线 + 10 接缝 + 1 接线守卫);修复后 151 passed/23;复审后聚焦复跑 34 passed(3 文件)
+  - 首轮评审(reviewer subagent,对照 .review/T8.patch 823 行,独立核对 Orca 原文与 poll-cadence 档位):规格符合 ✅,无 Critical;Important 2——①回填候选无新鲜度护栏:首扫早于 agent 建文件,从未导入的老文件不在 known 集合 → 老对话 id 误写 → 重开续接错对话(本接缝核心失败形态「续接到别的对话」的现实触发路径)②launchArgs 裸拼:含空格转录路径被 cmd 拆段,pi resume 静默失灵;Minor 2(PTY 退出不释放资格、资格挂满 5 分钟自然放弃——裁决内行为记录;claim 同会话重入重置 claimedAt——正常链路不可达)
+  - Important 修复(原 implementer):Fix-1 `filterFreshCandidates`(候选 filePath mtime > claim 时刻才保留;stat 失败本 tick 丢弃不结束轮询;保留者 mtime 升序——最早文件属先 spawn 会话,与单待回填先开者身份吻合,candidates[0] 不再盲猜;为何 mtime 而非 activityAt:五家 scan 全产 filePath,跨家语义一致不依赖格式统一;残余边界=终端并行的活跃老会话仍会入选,brief 简单规则固有边界,注释如实登记)+ ipc/pty 接线 statSync 注入;Fix-2 `quoteLaunchArg`/`buildAgentLaunchLine`(含空白参数双引号包裹,边界与 buildShellLaunchLine 同——路径不含 " 不涉转义矩阵),buildShellLaunchLine 原函数与测试不动;守卫 +5(backfill 纯函数)+4(注入行)+1(接线守卫:静态断言 ipc/pty 调用 filterFreshCandidates——变异目标是调用点,纯函数直测不敏感,electron 依赖不可单测的盲区由 wiring 定位补上);mutation check ×2 留痕(编排层绕开过滤 → 接线守卫红因精确指向串线缺陷;quoteLaunchArg 改原样返回 → 2 红含 expected '"C:\\a b\\session.jsonl"')
+  - 复审(reviewer magpie/zhipu/glm-5.3-flash:low,对照 .review/T8-fix.patch 1034 行):两发现全 ADDRESSED,无新增 Critical/Important,裁决可提交;范围外观察 2(接线守卫为文本包含检查,mtimeOf 逐候选同步 statSync——当前规模无影响)
+  - 口径登记:①契约步骤 2「10 failed」实况 = module-not-found 整套件 0 test(T6/T7 同先例,未留桩伪造)②步骤 5「65 passed」系门 2 时点,实况基线 130/22,本轮后 141/23,修复后 151/23③resumeArgv 返回参数部分不含命令名(controller 裁决记账):命令本体由 spawn 链路 resolveCommandPath 解析,重复返回会注入两次;spec 覆盖标准「argv 与 Orca 原文逐参数一致」解读为参数部分逐参数一致,用例 6-10 按「Orca 数组去首元素」对照④节流档位 [750,2000,3000,15000] 与放弃时限 300_000ms 系 controller 拍板(契约只定「照抄 Orca 节流」「到头放弃」语义)⑤「spawn 后 claim 一次」接线语义:claim 失败的会话在持有者释放后**不自动接棒**,重开(新 spawn)时才再 claim——契约步骤 4 字面实现;「自动接棒」为契约未明文的增强,未实施⑥新鲜度护栏的行为代价:claim 晚于会话文件创建的会话不回填(典型=并发后开者重开走全新对话),防串线优先于自动续接,预期边界
+  - TDD waiver(留痕):ipc/pty.ts 回填编排层(import electron)无单测——T5 先例(编排层薄、行为靠冒烟);关键纯逻辑已抽 filterFreshCandidates 进接缝全测,调用点由接线守卫钉住
+  - 冒烟实测(用户确认,pi 唯一可测):①续接主链路 ✓(自建会话聊一句→关标签页→重开,pi 恢复上下文)②双开拦截 ✓(重开运行中会话聚焦现有 tab 不开新终端)③imported 原样拉起 ✓(按现契约验收;「imported 续接」变更已登记见 20:15 条,T8 提交后实施并另行冒烟)④并发资格 ✓(1~2s 内连开两会话,仅先开者续接,后开者重开全新对话);claude/codex/agy/kimi 本机不可达,装后复核
+  - 下游结论(T9-T11 与收尾用):①重开续接唯一入口 = 渲染层 pendingSpawns.resume → pty:spawn resume → ipc/pty resumeArgv;新增 agent 续接只需定义挂 resumeArgv,框架零改动②若要「自动接棒」,在 ipc/pty.ts 的 ptyRegistry.onExit 或 release 处补「待补会话重 claim」,接缝无需动③pty-registry 注入行纯函数三件(buildShellLaunchLine/quoteLaunchArg/buildAgentLaunchLine)有测试钉住,改注入形态先改测试④spec 接口面清单已补 4 行(计划外导出回填,reviewer ⚠️ 项)
+  - 文档变更登记:spec.md 接口面清单 4 行;brief/tasks/CONTEXT/ADR 未动(CONTEXT.md 的回填/续接词条随「导入续接」变更实施一并沉淀);「导入续接」变更登记见本日 20:15 条
+  - **提交状态**:已提交 5fa46afb(代码 16 文件:14 改 + 2 增,用户确认)+ 本条 docs 提交;review diff `.review/T8*.patch` 提交后删除
 <!-- 四层文档的任何改动都在这里另行留一行 -->
