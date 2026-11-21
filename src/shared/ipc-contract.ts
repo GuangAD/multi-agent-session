@@ -29,6 +29,12 @@ export const IPC_CHANNELS = {
   sessionsList: 'sessions:list',
   sessionsImport: 'sessions:import',
   settingsGet: 'settings:get',
+  // T11 增补:写设置(主题三态即时生效并持久化)
+  settingsSet: 'settings:set',
+  // T11 增补:渲染层上报「当前前台会话」(通知判定用:前台会话等输入不打扰)
+  sessionsSetActive: 'sessions:set-active',
+  // T11 增补:主进程 → 渲染层,点通知后要求聚焦某会话的标签页
+  notifyOpen: 'notify:open',
   ptySpawn: 'pty:spawn',
   ptyWrite: 'pty:write',
   ptyResize: 'pty:resize',
@@ -75,6 +81,8 @@ export interface SessionsApi {
   // 重开:记录存在则更新 lastOpenedAt 并返回;续接决策由渲染层在 pty:spawn 载荷以可选 resume 透传(T8)
   open: (id: SessionId) => Promise<Session>
   list: (projectId: ProjectId) => Promise<Session[]>
+  // T11:上报当前前台会话(null = 没有标签在前台),主进程据此决定等输入是否弹通知
+  setActive: (id: SessionId | null) => Promise<void>
   // T6:扫描该 agent 在本项目目录下的历史会话并入库(按 (agentId, externalSessionId) 去重);skipped = 去重命中数
   import: (p: { projectId: ProjectId; agentId: AgentId }) => Promise<{
     imported: number
@@ -82,9 +90,11 @@ export interface SessionsApi {
   }>
 }
 
-// 终端渲染参数(scrollback 默认 10000);T3 只读,设置界面后续任务
+// 终端渲染参数(scrollback 默认 10000)与主题;T3 只读,T11 增补写入(主题切换)
 export interface SettingsApi {
   get: () => Promise<Settings>
+  // 局部更新并落盘;返回更新后的完整设置(渲染层据此同步本地状态)
+  set: (patch: Partial<Settings>) => Promise<Settings>
 }
 
 export interface PtyDataEvent {
@@ -137,10 +147,17 @@ export interface StateChangedEvent {
   state: SessionRunState
 }
 
+// T11:点通知后主进程通知渲染层聚焦某个会话
+export interface NotifyOpenEvent {
+  sessionId: SessionId
+}
+
 export interface StateApi {
   reportTitle: (p: StateTitleEvent) => Promise<void>
   reportSnapshot: (p: StateSnapshotEvent) => Promise<void>
   onChanged: (listener: (event: StateChangedEvent) => void) => () => void
+  // T11:点了等输入通知 → 聚焦对应会话标签页
+  onNotifyOpen: (listener: (event: NotifyOpenEvent) => void) => () => void
 }
 
 // T9:文件树节点。children === undefined 表示该目录层尚未扫描(懒展开标记,

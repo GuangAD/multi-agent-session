@@ -2,14 +2,16 @@
 import { create } from 'zustand'
 import { createProjectsSlice, type ProjectsSlice } from './projects-slice'
 import { createFilePreviewSlice, type FilePreviewSlice } from './file-preview-slice'
+import { createUiSlice, type UiSlice } from './ui-slice'
 import { createSessionsSlice, type SessionsSlice } from './sessions-slice'
 import { createRunStateSlice, type RunStateSlice } from './run-state-slice'
 
-export type AppState = ProjectsSlice & SessionsSlice & RunStateSlice & FilePreviewSlice
+export type AppState = ProjectsSlice & SessionsSlice & RunStateSlice & FilePreviewSlice & UiSlice
 
 export const useAppStore = create<AppState>()((...args) => ({
   ...createProjectsSlice(...args),
   ...createSessionsSlice(...args),
   ...createRunStateSlice(...args),
-  ...createFilePreviewSlice(...args)
+  ...createFilePreviewSlice(...args),
+  ...createUiSlice(...args)
 }))

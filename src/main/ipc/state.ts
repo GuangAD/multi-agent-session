@@ -1,12 +1,14 @@
 // state 域编排层:每会话一个状态追踪器(createTracker)+ 三路喂食 + state:changed 广播
 // (spec 模块划分:IPC 层只做编排,判定业务全在 agent-state/state-parser;本文件是 T5 对契约落点的
 // 增补——契约只指定了接缝文件,追踪器的持有与喂食需要主进程编排处)
-import { ipcMain, type BrowserWindow } from 'electron'
+import { ipcMain, Notification, type BrowserWindow } from 'electron'
 import { IPC_CHANNELS } from './channels'
 import { agentRegistry } from '../agents/agent-registry'
 import { createTracker, type Tracker } from '../agent-state/state-parser'
 import { ptyRegistry } from '../pty-registry'
 import { sessionRecords } from '../session-store/session-records'
+import { activeSession } from '../active-session'
+import { shouldNotify } from '../notify'
 import type { AppStore, SessionId, SessionRunState } from '../../shared/types'
 import type {
   StateChangedEvent,
@@ -24,6 +26,46 @@ function sendChanged(
     const payload: StateChangedEvent = { sessionId, state }
     window.webContents.send(IPC_CHANNELS.stateChanged, payload)
   }
+}
+
+// 等输入通知(T11 契约「触发条件 shouldNotify(后台会话 × waiting),点击通知聚焦该标签页」)。
+// 「前台」= 该会话是渲染层上报的当前标签页 **且** 窗口处于聚焦态——任一不满足都算用户没在看,
+// 这时 waiting 才值得提醒(最小化/切到别的应用时也算后台)。
+// Why 判完即返回、不排队去重:状态引擎已做 300ms 去抖,同一会话不会连续重复播 waiting。
+function maybeNotify(
+  store: AppStore,
+  getWindow: () => BrowserWindow | null,
+  sessionId: SessionId,
+  state: SessionRunState
+): void {
+  const window = getWindow()
+  const focused =
+    window !== null &&
+    !window.isDestroyed() &&
+    window.isFocused() &&
+    activeSession.get() === sessionId
+  if (!shouldNotify({ state, focused })) {
+    return
+  }
+  if (!Notification.isSupported()) {
+    return
+  }
+  const record = sessionRecords.get(store, sessionId)
+  const notification = new Notification({
+    title: '会话在等你输入',
+    body: record ? `${record.title} 已停下并等待你的输入` : '有一个会话正在等待你的输入'
+  })
+  notification.on('click', () => {
+    const target = getWindow()
+    if (target && !target.isDestroyed()) {
+      if (target.isMinimized()) {
+        target.restore()
+      }
+      target.focus()
+      target.webContents.send(IPC_CHANNELS.notifyOpen, { sessionId })
+    }
+  })
+  notification.show()
 }
 
 export function registerStateIpc(store: AppStore, getWindow: () => BrowserWindow | null): void {
@@ -46,7 +88,11 @@ export function registerStateIpc(store: AppStore, getWindow: () => BrowserWindow
       return null
     }
     const tracker = createTracker(def)
-    tracker.onChange((state) => sendChanged(getWindow, sessionId, state))
+    tracker.onChange((state) => {
+      sendChanged(getWindow, sessionId, state)
+      // 通知只在真实状态变化时发;播种路径(seed)不发——那不是「刚进入等输入」
+      maybeNotify(store, getWindow, sessionId, state)
+    })
     trackers.set(sessionId, tracker)
     if (options.seed) {
       sendChanged(getWindow, sessionId, tracker.state())

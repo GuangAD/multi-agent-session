@@ -4,6 +4,7 @@ import { join } from 'path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createAppWindow } from './app-window'
 import { loadStore } from './session-store/store-persistence'
+import { migrateLegacyStore } from './store-migration'
 import { BackfillCoordinator } from './session-store/backfill'
 import { registerProjectsIpc } from './ipc/projects'
 import { registerAgentsIpc } from './ipc/agents'
@@ -21,7 +22,7 @@ let flushSessionRecords: () => Promise<void> = async () => {}
 let quitPhase: 'idle' | 'cleaning' | 'done' = 'idle'
 
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.agent-sessions.app')
+  electronApp.setAppUserModelId('com.soloport.app')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -29,6 +30,21 @@ app.whenReady().then(async () => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // 产品名 2026-11-21 定为 Soloport(package.json name 同步),userData 随之变为
+  // %APPDATA%/Soloport;用户已有的真实记录在旧目录 %APPDATA%/agent-sessions。
+  // Why 一次性搬运:改名不能吞掉用户已有项目/会话/设置,故新目录无 store.json 时从旧目录复制一份
+  // (旧目录保留不删——出错可回退;复制而非搬移也避免迁移中途失败丢数据)。
+  // 产品名改名的数据搬迁(实现在 store-migration.ts,有单测):失败不阻塞启动
+  const migration = await migrateLegacyStore(
+    app.getPath('userData'),
+    join(app.getPath('appData'), 'agent-sessions')
+  )
+  // new-exists(已在新目录工作过)与 legacy-missing(全新安装)都是正常终态,不刷日志;
+  // 只有复制失败需要留痕(此时新目录拿不到记录,旧文件仍在原处可人工处理)
+  if (migration.reason === 'copy-failed') {
+    console.error('旧数据目录迁移失败(旧文件仍在原处):', migration.error)
+  }
 
   // store 文件路径由主进程决定(userData/store.json);store-persistence 只认传入路径
   const storePath = join(app.getPath('userData'), 'store.json')
@@ -38,7 +54,8 @@ app.whenReady().then(async () => {
   // T8:防抖落盘器从 sessions IPC 层导出,入口组合转交 ipc/pty.ts(回填写回用;不跨域 import)
   const sessionsIpc = registerSessionsIpc(store, storePath)
   flushSessionRecords = sessionsIpc.flush
-  registerSettingsIpc(store)
+  // T11:settings 写入需要窗口(切换 nativeTheme 后同步标题栏 overlay 配色)与落盘路径
+  registerSettingsIpc(store, () => BrowserWindow.getAllWindows()[0] ?? null, storePath)
   // 单窗口应用:事件出站直接取当前窗口(无窗口时不发)
   registerPtyIpc(store, sessionsIpc.scheduleSave, () => BrowserWindow.getAllWindows()[0] ?? null)
   // 状态引擎编排(三源喂食 + state:changed 广播):订阅注册表的 data/exit,与会话记录同源取 agentId

@@ -9,7 +9,9 @@ import type { AgentListItem } from '../../../../shared/agents'
 import { Button } from '../ui/button'
 
 export function NewSessionMenu(): React.JSX.Element {
-  const [open, setOpen] = useState(false)
+  // 展开态放 store(T11):Ctrl+N 在 App 的全局按键处理里触发,与菜单本体不在同一分支
+  const open = useAppStore((state) => state.newSessionMenuOpen)
+  const setOpen = useAppStore((state) => state.setNewSessionMenuOpen)
   const [agents, setAgents] = useState<AgentListItem[]>([])
   const projects = useAppStore((state) => state.projects)
   const selectedProjectId = useAppStore((state) => state.selectedProjectId)
@@ -38,7 +40,7 @@ export function NewSessionMenu(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-1">
-      <Button aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <Button aria-expanded={open} onClick={() => setOpen(!open)}>
         <SquarePen className="size-4" aria-hidden />
         新建会话
         {open ? (

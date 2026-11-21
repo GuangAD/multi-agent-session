@@ -247,7 +247,7 @@ export const ptyRegistry = {
         ...process.env,
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
-        TERM_PROGRAM: 'agent-sessions',
+        TERM_PROGRAM: 'soloport',
         TERM_PROGRAM_VERSION: '0.1.0'
       },
       // Ported from stablyai/orca src/main/daemon/pty-subprocess/native-pty-spawn.ts (MIT)

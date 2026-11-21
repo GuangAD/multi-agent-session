@@ -1,0 +1,50 @@
+# Windows 打包配置(T11;spec 实现方式「electron-builder 打包 Windows 安装包(NSIS)」)
+# 产品名 2026-11-21 定为 Soloport:appId / productName / 可执行名 / 安装包名统一用新名,
+# 但 package.json 的 name 与数据目录语义分开看——数据目录已有一次性迁移(src/main/index.ts migrateLegacyStore)。
+appId: com.soloport.app
+productName: Soloport
+directories:
+  buildResources: resources
+# 打包白名单思路:只排除不该进包的东西。注意 .reference 是 Orca 参考快照(347MB、38043 文件,
+# 2026-11-20 入库支持换机续做),绝不能被卷进安装包。
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{.reference,.tmp,.review,docs,scripts}/**'
+  - '!{AGENTS.md,PLAN.md,CONTEXT.md}'
+  - '!**/*.test.ts'
+  - '!**/__fixtures__/**'
+  - '!out/**/*.map'
+# 跳过 electron-builder 的 @electron/rebuild:node-pty 1.1.0 自带 N-API 预编译
+# (node_modules/node-pty/prebuilds/win32-x64/*.node,node-addon-api 即 ABI 稳定),不需要按
+# Electron ABI 重编;而重编在本机直接失败(MSB8040:缺 Spectre-mitigated libraries)。
+# Why 记录:若将来换到依赖非 N-API 的原生模块,需装 VS 的 Spectre 库并把这里改回 true。
+npmRebuild: false
+# node-pty 是原生模块:必须解出 asar 才能被 require(asar 内的 .node 无法 dlopen)
+asarUnpack:
+  - resources/**
+  - '**/node_modules/node-pty/**'
+win:
+  executableName: Soloport
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # 产物名带产品名与版本,便于识别
+  artifactName: ${productName}-${version}-setup.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  # 卸载时保留用户数据(会话记录是用户资产,不随卸载删除)
+  deleteAppDataOnUninstall: false
+# 不自动更新(brief 非目标);保留占位配置不影响打包
+publish: null

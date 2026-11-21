@@ -4,6 +4,16 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
+// 标题栏 overlay 配色与高度(单一来源):窗口创建与运行期切换主题都用这一份,
+// 避免 app-window 与 ipc/settings 各写一套色值而漂移(T11 评审 Minor-5)
+export const TITLE_BAR_OVERLAY_HEIGHT = 36
+export function titleBarOverlayColors(dark: boolean): { color: string; symbolColor: string } {
+  return {
+    color: dark ? '#18181b' : '#ffffff',
+    symbolColor: dark ? '#e4e4e7' : '#3f3f46'
+  }
+}
+
 export function createAppWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 900,
@@ -18,9 +28,8 @@ export function createAppWindow(): BrowserWindow {
       ? {
           titleBarStyle: 'hidden' as const,
           titleBarOverlay: {
-            color: nativeTheme.shouldUseDarkColors ? '#18181b' : '#ffffff',
-            symbolColor: nativeTheme.shouldUseDarkColors ? '#e4e4e7' : '#3f3f46',
-            height: 36
+            ...titleBarOverlayColors(nativeTheme.shouldUseDarkColors),
+            height: TITLE_BAR_OVERLAY_HEIGHT
           }
         }
       : {}),

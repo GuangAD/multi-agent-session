@@ -2,7 +2,13 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { IPC_CHANNELS } from '../shared/ipc-contract'
-import type { AppApi, PtyDataEvent, PtyExitEvent, StateChangedEvent } from '../shared/ipc-contract'
+import type {
+  AppApi,
+  NotifyOpenEvent,
+  PtyDataEvent,
+  PtyExitEvent,
+  StateChangedEvent
+} from '../shared/ipc-contract'
 
 // 事件订阅类型化封装:监听器只收载荷,退订函数回收包装器(契约推荐形态)
 function subscribe<Payload>(channel: string, listener: (payload: Payload) => void): () => void {
@@ -30,10 +36,12 @@ const api: AppApi = {
     remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsRemove, id),
     open: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsOpen, id),
     list: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.sessionsList, projectId),
+    setActive: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsSetActive, id),
     import: (p) => ipcRenderer.invoke(IPC_CHANNELS.sessionsImport, p)
   },
   settings: {
-    get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet)
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),
+    set: (patch) => ipcRenderer.invoke(IPC_CHANNELS.settingsSet, patch)
   },
   pty: {
     spawn: (p) => ipcRenderer.invoke(IPC_CHANNELS.ptySpawn, p),
@@ -51,7 +59,10 @@ const api: AppApi = {
     reportSnapshot: (p) => ipcRenderer.invoke(IPC_CHANNELS.stateSnapshot, p),
     // 下行:去抖后的状态广播
     onChanged: (listener: (event: StateChangedEvent) => void) =>
-      subscribe<StateChangedEvent>(IPC_CHANNELS.stateChanged, listener)
+      subscribe<StateChangedEvent>(IPC_CHANNELS.stateChanged, listener),
+    // 下行:点了等输入通知 → 聚焦对应会话的标签页
+    onNotifyOpen: (listener: (event: NotifyOpenEvent) => void) =>
+      subscribe<NotifyOpenEvent>(IPC_CHANNELS.notifyOpen, listener)
   },
   // T9:文件浏览(树懒展开 / 只读预览 / 外部编辑器打开);read 错误经载荷 error 字段返回
   files: {

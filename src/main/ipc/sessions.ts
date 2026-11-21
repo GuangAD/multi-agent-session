@@ -7,6 +7,7 @@ import { agentRegistry } from '../agents/agent-registry'
 import { ptyRegistry } from '../pty-registry'
 import { BackfillCoordinator } from '../session-store/backfill'
 import { sessionRecords } from '../session-store/session-records'
+import { activeSession } from '../active-session'
 import { runImport } from '../session-store/session-import'
 import { saveStoreAtomic } from '../session-store/store-persistence'
 import type { AgentId, AppStore, ProjectId, Session, SessionId } from '../../shared/types'
@@ -133,6 +134,11 @@ export function registerSessionsIpc(
 
   ipcMain.handle(IPC_CHANNELS.sessionsList, (_event, projectId: ProjectId): Session[] => {
     return sessionRecords.listByProject(store, projectId)
+  })
+
+  // T11:渲染层上报当前前台会话(切标签/关标签/窗口失焦都会上报);通知判定用它判断「用户正看着」
+  ipcMain.handle(IPC_CHANNELS.sessionsSetActive, (_event, id: SessionId | null): void => {
+    activeSession.set(id)
   })
 
   ipcMain.handle(

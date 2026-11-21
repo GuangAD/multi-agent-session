@@ -1,7 +1,8 @@
 // 布局:窗口标题栏(左栏开关 + 面板入口/面板动作)| 左栏侧栏 | 中间终端区 | 右侧面板(单面板)
 // (T1 骨架 → T4 侧栏 → T9 文件 → T10 Git → T10 评审期调整:面板入口与面板动作常驻标题栏,
 // 左右栏与面板内部不再各占一行标题,垂直空间全留给内容)
-// 主题策略:Tailwind dark: 变体默认跟随系统(prefers-color-scheme),手动切换交互在 T11。
+// 主题策略:Tailwind dark: 变体走 class 策略(<html class="dark">,见 assets/main.css),
+// 三态(系统/浅/深)由 ThemeToggle 写类并持久化(settings:set);本文件不直接碰主题。
 import { useEffect, useState } from 'react'
 import {
   ExternalLink,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useAppStore } from './store/app-store'
 import { Button } from './components/ui/button'
+import { ThemeToggle } from './components/ui/ThemeToggle'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { FileTreePanel } from './components/file-panel/FileTreePanel'
 import { GitPanel } from './components/git-panel/GitPanel'
@@ -28,6 +30,11 @@ function App(): React.JSX.Element {
   const loadSessions = useAppStore((state) => state.loadSessions)
   const projects = useAppStore((state) => state.projects)
   const selectedProjectId = useAppStore((state) => state.selectedProjectId)
+  const tabs = useAppStore((state) => state.tabs)
+  const activeTabId = useAppStore((state) => state.activeTabId)
+  const setActiveTab = useAppStore((state) => state.setActiveTab)
+  const closeTab = useAppStore((state) => state.closeTab)
+  const setNewSessionMenuOpen = useAppStore((state) => state.setNewSessionMenuOpen)
   const [leftOpen, setLeftOpen] = useState(true)
   const [rightPanel, setRightPanel] = useState<RightPanel>(null)
   // 刷新计数:标题栏的刷新按钮把计数 +1,面板以 `${projectId}:${tick}` 作 key 重挂取新数据
@@ -54,10 +61,122 @@ function App(): React.JSX.Element {
     [setRunState]
   )
 
+  // 上报「当前前台会话」给主进程(T11 通知判定),切标签/窗口聚焦变化都重报一次。
+  // Why 也算窗口聚焦:最小化或切到别的应用时,当前标签页对用户来说已经不可见。
+  useEffect(() => {
+    const report = (): void => {
+      void bridge.sessions
+        .setActive(document.hasFocus() ? activeTabId : null)
+        .catch((error) => console.error('上报前台会话失败:', error))
+    }
+    report()
+    window.addEventListener('focus', report)
+    window.addEventListener('blur', report)
+    return () => {
+      window.removeEventListener('focus', report)
+      window.removeEventListener('blur', report)
+    }
+  }, [activeTabId])
+
+  // 点等输入通知 → 聚焦该会话的标签页(标签可能已关,此时只聚焦窗口,不硬开新标签)
+  useEffect(
+    () =>
+      bridge.state.onNotifyOpen((event) => {
+        if (useAppStore.getState().tabs.some((tab) => tab.sessionId === event.sessionId)) {
+          setActiveTab(event.sessionId)
+        }
+      }),
+    [setActiveTab]
+  )
+
   // 标题栏入口:点同一个再次收起(第二次点击 = 关);点另一个直接切换面板
   const togglePanel = (panel: Exclude<RightPanel, null>): void => {
     setRightPanel((current) => (current === panel ? null : panel))
   }
+
+  // 全局快捷键(T11 契约「新建会话、切换标签页」+ 面板开关)。
+  // Why 走渲染层 keydown 而不是 globalShortcut:后者是系统级(应用不在前台也会抢键),
+  // 这里要的是应用内快捷键。
+  // **输入态守卫(T11 评审 Important-1)**:Ctrl+B/E/G/N/W 在 bash/zsh 的 readline 里全是编辑键
+  // (B 退一格、E 行尾、N 下一条历史、W 删前一个词),而终端是本应用的常驻焦点区——
+  // 不守卫就会「想删一个词,结果杀掉正在跑的 agent」。故:
+  //   · 焦点在终端内(xterm 用隐藏 textarea 收键,祖先 .xterm)→ 只放行 Ctrl+Tab 切标签;
+  //   · 焦点在普通输入框/文本域/可编辑区 → 一律不拦(让控件自己处理输入);
+  //   · 其余界面区域 → 按下面处理。
+  useEffect(() => {
+    const isTerminalTarget = (target: EventTarget | null): boolean =>
+      target instanceof Element && target.closest('.xterm') !== null
+
+    const isEditableTarget = (target: EventTarget | null): boolean =>
+      target instanceof Element &&
+      target.closest('input, textarea, [contenteditable="true"]') !== null
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      // 不带修饰键 / 长按重复:不处理(长按 Ctrl+W 不得连杀多个 PTY)
+      if (!(event.ctrlKey || event.metaKey) || event.repeat) {
+        return
+      }
+      const inTerminal = isTerminalTarget(event.target)
+      const isTabSwitch = event.key === 'Tab'
+      // 输入控件内一律放行原始输入;唯一例外是终端里的 Ctrl+Tab(切标签是应用级动作,
+      // shell/TUI 不占这个组合)
+      if (isEditableTarget(event.target) && !(inTerminal && isTabSwitch)) {
+        return
+      }
+
+      if (isTabSwitch) {
+        event.preventDefault()
+        if (tabs.length === 0) {
+          return
+        }
+        const index = tabs.findIndex((tab) => tab.sessionId === activeTabId)
+        const step = event.shiftKey ? -1 : 1
+        const next = tabs[(index + step + tabs.length) % tabs.length]
+        if (next) {
+          setActiveTab(next.sessionId)
+        }
+        return
+      }
+
+      // 终端内其余组合一律不拦:它们是 shell 的行编辑键,拦了就是抢用户输入
+      if (inTerminal) {
+        return
+      }
+
+      const key = event.key.toLowerCase()
+      // Ctrl+N:展开左栏并打开「新建会话」菜单(菜单内部再选 agent)
+      if (key === 'n' && !event.shiftKey) {
+        event.preventDefault()
+        setLeftOpen(true)
+        setNewSessionMenuOpen(true)
+        return
+      }
+      // Ctrl+B:收起/展开左栏
+      if (key === 'b' && !event.shiftKey) {
+        event.preventDefault()
+        setLeftOpen((open) => !open)
+        return
+      }
+      // Ctrl+Shift+E:打开/收起文件面板;Ctrl+Shift+G:打开/收起 Git 面板
+      if (key === 'e' && event.shiftKey) {
+        event.preventDefault()
+        togglePanel('files')
+        return
+      }
+      if (key === 'g' && event.shiftKey) {
+        event.preventDefault()
+        togglePanel('git')
+        return
+      }
+      // Ctrl+W:关闭当前标签页(会杀 PTY,故终端内被上面的守卫挡住)
+      if (key === 'w' && !event.shiftKey && activeTabId) {
+        event.preventDefault()
+        void closeTab(activeTabId)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [tabs, activeTabId, setActiveTab, closeTab, setNewSessionMenuOpen])
 
   return (
     <div className="flex h-screen flex-col overflow-hidden text-zinc-900 dark:text-zinc-100">
@@ -90,13 +209,14 @@ function App(): React.JSX.Element {
               <PanelLeftOpen className="size-4" aria-hidden />
             )}
           </Button>
-          <span className="px-1 text-sm font-semibold">Agent Sessions</span>
+          <span className="px-1 text-sm font-semibold">Soloport</span>
         </div>
 
         <div
           className="ml-auto flex items-center gap-1"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
+          <ThemeToggle />
           {/* 面板动作:只在对应面板展开时出现(面板内部不再有自己的标题行) */}
           {rightPanel === 'files' && (
             <>
