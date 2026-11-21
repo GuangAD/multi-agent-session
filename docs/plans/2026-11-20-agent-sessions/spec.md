@@ -264,7 +264,7 @@ interface GitStatus { branch: string; entries: Array<{ path: string; staged: str
 |---|---|---|---|---|
 | claude 标题×转圈 | 标题含 spinner 符号 | →working | `createTracker` | T5 用例 1 |
 | claude 标题×纯名+安静期 | 纯标题且静默达阈值 | →idle | `createTracker` | T5 用例 2 |
-| pi 标题×π⠋/π- | 两种标题 | working/idle | `createTracker` | T5 用例 3 |
+| pi 屏幕×点阵帧 | 屏幕出现 `⠋ Working` 状态行 / 帧消失后安静 | working / idle | `createTracker` | T5 用例 3 |
 | codex 屏幕×横幅 | 头部横幅地标 | →working | `createTracker` | T5 用例 4 |
 | codex 屏幕×确认菜单 | 「implement this plan?」 | →waiting | `createTracker` | T5 用例 5 |
 | antigravity 屏幕×菜单 | 权限菜单地标 | →waiting | `createTracker` | T5 用例 6 |

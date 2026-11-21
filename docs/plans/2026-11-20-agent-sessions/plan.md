@@ -18,7 +18,7 @@
 - [x] **T4 会话记录与侧栏**
       交付:重启后会话列表在;重开原样拉起;重命名/删除(确认+连带关标签页)生效
       挡谁:T5(状态点渲染在会话行)、T7(导入列表挂在会话区)、T8(重开流程接 resume)
-- [ ] **T5 状态识别三源引擎**
+- [x] **T5 状态识别三源引擎**
       交付:真实跑 agent 时会话行状态点正确切换(kimi 允许降级);五家正反样本 fixture 回放绿
       挡谁:T11(等输入通知以 waiting 状态为触发)
 - [ ] **T6 会话导入:框架与 claude/codex**
@@ -148,4 +148,20 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 下游结论(T5+ 用):①「有活动标签页」在主进程侧判据是**有存活 PTY**(`ptyRegistry.activeSessionIds()`),与渲染层「有 tab」在 shell 退出后不等价——T5 状态点、T8 禁止双开必须明确取哪一个;②`sessions:open` 已更新 lastOpenedAt 并落盘,T8 接 resume 只需在此注入 argv 决策并让渲染层透传,不另开通道;重开与新建共用同一条 Fix-B 时序(pendingSpawns → 首个 fit → 带 cols/rows spawn);③侧栏与标签页的元数据唯一来源是 `sessions` 记录,任何新 UI 不得往 TabSession 塞元数据;④记录顺序契约是 createdAt 倒序,渲染层 upsert 必须前插与之对齐
   - 文档变更登记:本轮四层文档无实质变更(brief/spec/tasks 未动;spec 新增接口 `sessionRecords.get` 系预检已登记项);AGENTS.md/CONTEXT.md/ADR 无改动;plan.md 仅勾选 + 本章 + 重复行清理
   - **提交状态**:已提交 e4e815b1(代码 16 文件)+ 11dcea66(用例顺序依赖修复 2 文件,用户指定当场单开 fix commit)+ 本条 docs 提交;T5 BASE=11dcea66;review diff `.review/T4.patch`、`.review/T4-fix.patch` 已删
+- 2026-11-21 17:02 | T5 开发与评审闭环(冒烟经用户确认,代码待确认提交)
+  - BASE=11dcea66;本任务全部改动与冒烟修复合并为一个 feat 提交(任务未提交前冒烟发现的缺陷属该任务闭环,不另造「已知坏」的中间提交)
+  - implementer(worker subagent)按契约完成:`agent-state/state-parser.ts` 接缝(createTracker + Tracker 五方法;判定链 退出 > waiting 地标 > working 信号 > 标题规则 > 静默 idle;64KB 字节环形缓冲跨 chunk 匹配;300ms 去抖;degraded 档;地标子串大小写不敏感);`__fixtures__/` 五家事件序列样本;新增编排层 `ipc/state.ts`(tracker 表 + 三路喂食 + state:changed 广播;契约落点增补,已授权);`shared/ipc-contract.ts` 增 `state:title`/`state:snapshot` 上行 + `state:changed` 下行 + `StateApi`,preload 同步;`use-terminal.ts` 只追加(标题上行 + 250ms 窗口快照序列化 + closeTerminal 解绑);渲染层 `run-state-slice.ts` + `run-state-display.ts` + SessionRow 状态点(绿/橙/灰/红);与 T4 收敛:删除 `TabSession.runState`/`markSessionExited`,运行状态唯一来源=run-state-slice,App.tsx 改订阅 state:changed
+  - **working 信号的读法(implementer 提出,controller 认可)**:`screen/bytes.working` 地标只在输出流动时算 working,安静达门槛后同一地标视为「就绪画面」交给标题/安静判定(与 Orca 各家 ready 规则的 requiresQuiet 同构;否则 codex/antigravity 的常驻横幅会永远 working)
+  - controller 亲跑验证:typecheck 双投影 0 error;vitest 93 passed/12 files(修前基线 82/11);eslint 作用域内 0 新增 error;T3.5 的 use-terminal 19 条仍绿
+  - 首轮评审(reviewer subagent,对照 .review/T5.patch 1457 行):规格符合 ✅,无 Critical;Important 2——①`bytes.waiting` 是一次性证据且无出口(字节缓冲是会话开始以来的只增日志,waiting 分支在最前且不设安静闸门 → 地标一旦流过即永久误报,填上 bytes 规则就会炸)②`exited` 也走 300ms 去抖且退出路径先摘 tracker(尾包会 resurrection 出新 tracker 播种 idle,红点翻灰);Minor 6(快照节流注释与实现不符、空画面不上行致 lastSnapshot 陈旧、「!quiet 闸门无用例钉住」、serializeVisibleLines 无覆盖、runStates 不清理、TrackerOptions.now 无用例)
+  - Important 修复(原 implementer):①`onSnapshot` 收到快照即 `byteBuffer = ''`(快照是更强更新的证据,到达即宣告更早字节证据过期;跨 chunk 拼接在两次快照之间照旧)+ 用例 12/13(测试本地构造 def,跨 chunk 拼接 + 快照后不再 waiting)②`onExit` 抽出 `publish()` 直接落地不进去抖、`create(sessionId, {seed})` 显式表态播种、`trackerForPty` 加「有活动 PTY」守卫、退出路径 `{seed:false}` 自建;用例 9 改为不推进定时器即断言 exited;③codex fixture 补 `ready-header` 的 2600ms idle 检查点钉住 `!quiet` 闸门;三条 mutation check 均留痕(删 byteBuffer 清理→13 红/改回 requestState→9 红/删 !quiet→2600 红,均还原全绿)
+  - 复审(reviewer magpie/zhipu/glm-5.3-flash:low,对照 .review/T5-fix.patch 238 行):三条均 ADDRESSED,无新增 Critical/Important,裁决可提交;新增 Minor 挂账:`trackerForPty` 每包一次 O(n) `activeSessionIds().includes`
+  - TDD waiver(留痕):`ipc/state.ts`(import electron)的 seed 分支、活动 PTY 守卫、退出路径自建无单测——要覆盖需先建 fake ipcMain/window/ptyRegistry,属独立任务;implementer 用两条代码事实支撑(`entries.delete` 先于 exit 监听器、`entries.set` 先于 onData 注册),controller 核对其一
+  - **冒烟发现并修复(实证驱动,非试错)**:pi 会话状态点永远停在 idle。根因 = `title.working: /^π ⠋/` 在本机 **pi 1.5.0** 永不命中——读安装包实证:标题唯一写入是 `updateTerminalTitle()` → `π - <session> - <cwd>`(APP_TITLE="π"),干活信号在屏幕上:Loader `DEFAULT_FRAMES`(U+280B…U+280F,80ms 一帧)+ `defaultWorkingMessage="Working"`;pi 不做逐工具授权(docs/security.md),唯一阻塞对话框是项目信任(本机未出现)。修法:`definitions/pi.ts` 删失效标题规则、新增 `screen.working` = 10 个点阵帧(码点逐个核对,不用 "Working" 文字以免对话正文造成永久误报)、`title.working`/`screen.waiting` 显式空数组(`AgentStateRules` 两槽必填,空数组=不提供);`pi.fixture.ts` 输入形态改为屏幕帧 + 时间线重标;用例 3 改为屏幕信号,用例 10 的去抖改挂 claude 标题(去抖与 agent 无关,pi 标题已不承载干活信号)。mutation check:撤 `screen.working` → 用例 3、11 转红 → 还原 13 passed
+  - 冒烟实测(用户确认,pi 唯一可测):干活 → 绿;`/quit` 或连按 Ctrl+C 回 cmd 提示符 → 灰(ADR-0004:agent CLI 退出≠exited);cmd 下 `exit` 结束 shell → 红;重开同一会话 → 灰(播种纠正);关标签页 → 点消失;重启应用 → 无残留点
+  - **未验证/本机不可达**:claude/codex/agy/kimi 均未安装,契约步骤 7「其余 4 家按采样结论核对」无操作对象——这四家的规则仍是 Orca 锚点推算的构造样本,真实采样欠账;`AGENT_SESSIONS_SAMPLE` 真实采样本次未跑(记 backlog,真实 `.bin` 只对 pi 有意义且关键切换已由真机冒烟确认)
+  - 口径登记:①契约步骤 6「35 passed」过期,实况基线 82/11,本轮期望改为 93/12,冒烟修复后 95/12;②spec 覆盖标准接缝 stateTracker 第 3 行「pi 标题×π⠋/π-」被实证推翻,**已就地改为「pi 屏幕×点阵帧」**(spec.md 同步修改),属回退协议允许的 spec 修订,不重过门;③`state:title`/`state:snapshot` 两条上行通道与 `ipc/state.ts` 编排层为契约外增补(机械必要,按 T3 先例登记)
+  - 下游结论(T6+ 用):①字节证据的生命周期 = 「两次快照之间」,快照是证据代际边界;给五家填 `bytes` 规则时只需保证画面静止时快照仍在跑,waiting 误报就下一帧自愈,不需要 TTL;②事实型状态(exited)与判定型状态(working/waiting)走不同落地路径(`publish()` 直落 vs `requestState()` 去抖),后续加 `'starting'` 之类事实态同理;③编排层新建 tracker 必须显式表态是否播种,新增事件源先问「会不会替退出后的会话复活 tracker」,守卫模板 = `activeSessionIds()`;④`AgentStateRules` 的 `title.working`/`screen.waiting` 等槽位必填,「不提供」要写成空数组而不是省略
+  - 文档变更登记:spec.md 一行(覆盖标准 stateTracker 第 3 行)按实证修订;brief/tasks 未动;CONTEXT.md/ADR/AGENTS.md 无改动;plan.md 勾选 T5 + 本章
+  - **提交状态**:已提交 3919cbdc(代码与冒烟修复合并,24 文件:13 改 + 11 增,commit 信息待用户确认);review diff `.review/T5.patch`、`.review/T5-fix.patch` 提交后删除
 <!-- 四层文档的任何改动都在这里另行留一行 -->
