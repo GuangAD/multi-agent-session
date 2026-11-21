@@ -133,5 +133,5 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 文档变更登记:AGENTS.md 新增工程边界条「终端外观配置:xterm options 单一来源、度量类变更须 refit 并同步 PTY 网格、颜色类不 refit」;新增 docs/issues/2026-11-21-terminal-rendering.md(六节定位 + 七节后续约束);本 plan 勾选 T3.5 与本章记账
   - 方法论教训(本轮真实代价):多轮「改参数—冒烟—被打回」源于未先做像素级定量定位;正确顺序是先量「网格 cell 宽 vs 实际文本推进宽」(Range API/canvas measureText),再改配置
   - 下游结论(T4+ 用):Terminal 构造必须显式传字体四项,勿依赖 xterm 默认;颜色类配置可运行时更新不 refit,字体类必须 refit + onResize→pty:resize 同步;pty:spawn 载荷已含 cols/rows(渲染层 fit 提案,缺省/非法回退 120×40);sessions-slice 新增 spawnOnTerminalReady(pendingSpawns 一次性消费,失败撤 tab)
-  - 状态:T3.5 全部改动在工作区未提交(等用户确认后提交);已提交历史停在 cdf54d1a(docs 记账 for T3)
+  - 已提交 d56117fc(代码 25 文件)+ 0eeff90b(文档 5 文件;含 AGENTS.md/PLAN.md/plan.md/issues/T3.5 契约);工作区干净(仅 .reference 下快照自带的 4 个 .gradle 未跟踪目录);T4 BASE=0eeff90b
 <!-- 四层文档的任何改动都在这里另行留一行 -->
