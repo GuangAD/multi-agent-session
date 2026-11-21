@@ -7,17 +7,15 @@
 - [x] **T1 骨架与项目持久化**
       交付:开发模式出三栏窗口(左栏右栏可收起);添加目录后重启列表仍在;typecheck 与 vitest 全绿
       挡谁:T2、T3、T4、T5、T6、T7、T8、T9、T10、T11(IPC 框架、shared 契约与测试基座是全部后续任务的地基)
-- [ ] **T2 agent 配置层与安装检测**
 - [x] **T2 agent 配置层与安装检测**
       挡谁:T3(建会话需按定义拉起)、T5(状态引擎按 agentId 取规则)、T6、T7(导入按 agentId 找扫描器)、T8(resume 按 agentId 构造参数)
-- [ ] **T3 PTY 注册表与会话终端**
 - [x] **T3 PTY 注册表与会话终端**
       挡谁:T4(会话记录与标签页绑定)、T5(状态引擎吃 PTY 数据流)
 - [x] **T3.5 shell 底座改造(ADR-0004,变更任务)**
       交付:PTY 跑常驻 shell(cmd),agent 由应用在 shell 内启动;CLI 退出回 shell 提示符可继续交互、可再次进入;Shift+滚轮强制本地滚动(scrollback);shell 命令行注入的转义规则有测试
       挡谁:T4(重开会话形态=新 shell+注入 resume)、T5(exited 语义=PTY 退出)、T8(resume 注入形态)
       对应:ADR-0004;T3 冒烟两项发现(退出后不可交互、TUI 接管滚轮)的修复载体
-- [ ] **T4 会话记录与侧栏**
+- [x] **T4 会话记录与侧栏**
       交付:重启后会话列表在;重开原样拉起;重命名/删除(确认+连带关标签页)生效
       挡谁:T5(状态点渲染在会话行)、T7(导入列表挂在会话区)、T8(重开流程接 resume)
 - [ ] **T5 状态识别三源引擎**
@@ -134,4 +132,20 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 方法论教训(本轮真实代价):多轮「改参数—冒烟—被打回」源于未先做像素级定量定位;正确顺序是先量「网格 cell 宽 vs 实际文本推进宽」(Range API/canvas measureText),再改配置
   - 下游结论(T4+ 用):Terminal 构造必须显式传字体四项,勿依赖 xterm 默认;颜色类配置可运行时更新不 refit,字体类必须 refit + onResize→pty:resize 同步;pty:spawn 载荷已含 cols/rows(渲染层 fit 提案,缺省/非法回退 120×40);sessions-slice 新增 spawnOnTerminalReady(pendingSpawns 一次性消费,失败撤 tab)
   - 已提交 d56117fc(代码 25 文件)+ 0eeff90b(文档 5 文件;含 AGENTS.md/PLAN.md/plan.md/issues/T3.5 契约);工作区干净(仅 .reference 下快照自带的 4 个 .gradle 未跟踪目录);T4 BASE=0eeff90b
+- 2026-11-21 13:41 | T4 开发与评审闭环(冒烟经用户确认 13:41,代码 commit 待确认)
+  - BASE=c4dceeec(docs 提交,比上一轮登记的 0eeff90b 多一个文档提交;diff 基线以 HEAD 为准)
+  - implementer(worker subagent)按契约完成:`session-store/session-records.ts` 接缝五条(create/rename/remove/listByProject + 按 spec 补 get);`ipc/sessions.ts` 重写为 `registerSessionsIpc(store, storePath)`(create 经注册表归一 + 组合层补 def.name / rename / remove / open 更新 lastOpenedAt / list),模块内 100ms 尾沿防抖保存器;`pty:*` 侧仅加只读 `ptyRegistry.activeSessionIds()`;shared 契约 +4 通道 +SessionsApi 4 方法,preload 同步;渲染层 TabSession 收窄为 `{ sessionId, runState }` + sessions 记录列表/loadSessions/reopenSession/renameSession/removeSession;新增 sidebar/{Sidebar,ProjectGroup,SessionRow} 与 ui/confirm-dialog;App.tsx 改用 Sidebar(先 loadProjects 再 loadSessions);TerminalTabs 元数据改从记录取。未提交、未动四层文档、零越界(16 文件:10 改 + 6 增,与报告清单逐项一致)
+  - controller 亲跑验证:typecheck 双投影 0 error;vitest 82 passed/11 files(修前 81/11);electron-vite build exit 0;eslint 作用域内仅 1 error(sessions-slice.test.ts:42,`git show HEAD:` 核实逐字未改,属既有)
+  - 首轮评审(reviewer subagent,对照 .review/T4.patch 1120 行):规格符合 ✅,无 Critical;Important 2——①防抖落盘无退出前 flush(删除/重命名后 100ms 内退出会丢,重启已删会话复活)②upsertSession 追加到末尾与 listByProject 倒序不一致(新建停底部、重启跳顶部);Minor 8(重复删除分支无用例、title 无校验、confirm-dialog 无 Esc/焦点管理、removeSession 的 closeTab 无 try/catch、spawn 失败留记录、localeCompare 并列序、lastOpenedAt 绕过 sessionRecords、onBlur 与 Escape 交互可疑)
+  - Important 修复(原 implementer,只动 4 文件):①`createDebouncedSaver` 返回 `{schedule, flush}`(dirty 标记 + writing 队尾链,flush 既写待写变更也等飞行中的写),`registerSessionsIpc` 透传 flush,index.ts 用 quitPhase 状态机在 before-quit 里 preventDefault → await flush → killAll → app.quit,重入直接放行;②upsertSession 改 `[session, ...sessions]` 前插 + 既有 sessions-slice.test.ts 内补 1 条守卫用例(手写数组字面量期望),mutation check:改回追加 → 该用例转红(expected 's-older' to be 's-newest')→ 还原 6 passed ✓
+  - 复审(reviewer magpie/zhipu/glm-5.3-flash:low,对照 .review/T4-fix.patch 199 行):两条均 ADDRESSED,无新增 Critical/Important,裁决可提交;范围外观察:收尾期间取消退出会让 quitPhase 停在 cleaning(语义无害)
+  - TDD waiver(留痕):发现 1 的修复无守卫用例——测退出 flush 需让 vitest 加载 electron 或新开接缝,契约口径明确「不得为防抖新开接缝」;改由手动冒烟覆盖(删除/重命名后立刻关应用 → 重启不复活/不回退),用户冒烟通过
+  - 口径登记:①契约步骤 5「24 passed」系门 2 时点数,实况基线 76/10,本轮期望改为 81/11,修复后 82/11;②首红形态与契约「5 failed」不符——模块尚不存在时是套件导入失败(0 test),未用桩文件伪造 5 failed,用两次 mutation check 证明断言有效;③spec 接口面清单的 `sessionRecords.get` 按预检登记一补入,不加用例;④`sessionRecords.create` 的 title 默认写 agentId、显示名由 IPC 层 rename 补(spec 禁止领域模块横向 import),IPC 层因此多一次 store 变更(同一防抖窗口内合并落盘)
+  - 文档一致性清理(controller,随本轮 docs 提交):plan.md 任务清单 T2/T3 各有一条重复的未勾行(同一事项两个状态),删多余未勾行,保留 [x];不改章节结论
+  - **已知空白(留待裁决,未实现)**:①`projects:remove` 不清理该项目 sessions,孤儿记录留在 store,重新添加同目录会生成新 projectId 使旧记录永不可见;②删除会话不登记忽略清单(依赖 externalSessionId,归 T6)
+  - **既有测试顺序依赖(非本轮引入,已修)**:`--sequence.shuffle` 下复现两处——①`src/main/pty-registry.test.ts` samplingTap 坏目录用例断言「摘除后同会话不得再尝试写」;②`use-terminal.test.ts`「tab 关闭清理 pending」。根因均已查实:①该断言数 `console.error` **总调用数**,而同文件树杀是 fire-and-forget,其异步日志(「taskkill 兜底未命中」「树杀快照失败」)会落进本用例 150ms 等待窗(DIAG 捕获实况:5 条调用里 4 条是这两类)②该用例默认前一用例已挂数据泵,单跑/乱序时 `onPtyDataHandlers` 为空(`pump is not a function`)。修法只改用例不动产品代码:①改按本模块固定消息过滤计数 ②用例自带引导终端(open 再 close)后取泵。验证:目标两文件 shuffle 10 轮 31 passed ×10、全量 shuffle 3 轮 82 passed ×3、常规顺序 3 轮 82 passed ×3、typecheck 0 error
+  - mutation check(留痕,含限制):①用例自带引导能否定序复现——删掉引导后单跑该用例即 `TypeError: pump is not a function`(1 failed / 18 skipped),加回转绿;②过滤计数一条**无法定序复现**(改回总数后 28 轮 shuffle 未再红,原缺陷在当时的出现率约 1/8),故其证据是修复前的 DIAG 实况调用清单 + 修复后 10/3 轮全绿,不作为可脚本重放的变异证据;③现有两处均已留 Why 注释说明为何这样写
+  - 下游结论(T5+ 用):①「有活动标签页」在主进程侧判据是**有存活 PTY**(`ptyRegistry.activeSessionIds()`),与渲染层「有 tab」在 shell 退出后不等价——T5 状态点、T8 禁止双开必须明确取哪一个;②`sessions:open` 已更新 lastOpenedAt 并落盘,T8 接 resume 只需在此注入 argv 决策并让渲染层透传,不另开通道;重开与新建共用同一条 Fix-B 时序(pendingSpawns → 首个 fit → 带 cols/rows spawn);③侧栏与标签页的元数据唯一来源是 `sessions` 记录,任何新 UI 不得往 TabSession 塞元数据;④记录顺序契约是 createdAt 倒序,渲染层 upsert 必须前插与之对齐
+  - 文档变更登记:本轮四层文档无实质变更(brief/spec/tasks 未动;spec 新增接口 `sessionRecords.get` 系预检已登记项);AGENTS.md/CONTEXT.md/ADR 无改动;plan.md 仅勾选 + 本章 + 重复行清理
+  - **提交状态**:已提交 e4e815b1(代码 16 文件)+ 11dcea66(用例顺序依赖修复 2 文件,用户指定当场单开 fix commit)+ 本条 docs 提交;T5 BASE=11dcea66;review diff `.review/T4.patch`、`.review/T4-fix.patch` 已删
 <!-- 四层文档的任何改动都在这里另行留一行 -->
