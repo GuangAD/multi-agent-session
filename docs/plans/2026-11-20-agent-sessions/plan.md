@@ -24,8 +24,8 @@
 - [x] **T6 会话导入:框架与 claude/codex**
       交付:对装 claude/codex 的项目导入,历史会话出现;点击拉起与新建一致;重复导入去重;删除后再次导入会重新出现(2026-11-21 重过门 1,ADR-0005)
       挡谁:T7(其余三家适配复用导入框架)
-- [ ] **T7 会话导入:pi/kimi/antigravity 适配**
-      交付:5 个 agent 的历史会话都能导入(存储路径本机实测核对)
+- [x] **T7 会话导入:pi/kimi/antigravity 适配**
+      交付:5 个 agent 的历史会话都能导入(存储路径本机实测核对;pi 已实测,claude/codex/kimi/antigravity 本机未装 → 构造/移植样本)
       挡谁:无
 - [ ] **T8 回填与自动续接**
       交付:自建会话重开自动续接对话;并发资格规则与禁止双开生效;五家 resume 参数核对通过
@@ -188,4 +188,19 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - **未验证/本机不可达**:契约步骤 9「对装 claude 的项目导入」用的是临时构造存储,不是真实 claude/codex 安装;真实 CLI 的存储格式兼容性(尤其 claude 新版 jsonl 字段变化、codex 新版本 rollout 结构)只由移植自 Orca 的 fixture 代表,待用户机器上装 claude/codex 后复核
   - 文档变更登记:brief 两行(第 5 节 + 7.1)、spec 五处、CONTEXT.md 删「忽略清单」词条、PLAN.md M4 段 + 修订历史一行、新增 `docs/adr/0005-删除不登记忽略清单.md`、ADR-0003 头部标注被 0005 取代、AGENTS.md 新增「领域横向依赖的唯一例外」、plan.md 勾选 T6 + 两条记账
   - **提交状态**:已提交 7b8a8aa5(代码 30 文件:18 改 + 12 增,用户确认)+ 本条 docs 提交(8 文件);T7 BASE=本条 docs;review diff `.review/T6*.patch` 提交后删除
+- 2026-11-21 18:54 | T7 开发与评审闭环(冒烟经用户确认,代码待确认提交)
+  - BASE=b0962078
+  - implementer(worker subagent):`session-import/pi.ts`(编码桶直达 `<home>/.pi/agent/sessions/<桶>/`,**只扫桶顶层**——桶内 `<ts>_<uuid>/<agent>/run-0/session.jsonl` 是子代理跑批;首行 `type:'session'` 取 id/cwd;标题取首条 `role=user`(跳过 68KB 的 harness `role=system`);activityAt=最大 timestamp;filePath=绝对路径供 T8 续接);`kimi.ts`(`state.json` × `session_index.jsonl` 双源,id 保留 `session_` 前缀,title→lastPrompt 兜底,ISO 串与 epoch 毫秒两种时间戳,缺源不产出);`antigravity.ts`(brain transcript + cwd 三级关联:history `conversationId` → 开场 prompt sha256 + ±2s 唯一命中 → cache `WorkspaceURIs` 唯一 file: URI);三个定义挂 `sessions.scan`;`scan-wiring.test.ts` 接线守卫扩到五家
+  - controller 亲跑验证:typecheck 双投影 0 error;`pnpm test` 130 passed / 22 files(基线 119/19,+11:契约 8 条 + 我后来补的 3 条);eslint 新改文件 0 error
+  - **本机路径实测(本次最大收获,pi 真数据)**:`~/.pi/agent/sessions/` 下 9 个桶、顶层 34 个 `.jsonl`(递归 164,多出的全是子代理转录);桶名规则 `'--' + cwd 中 ':' 与 '\' 逐个换 '-' + '--'` 经 9 桶 × 34 文件穷举核对 **9/9 一致**;`scanPi` 真机实测 `D:\workspace\multi-agent-session` → 5 条/88ms、`pi-test` → 12 条/49ms、不存在项目 → 0 条/0.3ms;端到端 `runImport(pi)` 首导 5 条、再导 `{imported:0,skipped:5}`;5 条 `externalFilePath` 全部存在
+  - 首轮评审(reviewer subagent,对照 .review/T7.patch 1384 行):规格符合 ✅、无 Critical;Important 1 = `transcript_full.jsonl` 被无条件优先,忽略 mtime(Orca 是 mtime 降序 + 同刻才用 full tiebreak;后果=activityAt/标题取自旧快照、filePath 指向旧文件给 T8 添乱),且原注释「Orca 的排序同样偏爱 full」是错误断言;Minor 8(history 同 id 冲突时 `??` 链把 null 当缺席、ACP cwd 源未搬且裁剪清单没列、无索引体积上限、piBucketName 只覆盖反斜杠、用例 4 没钉住 ±2s 与唯一性、若干无覆盖分支、冗余断言、头注释字面不统一)
+  - Important 修复(controller 亲手 + 独立复审):`findTranscriptPath` 改「各自 stat,mtimeMs 较大者胜,mtime 相同才 full tiebreak」并改掉错误注释、文件头补 `antigravity-transcript-candidates.ts`;cwd 关联链改 `has(id) ? get(id) ?? null : fallback`(冲突即拒绝,对齐 Orca)并删掉随之变死的辅助函数;头注释补 ACP cwd 源未搬;新增 4c(mtime 择新)/4d(超 ±2s 不关联)/4e(窗口内两次 → 非唯一命中不关联)三条用例;用例 4 补 `utimes` 把两份 transcript 设同刻,专门钉 tiebreak 分支
+  - 复审(reviewer magpie/zhipu/glm-5.3-flash:low,对照 .review/T7-fix.patch 191 行):4 条全部 ADDRESSED,无新增 Critical/Important,裁决可提交;新增 Minor(用例 4 注释过时 + 依赖写入顺序)已在本轮钉死(utimes 同刻 + 注释改写)
+  - mutation check 留痕 7 条:pi 去 `role==='user'` 过滤 → 标题变 harness 提示;pi 递归扫子目录 → 多出子代理候选;kimi 去 `session_` 前缀 → id 变裸 uuid;antigravity 用最后一条提示关联 → cwd 变诱饵 beta-app;**full 无条件优先 → 4c 红;去 ±2s 窗口 → 4d 红;唯一性放宽为 >=1 → 4e 红;tiebreak 反转 → 用例 4 红**。另如实记录:首次尝试的「调换遍历顺序」变异**未转红**(mtime 不同时顺序不影响结果),改用真正改变语义的变异
+  - 冒烟实测(用户确认):导入 Pi 首次 **5 条**、再导 **0 条**;点导入会话 → pi 启动但为**新会话**(符合 T7 语义:导入只列元数据,续接是 T8;PLAN M4 明文「点击行为与新建一致,不构造 resume 命令」)
+  - **未验证/本机不可达**:kimi / antigravity 未安装(`~/.kimi-code`、`~/.gemini` 均不存在),其布局与记录形状取自 Orca 源码与测试样本工厂,**未经本机实测**;claude/codex 同样未装(T6 已记)。真机装后需复核的点:kimi 是否 `<home>/.kimi-code/sessions/<工作区>/session_*/state.json` 且索引在同级;antigravity `transcript_full` 是否总比 `transcript` 新
+  - 口径登记:①契约步骤 4/5/6 的「5 failed / 5 passed / 55 passed」系门 2 与旧基线时点,实况 3 failed(module-not-found)/ 8 it / 130 passed ②坏样本第 5 条按 agent 拆成三条 it(诊断性拆分)③`scanKimi`/`scanAntigravity` 关联不出 cwd 的会话直接跳过(`ImportCandidate.cwd` 必填,与 Orca 允许 null 有差异,已写 Why)④`piBucketName` 只对 Windows 反斜杠路径成立(项目路径经 `ipc/projects.ts` 的 `path.normalize` 保证),非 Windows 会静默返回空——留 Minor
+  - 下游结论(T8+ 用):①T8 的续接原料已就位:pi = `externalFilePath`(实测 5/5 存在)、kimi = `externalSessionId`(含 `session_` 前缀,`kimi --session <id>`)、antigravity = `externalSessionId`(brain 目录名即会话 id)②pi 的会话子目录与 `subagent-artifacts/` 永远不能当会话,任何后续改动必须守住「只扫桶顶层」,已有嵌套诱饵用例守着 ③`AGENT_SESSIONS_AGENT_HOME` 可复用来做三家的端到端冒烟(造 `<tmp>/.pi`、`<tmp>/.kimi-code`、`<tmp>/.gemini`)④kimi 索引的配对键是带 `session_` 前缀的目录名;若真机实测索引行不带前缀,改点在 `parseKimiSession` 的查找键(一行)
+  - 文档变更登记:四层文档无实质变更(brief/spec/tasks 未动;spec 的 scanPi/scanKimi/scanAntigravity 覆盖行与实现一致);CONTEXT/ADR/AGENTS 无改动;plan.md 勾选 T7 + 本章
+  - **提交状态**:已提交 2771e0a9(代码 17 文件:4 改 + 13 增,用户确认)+ 本条 docs 提交;T8 BASE=本条 docs;review diff `.review/T7*.patch` 提交后删除
 <!-- 四层文档的任何改动都在这里另行留一行 -->
