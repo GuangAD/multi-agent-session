@@ -221,4 +221,14 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 下游结论(T9-T11 与收尾用):①重开续接唯一入口 = 渲染层 pendingSpawns.resume → pty:spawn resume → ipc/pty resumeArgv;新增 agent 续接只需定义挂 resumeArgv,框架零改动②若要「自动接棒」,在 ipc/pty.ts 的 ptyRegistry.onExit 或 release 处补「待补会话重 claim」,接缝无需动③pty-registry 注入行纯函数三件(buildShellLaunchLine/quoteLaunchArg/buildAgentLaunchLine)有测试钉住,改注入形态先改测试④spec 接口面清单已补 4 行(计划外导出回填,reviewer ⚠️ 项)
   - 文档变更登记:spec.md 接口面清单 4 行;brief/tasks/CONTEXT/ADR 未动(CONTEXT.md 的回填/续接词条随「导入续接」变更实施一并沉淀);「导入续接」变更登记见本日 20:15 条
   - **提交状态**:已提交 5fa46afb(代码 16 文件:14 改 + 2 增,用户确认)+ 本条 docs 提交;review diff `.review/T8*.patch` 提交后删除
+- 2026-11-21 21:31 | 「导入续接」变更实施闭环 + 孤儿记录缺陷修复(冒烟经用户确认,均已提交)
+  - 变更实施(controller 亲手,20:15 条决策落地):sessions-slice.ts 续接条件去 `origin !== 'imported'`(有 externalSessionId 即带 ref;无 id 仍原样拉起);brief 7.1 改写(保留原文可溯)、spec 的 Session.externalSessionId 注释、CONTEXT.md「agent 对话」词条补续接适用规则、ipc-contract 的 sessions:open 过时注释同步;无接缝/契约形状变化(pty:spawn 的 resume 载荷 T8 已就位)
+  - 变更复审(reviewer magpie/zhipu/glm-5.3-flash:low,对照 .review/T8-change.patch 82 行):五处全 ADDRESSED、无新增 Critical/Important,裁决可提交;一行级建议 2(三元续行缩进、ipc/pty.ts:101 过时注释)已顺手处理
+  - **缺陷发现与诊断(T8 冒烟期用户报「/resume 6 条 vs 导入只有 2 条」)**:取证(scanPi 真机探针 + store.json 剖析)实锤——scanPi 产出 6 条与 /resume 一致,**扫描器无缺陷**;根因 = 用户删过项目重新添加,projectId 变化(4efbd96e→8199a078),T7 导入的 4 条本项目记录成孤儿(挂旧 id 永不可见)却仍占导入去重键 → 再导入被「跳过 6 条」拦截;即 **T4 已知空白①的现实发作**,本条闭环
+  - 缺陷修复(controller 亲手,TDD):①根治——`sessionRecords.removeByProject` 新接缝方法(返回被移除 id 供连带关标签页)+ `projects:remove` 连带删除该项目下会话记录(契约返回 `{closedTabs}`,渲染层撤 tab 杀 shell,与删除会话同款;agent 存储不动)②自愈——`existingSessionKeys` 排除孤儿记录(projectId 无对应项目不参与去重),存量孤儿重新导入即恢复可见;新增守卫 2 条(removeByProject 接缝用例 + 用例 6「孤儿不拦截导入」),mutation check ×2 留痕(去孤儿排除 → 用例 6 红;removeByProject 改「返回不清除」→ 接缝用例红,均还原全绿)
+  - 冒烟实测(用户确认):①孤儿自愈 ✓(再导提示导入 4 条,侧栏恢复 6 条)②删除语义 ✓(删项目重加同目录不再见旧会话记录);「导入 N 条」提示语义 = 本次新增数(去重命中计入 skipped),本次维持现状不改文案
+  - 口径登记:①基线 151/23 → 修复后 153 passed/23 files(+2 守卫)②TDD waiver(留痕):ipc/projects.ts 删除编排(import electron)无单测——编排薄层先例,行为靠冒烟;接缝逻辑(removeByProject/existingSessionKeys)全覆盖③存量 pi-test 孤儿 18 条留 store 无害(不拦截导入),重新添加 pi-test 项目再导入即恢复
+  - 下游结论(T9-T11/收尾用):①导入提示「导入 N 条」= 新增数,若要做「N 条新增、M 条已存在」细分文案,改点在 ImportMenu 的结果展示(数据 imported/skipped 已具备)②删项目的连带范围现已完整:记录删除(主进程)+ 标签页关闭(渲染层 closeTab 杀 shell)——将来若加「删除项目前确认框」,列明会话数即可
+  - 文档变更登记:brief 7.1(变更改写)、spec Session 注释、CONTEXT.md「agent 对话」词条——均随本条提交入库;tasks/T8.md 未动(契约是历史执行件)
+  - **提交状态**:已提交 d4bd0430(feat: 导入续接变更,5 文件)+ 757e6ec5(fix: 孤儿记录,7 文件,用户确认)+ 本条 docs 提交;review diff `.review/T8-change.patch` 提交后删除
 <!-- 四层文档的任何改动都在这里另行留一行 -->
