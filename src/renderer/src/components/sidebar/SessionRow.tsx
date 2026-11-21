@@ -1,21 +1,25 @@
-// 会话行:agent 徽标 + 显示名 + 运行中标记(有活动标签页)+ 行内重命名 + 删除入口
+// 会话行:agent 徽标 + 显示名 + 运行状态点 + 行内重命名 + 删除入口
 // 重命名只改应用侧显示名(brief 第 5 节),agent 侧原名与对话 id 不受影响
+// 状态点语义(working 绿 / waiting 橙 / idle 灰 / exited 红)来自 state:changed 广播,
+// 取代 T4 的「有活动标签页」圆点(标签页存在与否已由标签栏表达,一行不留两个点)
 import { useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import { AgentBadge } from '../../agents-display'
+import { RUN_STATE_DISPLAY } from '../../run-state-display'
 import { Button } from '../ui/button'
-import type { Session } from '../../../../shared/types'
+import type { Session, SessionRunState } from '../../../../shared/types'
 
 export function SessionRow({
   session,
-  running,
+  runState,
   active,
   onOpen,
   onRename,
   onDelete
 }: {
   session: Session
-  running: boolean
+  // 缺项 = 尚未收到该会话的首次状态广播(不画点)
+  runState?: SessionRunState
   active: boolean
   onOpen: () => void
   onRename: (title: string) => void
@@ -74,12 +78,12 @@ export function SessionRow({
           {/* Session 只存 agentId;徽标首字母由 id 推导(agents-display 的 icon 语义即首字母) */}
           <AgentBadge agentId={session.agentId} icon={session.agentId.slice(0, 1).toUpperCase()} />
           <span className="min-w-0 flex-1 truncate text-sm">{session.title}</span>
-          {running && (
+          {runState && (
             <span
               role="img"
-              aria-label="有打开的标签页"
-              title="有打开的标签页"
-              className="size-1.5 shrink-0 rounded-full bg-emerald-500"
+              aria-label={`运行状态:${RUN_STATE_DISPLAY[runState].label}`}
+              title={`运行状态:${RUN_STATE_DISPLAY[runState].label}`}
+              className={`size-1.5 shrink-0 rounded-full ${RUN_STATE_DISPLAY[runState].dotClassName}`}
             />
           )}
         </button>

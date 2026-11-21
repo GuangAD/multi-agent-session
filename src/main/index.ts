@@ -9,6 +9,7 @@ import { registerAgentsIpc } from './ipc/agents'
 import { registerSessionsIpc } from './ipc/sessions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerPtyIpc } from './ipc/pty'
+import { registerStateIpc } from './ipc/state'
 import { ptyRegistry } from './pty-registry'
 
 // 会话记录落盘器的退出前排空入口:由 registerSessionsIpc 在 whenReady 内装配后填入
@@ -35,6 +36,8 @@ app.whenReady().then(async () => {
   registerSettingsIpc(store)
   // 单窗口应用:事件出站直接取当前窗口(无窗口时不发)
   registerPtyIpc(() => BrowserWindow.getAllWindows()[0] ?? null)
+  // 状态引擎编排(三源喂食 + state:changed 广播):订阅注册表的 data/exit,与会话记录同源取 agentId
+  registerStateIpc(store, () => BrowserWindow.getAllWindows()[0] ?? null)
 
   createAppWindow()
 

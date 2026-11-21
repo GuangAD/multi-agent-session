@@ -10,7 +10,7 @@ import { TerminalTabs } from './components/terminal/TerminalTabs'
 import { bridge } from './ipc/bridge'
 
 function App(): React.JSX.Element {
-  const markSessionExited = useAppStore((state) => state.markSessionExited)
+  const setRunState = useAppStore((state) => state.setRunState)
   const loadProjects = useAppStore((state) => state.loadProjects)
   const loadSessions = useAppStore((state) => state.loadSessions)
   const [leftOpen, setLeftOpen] = useState(true)
@@ -26,10 +26,11 @@ function App(): React.JSX.Element {
     })
   }, [loadProjects, loadSessions])
 
-  // pty:exit → 运行态标记(tab 显示「已退出」;画面保留,关闭由用户决定)
+  // 运行状态唯一来源:主进程 state:changed(三源引擎去抖后的判定;PTY 退出也在其中转 exited)
+  // Why: 状态点的语义(working/waiting/idle/exited)全部由引擎裁定,渲染层只落地不判断
   useEffect(
-    () => bridge.pty.onPtyExit((event) => markSessionExited(event.sessionId)),
-    [markSessionExited]
+    () => bridge.state.onChanged((event) => setRunState(event.sessionId, event.state)),
+    [setRunState]
   )
 
   return (

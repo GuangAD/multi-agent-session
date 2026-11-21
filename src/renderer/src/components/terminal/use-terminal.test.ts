@@ -26,7 +26,15 @@ const { onPtyDataHandlers, createdTerminals, createdFitAddons, fitObservers, raf
       writes: string[]
       scrolled: number[]
       options: Record<string, unknown>
-      buffer: { active: { type: 'normal' | 'alternate' } }
+      buffer: {
+        active: {
+          type: 'normal' | 'alternate'
+          baseY: number
+          getLine: (
+            index: number
+          ) => { translateToString: (trimRight?: boolean) => string } | undefined
+        }
+      }
       customWheelHandlers: Array<(event: WheelEvent) => boolean>
       // 网格现值(xterm Terminal.cols/rows 只读投影):稳定帧收敛按它与提案比对
       cols: number
@@ -63,6 +71,11 @@ vi.mock('../../ipc/bridge', () => ({
       }),
       write: vi.fn(async () => undefined),
       resize: vi.fn(async () => undefined)
+    },
+    // T5:标题/屏幕快照上行;本组用例不触发上行(快照取空行即不上行),给齐形状即可
+    state: {
+      reportTitle: vi.fn(async () => undefined),
+      reportSnapshot: vi.fn(async () => undefined)
     }
   }
 }))
@@ -74,7 +87,15 @@ vi.mock('@xterm/xterm', () => ({
   Terminal: class {
     writes: string[] = []
     scrolled: number[] = []
-    buffer: { active: { type: 'normal' | 'alternate' } } = { active: { type: 'normal' } }
+    buffer: {
+      active: {
+        type: 'normal' | 'alternate'
+        baseY: number
+        getLine: (
+          index: number
+        ) => { translateToString: (trimRight?: boolean) => string } | undefined
+      }
+    } = { active: { type: 'normal', baseY: 0, getLine: () => undefined } }
     customWheelHandlers: Array<(event: WheelEvent) => boolean> = []
     cols = 80
     rows = 24
@@ -101,6 +122,9 @@ vi.mock('@xterm/xterm', () => ({
       return { dispose: () => undefined }
     }
     onResize(_listener: (size: { cols: number; rows: number }) => void): { dispose: () => void } {
+      return { dispose: () => undefined }
+    }
+    onTitleChange(): { dispose: () => void } {
       return { dispose: () => undefined }
     }
     dispose(): void {}
@@ -248,7 +272,6 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
     closeTerminal('s-stale')
   })
 })
-
 
 describe('use-terminal 字体度量(Orca 对齐)', () => {
   it('Terminal 选项使用 Orca 字体族/字号/字重,避免 canvas 测量与 DOM 渲染度量不一致', () => {

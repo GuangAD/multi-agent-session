@@ -2,10 +2,12 @@
 import { create } from 'zustand'
 import { createProjectsSlice, type ProjectsSlice } from './projects-slice'
 import { createSessionsSlice, type SessionsSlice } from './sessions-slice'
+import { createRunStateSlice, type RunStateSlice } from './run-state-slice'
 
-export type AppState = ProjectsSlice & SessionsSlice
+export type AppState = ProjectsSlice & SessionsSlice & RunStateSlice
 
 export const useAppStore = create<AppState>()((...args) => ({
   ...createProjectsSlice(...args),
-  ...createSessionsSlice(...args)
+  ...createSessionsSlice(...args),
+  ...createRunStateSlice(...args)
 }))

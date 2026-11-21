@@ -7,6 +7,7 @@ import { bridge } from '../../ipc/bridge'
 import { EmptyState } from '../ui/empty-state'
 import { TerminalView } from './TerminalView'
 import { setTerminalReadyHandler } from './use-terminal'
+import { RUN_STATE_DISPLAY } from '../../run-state-display'
 
 // spec 默认值:xterm scrollback 默认 10000 行(settings 缺读时兜底,与 DEFAULT_STORE 一致)
 const FALLBACK_SCROLLBACK = 10000
@@ -15,6 +16,7 @@ export function TerminalTabs(): React.JSX.Element {
   const tabs = useAppStore((state) => state.tabs)
   const records = useAppStore((state) => state.sessions)
   const activeTabId = useAppStore((state) => state.activeTabId)
+  const runStates = useAppStore((state) => state.runStates)
   const projects = useAppStore((state) => state.projects)
   const setActiveTab = useAppStore((state) => state.setActiveTab)
   const closeTab = useAppStore((state) => state.closeTab)
@@ -77,8 +79,10 @@ export function TerminalTabs(): React.JSX.Element {
                       {projectName}
                     </span>
                   )}
-                  {tab.runState === 'exited' && (
-                    <span className="text-xs text-zinc-400 dark:text-zinc-500">已退出</span>
+                  {runStates[tab.sessionId] === 'exited' && (
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                      {RUN_STATE_DISPLAY.exited.label}
+                    </span>
                   )}
                 </button>
                 <button

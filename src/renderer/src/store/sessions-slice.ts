@@ -6,10 +6,10 @@ import type { AgentListItem } from '../../../shared/agents'
 import type { AgentId, Project, Session, SessionId } from '../../../shared/types'
 import type { AppState } from './app-store'
 
-// TabSession 只记运行态:显示名/项目/agent 等元数据都从 sessions 记录取(记录改了 tab 即时跟随)
+// TabSession 只记身份:显示名/项目/agent 等元数据都从 sessions 记录取(记录改了 tab 即时跟随),
+// 运行状态从 run-state-slice 取(state:changed 广播,单一来源)
 export interface TabSession {
   sessionId: SessionId
-  runState: 'running' | 'exited' // pty:exit 后转 exited
 }
 
 export interface SessionsSlice {
@@ -27,7 +27,6 @@ export interface SessionsSlice {
   spawnOnTerminalReady: (sessionId: SessionId, cols: number, rows: number) => Promise<void>
   closeTab: (sessionId: SessionId) => Promise<void>
   setActiveTab: (sessionId: SessionId) => void
-  markSessionExited: (sessionId: SessionId) => void
   renameSession: (id: SessionId, title: string) => Promise<void>
   removeSession: (id: SessionId) => Promise<void>
 }
@@ -73,7 +72,7 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
     pendingSpawns.set(session.id, { agentId: agent.def.id, cwd: project.path })
     set((state) => ({
       sessions: upsertSession(state.sessions, session),
-      tabs: [...state.tabs, { sessionId: session.id, runState: 'running' }],
+      tabs: [...state.tabs, { sessionId: session.id }],
       activeTabId: session.id
     }))
   },
@@ -100,7 +99,7 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
     pendingSpawns.set(record.id, { agentId: record.agentId, cwd: project.path })
     set((state) => ({
       sessions: upsertSession(state.sessions, record),
-      tabs: [...state.tabs, { sessionId: record.id, runState: 'running' }],
+      tabs: [...state.tabs, { sessionId: record.id }],
       activeTabId: record.id
     }))
   },
@@ -154,16 +153,6 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
 
   setActiveTab: (sessionId) => {
     set({ activeTabId: sessionId })
-  },
-
-  markSessionExited: (sessionId) => {
-    set((state) => ({
-      tabs: state.tabs.map((tab) =>
-        tab.sessionId === sessionId && tab.runState !== 'exited'
-          ? { ...tab, runState: 'exited' }
-          : tab
-      )
-    }))
   },
 
   renameSession: async (id, title) => {

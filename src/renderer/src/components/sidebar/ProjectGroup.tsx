@@ -1,5 +1,5 @@
 // 项目分组:项目行(选中/移除)+ 该项目下的会话行(spec:components/sidebar/ProjectGroup)
-// 运行中标记来源 = 切片里挂在该记录上的标签页(有活动标签页即运行中)
+// 会话行的状态点来源 = run-state-slice(主进程 state:changed 广播)
 import { Folder, Trash2 } from 'lucide-react'
 import { useAppStore } from '../../store/app-store'
 import { Button } from '../ui/button'
@@ -22,6 +22,7 @@ export function ProjectGroup({
   onDeleteSession: (session: Session) => void
 }): React.JSX.Element {
   const tabs = useAppStore((state) => state.tabs)
+  const runStates = useAppStore((state) => state.runStates)
   const activeTabId = useAppStore((state) => state.activeTabId)
   const reopenSession = useAppStore((state) => state.reopenSession)
   const renameSession = useAppStore((state) => state.renameSession)
@@ -67,7 +68,11 @@ export function ProjectGroup({
             <SessionRow
               key={session.id}
               session={session}
-              running={tabs.some((tab) => tab.sessionId === session.id)}
+              runState={
+                // 运行状态是「活着的终端」的属性:没有打开的标签页就没有可判定的状态
+                // (顺带把关闭标签页后的退役状态一并藏掉,不留退役红点)
+                tabs.some((tab) => tab.sessionId === session.id) ? runStates[session.id] : undefined
+              }
               active={activeTabId === session.id}
               onOpen={() => void reopenSession(session, project)}
               onRename={(title) => void renameSession(session.id, title)}

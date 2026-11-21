@@ -2,7 +2,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { IPC_CHANNELS } from '../shared/ipc-contract'
-import type { AppApi, PtyDataEvent, PtyExitEvent } from '../shared/ipc-contract'
+import type { AppApi, PtyDataEvent, PtyExitEvent, StateChangedEvent } from '../shared/ipc-contract'
 
 // 事件订阅类型化封装:监听器只收载荷,退订函数回收包装器(契约推荐形态)
 function subscribe<Payload>(channel: string, listener: (payload: Payload) => void): () => void {
@@ -43,6 +43,14 @@ const api: AppApi = {
       subscribe<PtyDataEvent>(IPC_CHANNELS.ptyData, listener),
     onPtyExit: (listener: (event: PtyExitEvent) => void) =>
       subscribe<PtyExitEvent>(IPC_CHANNELS.ptyExit, listener)
+  },
+  state: {
+    // 上行:标题/屏幕快照(渲染层独有输入源;字节源在主进程内直取 pty:data)
+    reportTitle: (p) => ipcRenderer.invoke(IPC_CHANNELS.stateTitle, p),
+    reportSnapshot: (p) => ipcRenderer.invoke(IPC_CHANNELS.stateSnapshot, p),
+    // 下行:去抖后的状态广播
+    onChanged: (listener: (event: StateChangedEvent) => void) =>
+      subscribe<StateChangedEvent>(IPC_CHANNELS.stateChanged, listener)
   }
 }
 

@@ -1,9 +1,18 @@
 // IPC 契约:通道名与载荷类型一一对应(spec 模块划分「契约先行」)
 // 通道由任务增量补:T1 落 projects 三通道;T2 增补 agents:list;
 // T3 增补 sessions:create、settings:get 与 pty:* 五通道(spawn/write/resize/kill + data/exit 事件);
-// T4 补齐 sessions:* 全域(rename/remove/open/list,会话记录持久化 CRUD)。
+// T4 补齐 sessions:* 全域(rename/remove/open/list,会话记录持久化 CRUD);
+// T5 增补 state:* 三通道(上行 state:title / state:snapshot,下行 state:changed 状态广播)。
 import type { AgentListItem } from './agents'
-import type { AgentId, Project, ProjectId, Session, SessionId, Settings } from './types'
+import type {
+  AgentId,
+  Project,
+  ProjectId,
+  Session,
+  SessionId,
+  SessionRunState,
+  Settings
+} from './types'
 
 // 通道名常量:main/ipc/channels.ts 转发使用,preload 直接引用,保证单一拼写
 export const IPC_CHANNELS = {
@@ -21,9 +30,13 @@ export const IPC_CHANNELS = {
   ptyWrite: 'pty:write',
   ptyResize: 'pty:resize',
   ptyKill: 'pty:kill',
+  // T5:三源状态引擎的通道(上行标题/屏幕快照,下行状态广播)
+  stateTitle: 'state:title',
+  stateSnapshot: 'state:snapshot',
   // 主进程 → 渲染层事件通道(ipcRenderer.on 订阅)
   ptyData: 'pty:data',
-  ptyExit: 'pty:exit'
+  ptyExit: 'pty:exit',
+  stateChanged: 'state:changed'
 } as const
 
 // preload 暴露给渲染层的桥接 API 面;main 按此注册 handler
@@ -83,10 +96,35 @@ export interface PtyApi {
   onPtyExit: (listener: (event: PtyExitEvent) => void) => () => void
 }
 
+// T5:状态引擎的三路出入口。上行两条是渲染层独有的输入源(xterm 标题事件、屏幕快照),
+// 字节源在主进程内直取 pty:data,不经桥;下行 state:changed = 去抖后的状态广播。
+export interface StateTitleEvent {
+  sessionId: SessionId
+  title: string
+}
+
+export interface StateSnapshotEvent {
+  sessionId: SessionId
+  // 视口可见行按行拼接的多行文本(渲染层节流序列化,见 use-terminal 的快照节流)
+  text: string
+}
+
+export interface StateChangedEvent {
+  sessionId: SessionId
+  state: SessionRunState
+}
+
+export interface StateApi {
+  reportTitle: (p: StateTitleEvent) => Promise<void>
+  reportSnapshot: (p: StateSnapshotEvent) => Promise<void>
+  onChanged: (listener: (event: StateChangedEvent) => void) => () => void
+}
+
 export interface AppApi {
   projects: ProjectsApi
   agents: AgentsApi
   sessions: SessionsApi
   settings: SettingsApi
   pty: PtyApi
+  state: StateApi
 }
