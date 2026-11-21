@@ -34,7 +34,7 @@
 - [x] **T9 文件浏览**
       交付:右侧文件树展开浏览,点击只读查看,大文件截断提示
       挡谁:无
-- [ ] **T10 Git 面板**
+- [x] **T10 Git 面板**
       交付:改文件出差异、按文件暂存提交、切本地分支
       挡谁:无
 - [ ] **T11 打磨与打包**
@@ -244,4 +244,19 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 下游结论(T10/T11 与收尾用):①`file-content.ts` 单句柄补齐读模式可直接复用(有界读取/二进制嗅探);②`open-in-editor.ts` 的 cmd 包装形态(cmd /d /s /c + windowsVerbatimArguments + 双引号整段)是 Windows 上 execFile .cmd 的唯一可行姿势,后续任何「执行 .cmd shim」场景照抄;③渲染层禁 Node 模块——白屏教训,新增渲染层代码后跑 `pnpm build` 验证;④eslint react-hooks/set-state-in-effect 已启用,effect 拉数据用「key 重挂 + 异步回调内 setState」形态;⑤预览单实例(previewPath 单值),将来要「多文件多标签」需把 previewPath 改数组
   - 文档变更登记:四层文档无实质变更(spec 的 files 三通道与 TreeNode 形状与实现一致;TreeNode 在 shared 落地系 T9 消费首件,spec「已定义」表述与实况差异已在本条知悉);CONTEXT/ADR/AGENTS 无改动;plan.md 勾选 T9 + 本条
   - **提交状态**:已提交 e07dbc43(代码 16 文件:6 改 + 10 增,用户确认)+ 本条 docs 提交;review diff `.review/T9*.patch` 提交后删除
+- 2026-11-21 23:43 | T10 开发与评审闭环(冒烟经用户确认,代码已提交)
+  - BASE=851f384b;**implementer 派发失败降级**:原计划派 implementer subagent,该 subagent 因模型服务商 5 小时额度上限中断(Zhipu GLM,23:38 重置),工作区未产生任何改动(git status 核实干净);按 dev 技能 fallback 路径**由 controller 会话内实现**(TDD 逐条),评审仍派独立 reviewer 上下文
+  - 落地:`src/main/git-service.ts`(接缝 parseStatusPorcelain——porcelain v1 状态码矩阵完整档:XY 两列、`##` 分支头三段切分 + unborn 前缀剥离、`R/C` 箭头取新路径、`!!` 跳过、短行/空行容错、引号与两种转义剥离、路径不 trim;gitService.for(root) 按 root 缓存句柄,status 走 raw 喂自家接缝,diff/stage/unstage/commit/branches/checkout 薄封装,unborn HEAD 用 rev-parse 探测后 diff 返空/unstage 走 `rm -f --cached`)、`src/shared/git-diff-lines.ts`(接缝 parseDiffLines 实现:diff 头清单→other、单 +→added、单 -→removed、其余 context、末尾空行剔除;放 shared 因渲染层着色复用同一套规则,git-service 再导出保住契约落点)、`src/main/ipc/git.ts` 七通道(错误 toError 归一后 reject)、契约 GitStatus + 七通道 + GitApi、preload git 域、入口装配;渲染层 git-panel 四件(GitPanel 分支下拉+状态列表+提交框+notRepo 空态、StatusList 已暂存/未暂存两组+单文件暂存/取消暂存+状态中文标签、CommitBox 多行说明+空说明与零暂存禁用+显示当前分支、DiffView 外层读 store+内层 key 重挂取 diff+增绿删红)、file-preview-slice 增 previewKind/previewRoot、TerminalTabs 按 kind 分流
+  - TDD:12 条接缝测试先红(module-not-found 整套件,先例形态)后绿;**TDD 期间修正自己写错的一条期望**(用例 2 未跟踪条目原写 staged='?',按「staged 非空 → 已暂存组」的分组语义改为 staged=' ',否则未跟踪文件会错列已暂存且零暂存时提交按钮可点——reviewer 复核确认该判断成立)
+  - controller 亲跑验证:typecheck 双投影 0 error;vitest 176 passed/26 files(164 基线 + 12);eslint 改动文件 0 error;prettier 已 --write;build 通过;渲染层 Node import 计数 0;**真实仓库探针**(临时文件已删):本仓库 status → branch=main/18 条 X/Y 正确、branches {current:main,all:[main]}、diff 424 字符、非仓库目录抛 not a git repository、同 root 句柄缓存命中;**写路径探针**(一次性临时仓库):空仓库分支剥成 main、暂存 A 码、unborn HEAD 取消暂存不炸、commit 返回摘要哈希、branches/checkout 通、有 HEAD 后 diff 含 +three——故冒烟不需要在真实仓库造提交
+  - 首轮评审(reviewer subagent,对照 .review/T10.patch 1196 行,聚焦核实 channels/bridge/tsconfig/产物 CSS/button 签名):规格符合 ✅,Important 2——①空仓库(unborn HEAD)parseBranchHeader 输出伪分支名 `No commits yet on main` 灌进分支下拉,且 `git diff HEAD`/`git reset HEAD` 抛 fatal 英文原文渲染到界面 ②切项目后已打开的 git-diff 标签用新 root 拉同名相对路径,静默显示错项目的差异;Minor 8(classifyDiffLine 非 hunk 状态机、R 码丢旧路径、容错分支无 fixture、main 侧再导出成死接缝、pre`<div>` 内容模型、CommitBox 无分支、reload 不 await、提交后 diff 不重取)
+  - Important 修复(controller):①`UNBORN_PREFIX` 剥离 + `hasHead`(rev-parse --verify 探测)+ diff 无 HEAD 返空 + unstage 无 HEAD 走 `rm --cached`;守卫用例 7b(**mutation check 留痕**:改回不剥前缀 → 7b 精确转红 1 failed/12 passed,还原 13 passed)②切片加 `previewRoot`(openPreview 第三参),GitPanel 传发起时 root,DiffView 取 `previewRoot ?? 当前项目`,`key = ${root}::${path}`;顺手修 Minor:path 不 trim、`<pre>`→`<div>`、CommitBox 显示分支、reload 改 await
+  - 复审(reviewer :low,对照 .review/T10-fix.patch 1246 行):6 条全 ADDRESSED,无新增 Critical/Important;新增 Minor-A/B/C/D/E 已就地处理——A(空仓库 unstage 需 `-f`,**controller 按复审委托跑真实命令坐实**:无 -f 报「staged content different from both the file and the HEAD」,加 -f 后文件变回未跟踪)、B(`??` 不对空串回落,改 `||`)、C(hasHead 把真出错归成无 HEAD,可达性低,记录)、D(DiffView 头注释与实现打架)、E(prettier 长行)
+  - **需求调整(用户冒烟期两次提出,均当场实现)**:①面板入口从右栏标题移到「标题栏」——先加应用内顶栏,用户指出「不是新建一个栏,而是在标题栏那里」后改为**真窗口标题栏**:`app-window.ts` 用 `titleBarStyle: 'hidden'` + `titleBarOverlay`(颜色随 nativeTheme,高 36),渲染层顶栏即窗口标题栏(`-webkit-app-region: drag`,按钮 no-drag,按 `env(titlebar-area-width)` 让出系统按钮区)②去掉三处重复标题行(左栏「项目」、右栏「Git」、「Git」面板内部头),左栏开关与面板动作(⟳ 刷新、↗ 打开目录)全部收敛到标题栏;面板以 `${projectId}:${refreshTick}` 作 key 重挂实现刷新,不在组件间传回调
+  - 冒烟实测(用户确认):标题栏单行、左栏开关可用、文件/Git 切换与动作按钮随面板出现、⟳ 刷新生效、↗ 在 VS Code 打开目录、面板内部无标题行、「改文件出 diff + 着色」正常、暂存/取消暂存分组正确、分支下拉显示 main;提交功能未在真实仓库点(避免污染线性历史),由一次性临时仓库探针覆盖
+  - 口径登记:①契约步骤 2「12 failed」实况 = module-not-found 整套件 ②步骤 5「82 passed」系门 2 时点,实况基线 164/25,本轮后 177/26(12 接缝 + 1 守卫 7b)③`git:diff` 用 `git diff HEAD -- <path>`(含已暂存与未暂存),**未跟踪新文件此处为空**(渲染层显示「暂存后可见差异」),已知边界待后续任务 ④parseDiffLines 落 shared 由 git-service 再导出:渲染层着色复用同一规则避免两份实现漂移,契约落点仍可寻址 ⑤`pnpm add` 因本机 PATH 上 pnpm 9.4.0 与项目声明 pnpm@10.17.1 的 virtualStoreDirMaxLength(60 vs 默认 120)不一致而失败,全程改用 `corepack pnpm`(后续会用 pnpm 加依赖的会话注意)
+  - TDD waiver(留痕):ipc/git.ts 与 gitService 本体(spec 明定「非接缝,行为靠冒烟」)无单测——真实行为由上述两轮探针 + 用户冒烟覆盖
+  - 下游结论(T11 与收尾用):①**窗口已是自定义标题栏**:新增/改动顶部控件必须留在 `-webkit-app-region: drag` 区内且自身标 no-drag,右侧要预留 overlay 宽度(否则被系统按钮压住);T11 接手动主题切换时须调 `win.setTitleBarOverlay` 同步 overlay 颜色 ②面板刷新统一用「refreshTick + key 重挂」,不要在面板内再造标题行 ③`git diff` 对未跟踪文件返空是已知边界,若要补:改用 `git diff --no-index -- /dev/null <path>` 或渲染整文件为全增 ④`classifyDiffLine` 不是 hunk 状态机:正文行首恰为 `---`/`+++`(如 YAML/SQL 注释)会丢着色,文本不受影响 ⑤simple-git 4.x:`git.raw()` 拿原文最稳,结构化 status/branchLocal 的字段语义随版本漂(T11 若升级 simple-git 需先跑 git-service 探针)
+  - 文档变更登记:四层文档无实质变更(spec 的 git 七通道与 GitStatus 形状与实现一致;GitStatus 在契约落地系 T10 消费首件,spec「已定义」表述差异已在本条知悉);CONTEXT/ADR/AGENTS 无改动;plan.md 勾选 T10 + 本条
+  - **提交状态**:已提交 dbbbd241(代码 18 文件:10 改 + 8 增,含 simple-git 依赖与标题栏整合,用户确认)+ 本条 docs 提交;review diff `.review/T10*.patch` 提交后删除
 <!-- 四层文档的任何改动都在这里另行留一行 -->
