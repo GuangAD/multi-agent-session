@@ -38,7 +38,11 @@ export const piAgent: AgentDefinition = {
     idleQuietMs: 2000
   },
   sessions: {
-    // T7:导入扫描(home = <home>/.pi/agent/sessions);resumeArgv 属 T8
-    scan: scanPi
+    // T7:导入扫描(home = <home>/.pi/agent/sessions)
+    scan: scanPi,
+    // T8:续接参数。外部参照 Orca agent-resume-argv.ts case 'pi' 原文:transcriptPath 存在才
+    // ['pi', '--session', transcriptPath],否则 null——pi 只按转录路径续接,id 不替代;
+    // 此处按裁决返回参数部分,无 filePath → null
+    resumeArgv: (ref) => (ref.filePath ? ['--session', ref.filePath] : null)
   }
 }

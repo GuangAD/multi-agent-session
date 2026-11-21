@@ -20,7 +20,10 @@ export const codexAgent: AgentDefinition = {
     idleQuietMs: 2000
   },
   sessions: {
-    // T6:导入扫描(~/.codex/sessions 下的 rollout,含 .zst 变体);resumeArgv 由 T8 补
-    scan: scanCodex
+    // T6:导入扫描(~/.codex/sessions 下的 rollout,含 .zst 变体)
+    scan: scanCodex,
+    // T8:续接参数。外部参照 Orca agent-resume-argv.ts case 'codex' 原文
+    // ['codex', 'resume', id](resume 子命令,非 --flag);此处按裁决返回参数部分,无 id → null
+    resumeArgv: (ref) => (ref.id ? ['resume', ref.id] : null)
   }
 }

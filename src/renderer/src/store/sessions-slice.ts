@@ -2,7 +2,7 @@
 // (CONTEXT.md 职责边界:关闭标签页不影响会话;tab 只挂持久记录 id,元数据一律回记录里取)
 import type { StateCreator } from 'zustand'
 import { bridge } from '../ipc/bridge'
-import type { AgentListItem } from '../../../shared/agents'
+import type { AgentListItem, ResumeRef } from '../../../shared/agents'
 import type { AgentId, Project, ProjectId, Session, SessionId } from '../../../shared/types'
 import type { AppState } from './app-store'
 
@@ -26,7 +26,8 @@ export interface SessionsSlice {
   loadSessions: () => Promise<void>
   // 新建(Fix-B):IPC 入库 → 先开 tab(容器挂载后 fit 出真实尺寸)→ 带尺寸 spawn
   openSession: (project: Project, agent: AgentListItem) => Promise<void>
-  // 重开:已有 tab 则激活它;否则按持久记录原样拉起(T4 无 resume 参数,T8 接入续接)
+  // 重开:已有 tab 则激活它(双开拦截);否则按持久记录拉起——回填过 id 的自建会话带
+  // resume 续接,imported/无 id 原样拉起(T8)
   reopenSession: (session: Session, project: Project) => Promise<void>
   // 终端首个 fit 收敛后由 TerminalView 回调:消费待 spawn 记录并带真实 cols/rows 发起 spawn
   spawnOnTerminalReady: (sessionId: SessionId, cols: number, rows: number) => Promise<void>
@@ -42,7 +43,9 @@ export interface SessionsSlice {
 // Why: 不进 store——它只在「tab 已挂载、尚未 spawn」的窗口内有意义,且消费即删,
 // 任何渲染路径都不该读它;放进 state 只会制造无谓的重渲染与持久化诱惑。
 // ack 只消费一次(消费即删),StrictMode 双挂载/二次 fit 回调的重复触发天然幂等。
-const pendingSpawns = new Map<SessionId, { agentId: AgentId; cwd: string }>()
+// T8:resume 可选(controller 裁决 2)——重开时从记录构造的续接定位原料,
+// imported/无 id 的会话不带,原样拉起;经 pty:spawn 载荷透传给主进程。
+const pendingSpawns = new Map<SessionId, { agentId: AgentId; cwd: string; resume?: ResumeRef }>()
 
 // 记录落位:已在列表则原位替换(重开刷新 lastOpenedAt / 重命名),否则前插
 // Why: 前插对齐会话记录契约的 createdAt 倒序——session-records.listByProject 与启动 loadSessions
@@ -102,8 +105,18 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
       set({ activeTabId: record.id })
       return
     }
-    // 与新建同一条链路:先开 tab,首个 fit 后带尺寸 spawn(原样拉起 agent 命令,不带 resume 参数)
-    pendingSpawns.set(record.id, { agentId: record.agentId, cwd: project.path })
+    // 与新建同一条链路:先开 tab,首个 fit 后带尺寸 spawn。
+    // T8(controller 裁决 2):回填过 id 的自建会话带 ref 走 resume;
+    // imported 或无 id → 不带 ref,原样拉起(与「+」新建完全一致)
+    const resume: ResumeRef | undefined =
+      record.origin !== 'imported' && record.externalSessionId
+        ? { id: record.externalSessionId, filePath: record.externalFilePath }
+        : undefined
+    pendingSpawns.set(record.id, {
+      agentId: record.agentId,
+      cwd: project.path,
+      ...(resume ? { resume } : {})
+    })
     set((state) => ({
       sessions: upsertSession(state.sessions, record),
       tabs: [...state.tabs, { sessionId: record.id }],
@@ -123,7 +136,8 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
         agentId: pending.agentId,
         cwd: pending.cwd,
         cols,
-        rows
+        rows,
+        ...(pending.resume ? { resume: pending.resume } : {})
       })
     } catch (error) {
       console.error('启动会话失败:', error)

@@ -10,9 +10,11 @@ import { spawn as ptySpawn, type IPty, type IWindowsPtyForkOptions } from 'node-
 import { agentRegistry } from './agents/agent-registry'
 import { claudeAgent } from './agents/definitions/claude'
 import {
+  buildAgentLaunchLine,
   buildShellLaunchLine,
   buildSpawnArgv,
   ptyRegistry,
+  quoteLaunchArg,
   resolvePtyFirstSize,
   samplingTap,
   UNMEASURED_PTY_SIZE
@@ -178,6 +180,34 @@ describe('buildShellLaunchLine', () => {
       await rm(dir, { recursive: true, force: true })
       ptyRegistry.killAll()
     }
+  })
+})
+
+// —— Fix-2 守卫:launchArgs 引号包裹(评审 Important-2)——
+// 期望值来源:controller 修法裁定(含空白参数双引号包裹,与命令本体 buildShellLaunchLine
+// 同一约定;注入行 = 引号命令 + 逐参数单空格拼串,无 args 退化为纯命令行)。
+describe('quoteLaunchArg / buildAgentLaunchLine(launchArgs 引号包裹)', () => {
+  it('无 args → 等于 buildShellLaunchLine(command)', () => {
+    expect(buildAgentLaunchLine('C:\\tools\\pi.cmd')).toBe(buildShellLaunchLine('C:\\tools\\pi.cmd'))
+    expect(buildAgentLaunchLine('C:\\tools\\pi.cmd', [])).toBe(buildShellLaunchLine('C:\\tools\\pi.cmd'))
+  })
+
+  it('含空格参数 → 双引号包裹(pi resume 形态:--session <转录路径>)', () => {
+    expect(quoteLaunchArg('C:\\a b\\session.jsonl')).toBe('"C:\\a b\\session.jsonl"')
+    expect(buildAgentLaunchLine('pi', ['--session', 'C:\\a b\\session.jsonl'])).toBe(
+      '"pi" --session "C:\\a b\\session.jsonl"'
+    )
+  })
+
+  it('不含空格参数 → 原样', () => {
+    expect(quoteLaunchArg('--session')).toBe('--session')
+    expect(quoteLaunchArg('C:\\a\\session.jsonl')).toBe('C:\\a\\session.jsonl')
+  })
+
+  it('多参数混合(一个含空格一个不含)→ 分别处理、单空格连接', () => {
+    expect(buildAgentLaunchLine('pi', ['--session', 'C:\\a b\\session.jsonl', '--verbose'])).toBe(
+      '"pi" --session "C:\\a b\\session.jsonl" --verbose'
+    )
   })
 })
 

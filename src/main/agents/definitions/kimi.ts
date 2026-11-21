@@ -18,7 +18,11 @@ export const kimiAgent: AgentDefinition = {
     idleQuietMs: 2000
   },
   sessions: {
-    // T7:导入扫描(<home>/.kimi-code 的 state.json + session_index.jsonl 双源);resumeArgv 属 T8
-    scan: scanKimi
+    // T7:导入扫描(<home>/.kimi-code 的 state.json + session_index.jsonl 双源)
+    scan: scanKimi,
+    // T8:续接参数。外部参照 Orca agent-resume-argv.ts case 'kimi' 原文 ['kimi', '--session', id]
+    // Why: Kimi resumes by id with --session; sessions are work-dir-scoped (enforced by callers).
+    // 此处按裁决返回参数部分,无 id → null
+    resumeArgv: (ref) => (ref.id ? ['--session', ref.id] : null)
   }
 }

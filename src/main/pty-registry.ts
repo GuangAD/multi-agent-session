@@ -41,6 +41,23 @@ export function buildShellLaunchLine(command: string): string {
   return `"${command}"`
 }
 
+// Fix-2(评审 Important-2,接缝纯函数):launchArgs 逐参数引号包裹——参数含空白即双引号包住
+// (命令本体 buildShellLaunchLine 同一约定)。Why: 注入行写入 cmd.exe,pi 按转录路径续接时
+// `--session <含空格路径>` 裸拼会被 shell 拆成多段,resume 静默失灵;Windows 首发平台家目录
+// 含空格现实存在。边界与 buildShellLaunchLine 一致:Windows 路径不含 ",不涉及转义矩阵。
+export function quoteLaunchArg(arg: string): string {
+  return /\s/.test(arg) ? `"${arg}"` : arg
+}
+
+// 注入行 = 引号命令 + 空格 + 逐参数(引号处理)单空格拼串;无 args 返回 buildShellLaunchLine(command)
+export function buildAgentLaunchLine(command: string, args?: string[]): string {
+  const line = buildShellLaunchLine(command)
+  if (!args || args.length === 0) {
+    return line
+  }
+  return line + ' ' + args.map(quoteLaunchArg).join(' ')
+}
+
 // 采样落盘开关(接缝):环境变量 AGENT_SESSIONS_SAMPLE=<目录> 开启;
 // 开启时把字节流原样追加写入 <目录>/<sessionId>.bin,供 M3 采样
 const taps = new Map<SessionId, WriteStream>()
@@ -188,12 +205,14 @@ const entries = new Map<SessionId, PtyEntry>()
 
 export const ptyRegistry = {
   // 解析失败即抛「未安装」(controller 口径 3);渲染层菜单已按安装状态挡一层,此处兜底如实报错
+  // T8:launchArgs 可选(重开续接的参数部分,ipc/pty.ts 经 resumeArgv 构造后透传)
   async spawn(p: {
     sessionId: SessionId
     def: AgentDefinition
     cwd: string
     cols: number
     rows: number
+    launchArgs?: string[]
   }): Promise<void> {
     // Why: 同 id 二次 spawn 若直接 set 会覆盖内表,首个 pty 失去引用成孤儿;
     // 渲染层 randomUUID 下不可达,纵深防御:冲突即抛错,不覆盖、不拉起第二个进程
@@ -265,7 +284,11 @@ export const ptyRegistry = {
     // 冒烟若实测丢首字符,改为等待首帧 data 再注入。
     // Fix-C 确认:注入发生在 spawn 之后,而 spawn 尺寸已是 fit 真值(Fix-B 保证 spawn 等首个
     // fit 完成),pi 启动即拿到正确宽度,注入时机无需再改。
-    pty.write(buildShellLaunchLine(launchCommand) + '\r')
+    // T8(controller 裁决 2)+ 评审 Fix-2:注入行经 buildAgentLaunchLine 组装——launchArgs 非空时
+    // = 引号命令 + 逐参数(含空白者双引号包裹,如 pi 的 --session <转录路径>)拼串;参数同样
+    // 来自应用构造(externalSessionId/转录路径,非用户自由输入),Windows 路径不含 ",
+    // 维持「不引 shell 转义矩阵」边界(ADR-0004 边界注释的 T8 延伸)。
+    pty.write(buildAgentLaunchLine(launchCommand, p.launchArgs) + '\r')
   },
 
   // 未知 id 静默忽略(契约口径)

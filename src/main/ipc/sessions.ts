@@ -5,6 +5,7 @@ import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from './channels'
 import { agentRegistry } from '../agents/agent-registry'
 import { ptyRegistry } from '../pty-registry'
+import { BackfillCoordinator } from '../session-store/backfill'
 import { sessionRecords } from '../session-store/session-records'
 import { runImport } from '../session-store/session-import'
 import { saveStoreAtomic } from '../session-store/store-persistence'
@@ -65,11 +66,12 @@ function createDebouncedSaver(
   }
 }
 
-// 返回退出前要 flush 的落盘器:防抖编排归 IPC 层,入口(index.ts)不碰防抖细节
+// 返回退出前要 flush 的落盘器与防抖入口:scheduleSave 供入口转交给 ipc/pty.ts 的回填写回
+// (controller 裁决 4:入口组合,ipc/pty 不跨域 import sessions 内部)
 export function registerSessionsIpc(
   store: AppStore,
   storePath: string
-): { flush: () => Promise<void> } {
+): { flush: () => Promise<void>; scheduleSave: () => void } {
   const saver = createDebouncedSaver(store, storePath)
   const scheduleSave = saver.schedule
 
@@ -104,6 +106,10 @@ export function registerSessionsIpc(
     IPC_CHANNELS.sessionsRemove,
     (_event, id: SessionId): { closedTabs: SessionId[] } => {
       const existed = sessionRecords.get(store, id) !== undefined
+      if (existed) {
+        // 删除待回填会话也释放资格(controller 裁决 4);release 同时中止在途轮询,不写回
+        BackfillCoordinator.release(id)
+      }
       // 「有活动标签页」在主进程侧 = 有存活 PTY(与渲染层 tab 的进程存活判定同源)
       const result = sessionRecords.remove(store, id, ptyRegistry.activeSessionIds())
       if (existed) {
@@ -118,7 +124,8 @@ export function registerSessionsIpc(
     if (!session) {
       throw new Error(`会话不存在:${id}`)
     }
-    // T4 重开 = 原样拉起;lastOpenedAt 记最近打开时间(resume 参数由 T8 的会话续接接入)
+    // lastOpenedAt 记最近打开时间;T8 续接参数由渲染层从返回的记录构造
+    // (externalSessionId/externalFilePath → pty:spawn 的可选 resume 字段透传,不另开通道)
     session.lastOpenedAt = new Date().toISOString()
     scheduleSave()
     return session
@@ -151,5 +158,5 @@ export function registerSessionsIpc(
     }
   )
 
-  return { flush: saver.flush }
+  return { flush: saver.flush, scheduleSave: saver.schedule }
 }

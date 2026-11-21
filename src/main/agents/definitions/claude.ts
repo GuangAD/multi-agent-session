@@ -25,7 +25,10 @@ export const claudeAgent: AgentDefinition = {
     idleQuietMs: 2000
   },
   sessions: {
-    // T6:导入扫描(~/.claude/projects 下的编码目录 + jsonl 解析);resumeArgv 由 T8 补
-    scan: scanClaude
+    // T6:导入扫描(~/.claude/projects 下的编码目录 + jsonl 解析)
+    scan: scanClaude,
+    // T8:续接参数。外部参照 Orca agent-resume-argv.ts case 'claude' 原文
+    // ['claude', '--resume', id](可选 effort 不做);此处按裁决返回参数部分,无 id → null
+    resumeArgv: (ref) => (ref.id ? ['--resume', ref.id] : null)
   }
 }

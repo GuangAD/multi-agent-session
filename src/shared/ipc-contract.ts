@@ -4,7 +4,7 @@
 // T4 补齐 sessions:* 全域(rename/remove/open/list,会话记录持久化 CRUD);
 // T5 增补 state:* 三通道(上行 state:title / state:snapshot,下行 state:changed 状态广播);
 // T6 增补 sessions:import(按 agent 扫描存储,把属于该项目的历史会话导入应用记录)。
-import type { AgentListItem } from './agents'
+import type { AgentListItem, ResumeRef } from './agents'
 import type {
   AgentId,
   Project,
@@ -88,12 +88,15 @@ export interface PtyApi {
   // cols/rows = 渲染层 fit 提案(T3.5 评审期 Fix-A):启动尺寸用渲染层已测值,避免 80×24 起步
   // 导致 TUI 错宽(pi 收不到 ConPTY 的 resize 通知,启动宽度即终身宽度);主进程对非法值
   // 回退未测量兜底 120×40。Orca pty-first-size 同思路(src/main/ipc/pty/delivery/pty-first-size.ts)。
+  // T8:resume 可选——重开续接的定位原料(自建且回填过 id 的会话才有;imported/无 id 不带,
+  // 原样拉起);主进程经 def.sessions.resumeArgv 构造参数后注入启动行。
   spawn: (p: {
     sessionId: SessionId
     agentId: AgentId
     cwd: string
     cols: number
     rows: number
+    resume?: ResumeRef
   }) => Promise<void>
   write: (p: { sessionId: SessionId; data: string }) => Promise<void>
   resize: (p: { sessionId: SessionId; cols: number; rows: number }) => Promise<void>

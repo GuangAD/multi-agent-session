@@ -4,6 +4,7 @@ import { join } from 'path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createAppWindow } from './app-window'
 import { loadStore } from './session-store/store-persistence'
+import { BackfillCoordinator } from './session-store/backfill'
 import { registerProjectsIpc } from './ipc/projects'
 import { registerAgentsIpc } from './ipc/agents'
 import { registerSessionsIpc } from './ipc/sessions'
@@ -32,10 +33,12 @@ app.whenReady().then(async () => {
   const store = await loadStore(storePath)
   registerProjectsIpc(store, storePath)
   registerAgentsIpc()
-  flushSessionRecords = registerSessionsIpc(store, storePath).flush
+  // T8:防抖落盘器从 sessions IPC 层导出,入口组合转交 ipc/pty.ts(回填写回用;不跨域 import)
+  const sessionsIpc = registerSessionsIpc(store, storePath)
+  flushSessionRecords = sessionsIpc.flush
   registerSettingsIpc(store)
   // 单窗口应用:事件出站直接取当前窗口(无窗口时不发)
-  registerPtyIpc(() => BrowserWindow.getAllWindows()[0] ?? null)
+  registerPtyIpc(store, sessionsIpc.scheduleSave, () => BrowserWindow.getAllWindows()[0] ?? null)
   // 状态引擎编排(三源喂食 + state:changed 广播):订阅注册表的 data/exit,与会话记录同源取 agentId
   registerStateIpc(store, () => BrowserWindow.getAllWindows()[0] ?? null)
 
@@ -62,6 +65,9 @@ app.on('before-quit', (event) => {
   }
   quitPhase = 'cleaning'
   void (async () => {
+    // T8:先停掉在途回填轮询(以 null 收场,不再扫描/写回),再排空落盘——
+    // 排空才能捕获轮询最后写回的 externalSessionId
+    BackfillCoordinator.releaseAll()
     await flushSessionRecords()
     ptyRegistry.killAll()
     quitPhase = 'done'

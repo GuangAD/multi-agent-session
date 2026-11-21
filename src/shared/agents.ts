@@ -21,6 +21,13 @@ export interface ImportCandidate {
   activityAt?: string
 }
 
+// T8:续接定位原料——id(多数 agent)或转录路径(pi 按文件续接);两字段可选,
+// 由各定义自取。渲染层从会话记录构造(externalSessionId/externalFilePath),经 pty:spawn 透传。
+export interface ResumeRef {
+  id?: string
+  filePath?: string
+}
+
 export interface AgentDefinition {
   id: AgentId
   name: string
@@ -31,8 +38,9 @@ export interface AgentDefinition {
   sessions?: {
     // T6:从 agent 存储扫出会话候选(homeDir 注入供测试与自定义 agent home;缺省 os.homedir())
     scan?: (projectPath: string, ctx?: { homeDir?: string }) => Promise<ImportCandidate[]>
-    // T8:重开时的续接参数;null = 该 agent 不支持续接(原样拉起)
-    resumeArgv?: (ref: { id?: string; filePath?: string }) => string[] | null
+    // T8:重开时的续接参数;返回「参数部分」不含命令名(controller 裁决 1:命令本体由
+    // spawn 链路 resolveCommandPath 解析,重复返回会注入两次);null = 不支持续接(原样拉起)
+    resumeArgv?: (ref: ResumeRef) => string[] | null
   }
 }
 

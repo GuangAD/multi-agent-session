@@ -21,7 +21,11 @@ export const antigravityAgent: AgentDefinition = {
     idleQuietMs: 2000
   },
   sessions: {
-    // T7:导入扫描(brain transcript + history/WorkspaceURIs 关联 cwd);resumeArgv 属 T8
-    scan: scanAntigravity
+    // T7:导入扫描(brain transcript + history/WorkspaceURIs 关联 cwd)
+    scan: scanAntigravity,
+    // T8:续接参数。外部参照 Orca agent-resume-argv.ts case 'antigravity' 原文
+    // ['agy', '--conversation', id](conversation_id 键;agy 即本定义 command);
+    // 此处按裁决返回参数部分,无 id → null
+    resumeArgv: (ref) => (ref.id ? ['--conversation', ref.id] : null)
   }
 }
