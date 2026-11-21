@@ -233,7 +233,12 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
   })
 
   it('tab 关闭清理 pending:关闭前暂存的未注册数据不得串到此后新开的终端', () => {
+    // 引导终端:数据泵随首次 openTerminal 挂一次(幂等)。自带引导,不依赖上一用例先跑过——
+    // Why: 用例顺序独立才可靠,否则 shuffle/单用例过滤时 onPtyDataHandlers 为空(pump 是 undefined)
+    openTerminal('s-boot', 10000, makeContainerStub())
+    closeTerminal('s-boot')
     const pump = onPtyDataHandlers[0]!
+    expect(pump, '数据泵应随首次 openTerminal 挂上').toBeDefined()
     pump({ sessionId: 's-stale', data: 'STALE-OUT' })
     closeTerminal('s-stale') // 未注册过的 id 也走清理路径
 

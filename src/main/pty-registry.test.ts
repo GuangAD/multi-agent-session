@@ -245,10 +245,15 @@ describe('samplingTap', () => {
       expect(errorSpy).toHaveBeenCalledWith('采样写盘失败,本会话采样停用:', expect.any(Error))
 
       // 本会话已从采样内表摘除、data 监听已摘:后续字节不再写、不再触发新错误
-      const callsAfterFirstError = errorSpy.mock.calls.length
+      // Why 只数本模块那条消息:同文件其他用例的树杀是 fire-and-forget,其 console.error
+      // (「taskkill 兜底未命中」「树杀快照失败」)会在几十~上百 ms 后异步落进本用例的等待窗;
+      // 数「console.error 总调用数」会把这些无关日志算成采样又写了一次(实测 shuffle 下必现)。
+      const samplingErrors = (): number =>
+        errorSpy.mock.calls.filter(([message]) => message === '采样写盘失败,本会话采样停用:').length
+      const errorsAfterFirst = samplingErrors()
       stream.emit('data', Buffer.from('AGAIN', 'utf8'))
       await new Promise((resolve) => setTimeout(resolve, 150))
-      expect(errorSpy.mock.calls.length, '摘除后同会话不得再尝试写').toBe(callsAfterFirstError)
+      expect(samplingErrors(), '摘除后同会话不得再尝试写').toBe(errorsAfterFirst)
     } finally {
       process.off('uncaughtException', onUncaught)
       errorSpy.mockRestore()
