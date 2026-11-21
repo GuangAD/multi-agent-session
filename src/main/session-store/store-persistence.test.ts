@@ -24,7 +24,7 @@ const FILLED_STORE: AppStore = {
   version: 1,
   projects: [{ id: 'p-1', path: 'D:\\demo', name: 'demo' }],
   sessions: [],
-  settings: { defaultAgentId: 'claude', scrollbackRows: 25000, theme: 'dark' }
+  settings: { defaultAgentId: 'claude', scrollbackRows: 25000, theme: 'dark', shell: 'cmd' }
 }
 
 it('写入再读取,字段与值完全一致', async () => {
@@ -56,7 +56,7 @@ it('合法 JSON 缺 settings 字段:settings 补默认,projects 保留', async (
   )
   const loaded = await loadStore(file)
   // 手算默认值:scrollbackRows 10000、theme system(spec 默认)
-  expect(loaded.settings).toEqual({ scrollbackRows: 10000, theme: 'system' })
+  expect(loaded.settings).toEqual({ scrollbackRows: 10000, theme: 'system', shell: 'powershell' })
   expect(loaded.projects).toEqual([{ id: 'p-keep', path: 'D:\\keep', name: 'keep' }])
   // 未走损坏兜底:原文件仍在
   await expect(access(file)).resolves.toBeUndefined()

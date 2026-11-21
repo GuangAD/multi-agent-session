@@ -10,7 +10,7 @@ function emptyStore(): AppStore {
     version: 1,
     projects: [],
     sessions: [],
-    settings: { scrollbackRows: 10000, theme: 'system' }
+    settings: { scrollbackRows: 10000, theme: 'system', shell: 'powershell' }
   }
 }
 

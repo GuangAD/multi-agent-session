@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import { spawn as ptySpawn, type IPty } from 'node-pty'
 import { resolveCommandPath } from './command-path/command-path-resolver'
 import type { AgentDefinition } from '../shared/agents'
-import type { SessionId } from '../shared/types'
+import type { SessionId, ShellKind } from '../shared/types'
 
 // 接缝(纯函数):别名归一后取规范命令,argv = [command];别名 → 定义的归一由 agentRegistry.getById 完成
 export function buildSpawnArgv(def: AgentDefinition): string[] {
@@ -37,6 +37,9 @@ export function resolvePtyFirstSize(
 // spawn 后经 pty.write 写入 shell,与用户键入同通道(cmd 的输入行回显即用户看到的命令行)。
 // 边界:不做 cmd 元字符(^ & | >)的转义矩阵——command 是应用经 resolveCommandPath 构造的
 // 绝对路径,自身不含引号,不是用户自由输入;若未来接受用户可控命令行,须先补转义。
+// cmd 输入行的结束符 = CR(0x0D)。Why 用 fromCharCode 而不是源码里的转义序列:本仓文件在
+// CRLF 工作树下编辑,字符串字面量里的转义容易被工具链误当行尾吃掉,常量写法对此免疫。
+const CARRIAGE_RETURN = String.fromCharCode(13)
 export function buildShellLaunchLine(command: string): string {
   return `"${command}"`
 }
@@ -47,6 +50,58 @@ export function buildShellLaunchLine(command: string): string {
 // 含空格现实存在。边界与 buildShellLaunchLine 一致:Windows 路径不含 ",不涉及转义矩阵。
 export function quoteLaunchArg(arg: string): string {
   return /\s/.test(arg) ? `"${arg}"` : arg
+}
+
+// PowerShell 单引号字面量:内部单引号双写转义(PS 规则);路径/参数由应用构造,不涉变量展开
+export function quotePowerShellArg(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+// PowerShell 启动脚本(T11 追加):chcp + OutputEncoding 保证 UTF-8(PS 5.1 默认代码页会让
+// 中文路径/输出乱码),再用调用运算符 `&` 执行 agent——**必须用 `&`**:在 PS 里直接写
+// `"C:\...\pi.cmd" args` 只是一条字符串表达式,会原样打印而不执行。
+// Why 走 -Command 而不是「spawn 后写注入行」(cmd 的做法):powershell.exe 冷启动 300-700ms
+// 且可能加载 profile,注入行会在 shell 就绪前到达而丢掉;把命令放进启动参数没有时序问题。
+export function buildPowerShellLaunchScript(command: string, args?: string[]): string {
+  const invocation = [`& ${quotePowerShellArg(command)}`]
+  for (const arg of args ?? []) {
+    invocation.push(quotePowerShellArg(arg))
+  }
+  return `chcp 65001 > $null; [Console]::OutputEncoding = [Text.Encoding]::UTF8; ${invocation.join(' ')}`
+}
+
+// shell 可执行文件:cmd 走 ComSpec(系统真源);powershell/pwsh 由调用方解析成绝对路径传入,
+// 解析不到时退回裸名(交给 CreateProcess 在 PATH 里找;找不到会由 node-pty 抛错,如实暴露)
+export function resolveShellExecutable(shell: ShellKind, powershellPath?: string | null): string {
+  if (shell === 'cmd') {
+    return process.env.ComSpec ?? 'cmd.exe'
+  }
+  if (shell === 'powershell') {
+    return powershellPath ?? 'powershell.exe'
+  }
+  return powershellPath ?? 'pwsh.exe'
+}
+
+// 非 cmd 的 shell 用 -NoLogo(去 banner)+ -NoExit(agent 退出后 shell 仍在,ADR-0004 语义)
+// + -Command(一次性把 agent 交给 shell 解析执行)
+export function buildShellSpawnArgs(shell: ShellKind, command: string, args?: string[]): string[] {
+  if (shell === 'cmd') {
+    return [] // cmd 走「spawn 后写注入行」的既有通道,启动参数为空
+  }
+  return ['-NoLogo', '-NoExit', '-Command', buildPowerShellLaunchScript(command, args)]
+}
+
+// 需要写注入行的只有 cmd:非 cmd shell 的启动命令已在 spawn 参数里
+export function buildShellInjectLine(
+  shell: ShellKind,
+  command: string,
+  args?: string[]
+): string | null {
+  if (shell !== 'cmd') {
+    return null
+  }
+  // 行尾是 CR(cmd 的输入行结束符):从常量里取,避免源码里出现转义序列被误改
+  return buildAgentLaunchLine(command, args) + CARRIAGE_RETURN
 }
 
 // 注入行 = 引号命令 + 空格 + 逐参数(引号处理)单空格拼串;无 args 返回 buildShellLaunchLine(command)
@@ -139,7 +194,12 @@ async function snapshotDescendants(rootPid: number): Promise<number[]> {
     const cells = line.split(',').map((cell) => Number.parseInt(cell.trim().replace(/\"/g, ''), 10))
     const pid = cells[0]
     const parentPid = cells[1]
-    if (pid === undefined || parentPid === undefined || Number.isNaN(pid) || Number.isNaN(parentPid)) {
+    if (
+      pid === undefined ||
+      parentPid === undefined ||
+      Number.isNaN(pid) ||
+      Number.isNaN(parentPid)
+    ) {
       continue
     }
     const siblings = childrenOf.get(parentPid)
@@ -213,6 +273,8 @@ export const ptyRegistry = {
     cols: number
     rows: number
     launchArgs?: string[]
+    // 终端里常驻的 shell(T11 增补;由 ipc/pty.ts 从 settings.shell 传入,缺省 cmd)
+    shell?: ShellKind
   }): Promise<void> {
     // Why: 同 id 二次 spawn 若直接 set 会覆盖内表,首个 pty 失去引用成孤儿;
     // 渲染层 randomUUID 下不可达,纵深防御:冲突即抛错,不覆盖、不拉起第二个进程
@@ -227,12 +289,19 @@ export const ptyRegistry = {
     // 规整外观:resolveCommandPath 返回可能正斜杠混排(移植件不改),Windows 下统一反斜杠,
     // 注入行交 cmd 识别原生路径形态(解析后绝对路径/.cmd shim 直拉已实测,见开发记录)
     const launchCommand = process.platform === 'win32' ? win32.normalize(resolved) : resolved
-    // shell 底座(ADR-0004):PTY 跑常驻 shell(Windows 首发 ComSpec,缺省 cmd.exe;POSIX 不适配),
-    // agent CLI 由应用在 shell 内启动——CLI 退出回提示符,标签页与交互保留
-    const file = process.env.ComSpec ?? 'cmd.exe'
+    // shell 底座(ADR-0004):PTY 跑常驻 shell,agent CLI 由应用在 shell 内启动——
+    // CLI 退出回提示符,标签页与交互保留。T11 起 shell 可选(settings.shell,默认 powershell):
+    // 非 cmd 需要先把 shell 本体解析成绝对路径(node-pty 在 Windows 直接拉裸命令名不可靠)
+    const shellKind: ShellKind = p.shell ?? 'cmd'
+    const shellPath =
+      shellKind === 'cmd'
+        ? null
+        : await resolveCommandPath(shellKind === 'powershell' ? 'powershell' : 'pwsh')
+    const file = resolveShellExecutable(shellKind, shellPath)
+    const shellArgs = buildShellSpawnArgs(shellKind, launchCommand, p.launchArgs)
     // Fix-A:初始尺寸 = 渲染层 fit 提案(坏值/缺省在接缝内回退兜底,见 resolvePtyFirstSize)
     const firstSize = resolvePtyFirstSize(p.cols, p.rows)
-    const pty = ptySpawn(file, [], {
+    const pty = ptySpawn(file, shellArgs, {
       name: 'xterm-256color',
       cols: firstSize.cols,
       rows: firstSize.rows,
@@ -280,15 +349,19 @@ export const ptyRegistry = {
         listener({ sessionId: p.sessionId, exitCode })
       }
     })
-    // 注入 agent 启动命令(与用户键入同通道):cmd 无 banner,spawn 后立即写入通常可靠;
-    // 冒烟若实测丢首字符,改为等待首帧 data 再注入。
+    // 注入 agent 启动命令(与用户键入同通道):**仅 cmd 走这条**;非 cmd shell 的启动命令已作为
+    // `-Command` 参数交给 shell(T11),buildShellInjectLine 返回 null,不需写任何东西。
+    // cmd 的时机说明:cmd 无 banner,spawn 后立即写入通常可靠;冒烟若实测丢首字符,改为等待首帧 data 再注入。
     // Fix-C 确认:注入发生在 spawn 之后,而 spawn 尺寸已是 fit 真值(Fix-B 保证 spawn 等首个
     // fit 完成),pi 启动即拿到正确宽度,注入时机无需再改。
     // T8(controller 裁决 2)+ 评审 Fix-2:注入行经 buildAgentLaunchLine 组装——launchArgs 非空时
     // = 引号命令 + 逐参数(含空白者双引号包裹,如 pi 的 --session <转录路径>)拼串;参数同样
     // 来自应用构造(externalSessionId/转录路径,非用户自由输入),Windows 路径不含 ",
     // 维持「不引 shell 转义矩阵」边界(ADR-0004 边界注释的 T8 延伸)。
-    pty.write(buildAgentLaunchLine(launchCommand, p.launchArgs) + '\r')
+    const injectLine = buildShellInjectLine(shellKind, launchCommand, p.launchArgs)
+    if (injectLine !== null) {
+      pty.write(injectLine)
+    }
   },
 
   // 未知 id 静默忽略(契约口径)

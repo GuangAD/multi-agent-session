@@ -11,7 +11,12 @@ import { agentRegistry } from './agents/agent-registry'
 import { claudeAgent } from './agents/definitions/claude'
 import {
   buildAgentLaunchLine,
+  buildPowerShellLaunchScript,
+  buildShellInjectLine,
   buildShellLaunchLine,
+  buildShellSpawnArgs,
+  quotePowerShellArg,
+  resolveShellExecutable,
   buildSpawnArgv,
   ptyRegistry,
   quoteLaunchArg,
@@ -96,7 +101,13 @@ describe('buildSpawnArgv', () => {
       ptySpawnMock.mockImplementation(() => makeFakePty())
 
       const projectDir = 'D:\\demo-project'
-      await ptyRegistry.spawn({ sessionId: 's-claude', def: claudeAgent, cwd: projectDir, cols: 126, rows: 49 })
+      await ptyRegistry.spawn({
+        sessionId: 's-claude',
+        def: claudeAgent,
+        cwd: projectDir,
+        cols: 126,
+        rows: 49
+      })
 
       expect(ptySpawnMock).toHaveBeenCalledTimes(1)
       const [file, args, options] = ptySpawnMock.mock.calls[0]
@@ -163,7 +174,13 @@ describe('buildShellLaunchLine', () => {
       }
       ptySpawnMock.mockImplementation(() => fake)
 
-      await ptyRegistry.spawn({ sessionId: 's-inject', def: claudeAgent, cwd: 'D:\\demo-project', cols: 80, rows: 24 })
+      await ptyRegistry.spawn({
+        sessionId: 's-inject',
+        def: claudeAgent,
+        cwd: 'D:\\demo-project',
+        cols: 80,
+        rows: 24
+      })
 
       // shell 底座(ADR-0004):node-pty 收到的是常驻 shell,且不带参数
       const [file, args] = ptySpawnMock.mock.calls[0]
@@ -172,9 +189,7 @@ describe('buildShellLaunchLine', () => {
       // 注入行与用户键入同通道:走 pty.write,全文 = 引号路径 + \r
       const realPath = join(dir, binName)
       const expected =
-        process.platform === 'win32'
-          ? `"${win32.normalize(realPath)}"\r`
-          : `"${realPath}"\r`
+        process.platform === 'win32' ? `"${win32.normalize(realPath)}"\r` : `"${realPath}"\r`
       expect(writes).toEqual([expected])
     } finally {
       await rm(dir, { recursive: true, force: true })
@@ -188,8 +203,12 @@ describe('buildShellLaunchLine', () => {
 // 同一约定;注入行 = 引号命令 + 逐参数单空格拼串,无 args 退化为纯命令行)。
 describe('quoteLaunchArg / buildAgentLaunchLine(launchArgs 引号包裹)', () => {
   it('无 args → 等于 buildShellLaunchLine(command)', () => {
-    expect(buildAgentLaunchLine('C:\\tools\\pi.cmd')).toBe(buildShellLaunchLine('C:\\tools\\pi.cmd'))
-    expect(buildAgentLaunchLine('C:\\tools\\pi.cmd', [])).toBe(buildShellLaunchLine('C:\\tools\\pi.cmd'))
+    expect(buildAgentLaunchLine('C:\\tools\\pi.cmd')).toBe(
+      buildShellLaunchLine('C:\\tools\\pi.cmd')
+    )
+    expect(buildAgentLaunchLine('C:\\tools\\pi.cmd', [])).toBe(
+      buildShellLaunchLine('C:\\tools\\pi.cmd')
+    )
   })
 
   it('含空格参数 → 双引号包裹(pi resume 形态:--session <转录路径>)', () => {
@@ -335,5 +354,52 @@ describe('resolvePtyFirstSize', () => {
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('shell 分支(T11:settings.shell = cmd | powershell | pwsh)', () => {
+  // 路径统一用正斜杠:被测的是「引号/调用运算符/参数拼装」,与分隔符方向无关
+  it('PowerShell 脚本:用调用运算符 & 执行,并先设 UTF-8(手算字面量)', () => {
+    const script = buildPowerShellLaunchScript('C:/Program Files/nodejs/pi.cmd')
+    // 手算:chcp 65001 + OutputEncoding + `& '<path>'`;没有 & 的话 PS 只会打印字符串而不执行
+    expect(script).toBe(
+      "chcp 65001 > $null; [Console]::OutputEncoding = [Text.Encoding]::UTF8; & 'C:/Program Files/nodejs/pi.cmd'"
+    )
+  })
+
+  it('PowerShell 参数:逐个单引号包裹(含空格的转录路径不会被 PS 拆段)', () => {
+    const script = buildPowerShellLaunchScript('C:/tools/pi.cmd', [
+      '--session',
+      'C:/Users/Lenovo/.pi/a b/s.jsonl'
+    ])
+    expect(script).toContain("& 'C:/tools/pi.cmd' '--session' 'C:/Users/Lenovo/.pi/a b/s.jsonl'")
+  })
+
+  it('PowerShell 单引号转义:内部单引号双写(PS 规则)', () => {
+    expect(quotePowerShellArg("it's")).toBe("'it''s'")
+  })
+
+  it('spawn 参数:cmd 为空(cmd 走注入行);powershell/pwsh 交给 -NoLogo -NoExit -Command', () => {
+    expect(buildShellSpawnArgs('cmd', 'C:/x/pi.cmd', ['--session', 'f'])).toEqual([])
+
+    const ps = buildShellSpawnArgs('powershell', 'C:/x/pi.cmd')
+    expect(ps.slice(0, 3)).toEqual(['-NoLogo', '-NoExit', '-Command'])
+    expect(ps[3]).toContain("& 'C:/x/pi.cmd'")
+
+    // -NoExit:agent 退出后 shell 仍在,满足 ADR-0004「退出回提示符」
+    expect(buildShellSpawnArgs('pwsh', 'C:/x/pi.cmd')).toContain('-NoExit')
+  })
+
+  it('注入行:只有 cmd 需要写(以 CR 结尾);非 cmd 返回 null 不写任何东西', () => {
+    const cmdLine = buildShellInjectLine('cmd', 'C:/x/pi.cmd', ['--session', 'f'])
+    expect(cmdLine).toBe('"C:/x/pi.cmd" --session f' + String.fromCharCode(13))
+    expect(buildShellInjectLine('powershell', 'C:/x/pi.cmd')).toBeNull()
+    expect(buildShellInjectLine('pwsh', 'C:/x/pi.cmd')).toBeNull()
+  })
+
+  it('shell 可执行文件:cmd 走 ComSpec;powershell/pwsh 用解析到的绝对路径,缺省退回裸名', () => {
+    expect(resolveShellExecutable('cmd')).toBe(process.env.ComSpec ?? 'cmd.exe')
+    expect(resolveShellExecutable('powershell', 'C:/W/powershell.exe')).toBe('C:/W/powershell.exe')
+    expect(resolveShellExecutable('pwsh', null)).toBe('pwsh.exe')
   })
 })

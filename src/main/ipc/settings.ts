@@ -29,6 +29,8 @@ function syncTitleBarOverlay(getWindow: () => BrowserWindow | null): void {
 // 主题必须三态之一;scrollback 与 types.ts 注释同口径([1, 50000],越界按边界收敛,
 // 非数字直接忽略该字段)。
 const THEMES: ReadonlyArray<Settings['theme']> = ['system', 'light', 'dark']
+// T11:终端 shell 三选一;非法值忽略(改了 shell 需要下次新建会话才生效,prompt 不受影响)
+const SHELLS: ReadonlyArray<Settings['shell']> = ['cmd', 'powershell', 'pwsh']
 const SCROLLBACK_MAX = 50_000
 
 function applyPatch(settings: Settings, patch: Partial<Settings>): void {
@@ -40,6 +42,9 @@ function applyPatch(settings: Settings, patch: Partial<Settings>): void {
       SCROLLBACK_MAX,
       Math.max(1, Math.trunc(patch.scrollbackRows))
     )
+  }
+  if (patch.shell !== undefined && SHELLS.includes(patch.shell)) {
+    settings.shell = patch.shell
   }
   if (patch.defaultAgentId !== undefined) {
     settings.defaultAgentId = patch.defaultAgentId

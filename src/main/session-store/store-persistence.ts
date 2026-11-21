@@ -9,7 +9,7 @@ export const DEFAULT_STORE: AppStore = {
   version: 1,
   projects: [],
   sessions: [],
-  settings: { scrollbackRows: 10000, theme: 'system' }
+  settings: { scrollbackRows: 10000, theme: 'system', shell: 'powershell' }
 }
 
 // Why: DEFAULT_STORE 是只读常量,兜底路径返回深拷贝,避免调用方(入口持有的内存 store)污染模块级默认值

@@ -144,7 +144,6 @@ export function registerPtyIpc(
   ipcMain.handle(
     IPC_CHANNELS.ptyResize,
     (_event, p: { sessionId: SessionId; cols: number; rows: number }): void => {
-
       ptyRegistry.resize(p.sessionId, p.cols, p.rows)
     }
   )

@@ -40,6 +40,37 @@
       验:桌面快捷方式、任务栏、开始菜单图标。
       现状:仍是 Electron 模板占位图标(`resources/icon.png`)。换图后需重跑 `pnpm build:win` 重新出包。
 
+## 一之二、终端 shell 换成 PowerShell(2026-11-22 实现,待验证)
+
+背景:原 shell 底座是 cmd.exe(ADR-0004),现默认改为 **Windows PowerShell 5.1**;`settings.shell` 可切换
+`cmd | powershell | pwsh`(改 `%APPDATA%/Soloport/store.json` 的 `settings.shell` 即可,新建会话时生效,
+无需改代码;`pwsh` 需另装 PowerShell 7)。
+
+- [ ] **1p. 基本可用**
+      验:新建会话 → 终端里应是 PowerShell 提示符(`PS D:\...>`),而不是 cmd 的 `D:\...>`。
+      依据:实现用 `powershell.exe -NoLogo -NoExit -Command "<chcp 65001 + UTF8 + & 'agent' 'args'>"`;
+      本机已用 node-pty 探针验证「agent 跑起来 / 含空格参数完整 / 退出后提示符仍在」三项全绿。
+
+- [ ] **2p. pi 在 PowerShell 底座下正常**
+      验:pi 起得来、界面正常、能对话;/quit 退出后回 PowerShell 提示符,还能继续敲命令;再次进入 pi 正常。
+      风险点:PS 5.1 对原生命令的参数引号有已知缺陷(引号内嵌/结尾反斜杠),pi 的 --session <转录路径> 是主要考验。
+
+- [ ] **3p. 续接(带空格路径)**
+      验:重开一个已回填/导入的会话 → pi 用 --session "<转录路径>" 续接成功。
+      注意:本机家目录无空格,若想压测,可在含空格的目录下建会话。
+
+- [ ] **4p. 中文与编码**
+      验:终端里中文输入/输出不乱码;chcp 为 65001。
+      依据:启动脚本已 chcp 65001 + 设 [Console]::OutputEncoding。
+
+- [ ] **5p. 快捷键在 PowerShell 下不冲突**
+      验:终端内 Ctrl+W/B/E/N 仍是 PSReadLine 的行编辑行为(不触发应用快捷键);Ctrl+Tab 仍能切标签。
+      依据:守卫按 closest('.xterm') 判断,与 shell 种类无关。
+
+- [ ] **改回 cmd**
+      验(可选):把 store.json 的 settings.shell 改成 "cmd" → 新建会话回到 cmd 底座。
+      注意:已开的会话不受影响(shell 只对新会话生效)。
+
 ## 二、跨任务遗留:本机未安装的 agent(整特性终审口径)
 
 本机只装了 pi,其余四家的验证均以构造/移植样本代替。装好后需复核:
