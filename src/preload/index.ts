@@ -29,7 +29,8 @@ const api: AppApi = {
     rename: (p) => ipcRenderer.invoke(IPC_CHANNELS.sessionsRename, p),
     remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsRemove, id),
     open: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsOpen, id),
-    list: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.sessionsList, projectId)
+    list: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.sessionsList, projectId),
+    import: (p) => ipcRenderer.invoke(IPC_CHANNELS.sessionsImport, p)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet)

@@ -1,6 +1,7 @@
 // Claude Code 定义(brief 第 5 节固定清单)
 // 状态规则初版照抄 Orca agent-state-rules/claude.json 的信号要点;规则引擎 T5 落地,此处只提供数据。
 import type { AgentDefinition } from '../../../shared/agents'
+import { scanClaude } from '../../session-store/session-import/claude'
 
 export const claudeAgent: AgentDefinition = {
   id: 'claude',
@@ -22,5 +23,9 @@ export const claudeAgent: AgentDefinition = {
     },
     // idle 安静门槛初值;五家统一 2000,T5 校准。
     idleQuietMs: 2000
+  },
+  sessions: {
+    // T6:导入扫描(~/.claude/projects 下的编码目录 + jsonl 解析);resumeArgv 由 T8 补
+    scan: scanClaude
   }
 }

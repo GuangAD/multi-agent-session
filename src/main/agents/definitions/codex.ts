@@ -1,6 +1,7 @@
 // Codex CLI 定义(brief 第 5 节固定清单)
 // 状态规则初版照抄 Orca agent-state-rules/codex.json 的信号要点;规则引擎 T5 落地,此处只提供数据。
 import type { AgentDefinition } from '../../../shared/agents'
+import { scanCodex } from '../../session-store/session-import/codex'
 
 export const codexAgent: AgentDefinition = {
   id: 'codex',
@@ -17,5 +18,9 @@ export const codexAgent: AgentDefinition = {
     },
     // idle 安静门槛初值;五家统一 2000,T5 校准。
     idleQuietMs: 2000
+  },
+  sessions: {
+    // T6:导入扫描(~/.codex/sessions 下的 rollout,含 .zst 变体);resumeArgv 由 T8 补
+    scan: scanCodex
   }
 }

@@ -6,6 +6,7 @@ import { IPC_CHANNELS } from './channels'
 import { agentRegistry } from '../agents/agent-registry'
 import { ptyRegistry } from '../pty-registry'
 import { sessionRecords } from '../session-store/session-records'
+import { runImport } from '../session-store/session-import'
 import { saveStoreAtomic } from '../session-store/store-persistence'
 import type { AgentId, AppStore, ProjectId, Session, SessionId } from '../../shared/types'
 
@@ -126,6 +127,29 @@ export function registerSessionsIpc(
   ipcMain.handle(IPC_CHANNELS.sessionsList, (_event, projectId: ProjectId): Session[] => {
     return sessionRecords.listByProject(store, projectId)
   })
+
+  ipcMain.handle(
+    IPC_CHANNELS.sessionsImport,
+    async (
+      _event,
+      p: { projectId: ProjectId; agentId: AgentId }
+    ): Promise<{ imported: number; skipped: number }> => {
+      // 项目路径由主进程从 store 取(渲染层不传路径,避免与记录不一致)
+      const project = store.projects.find((item) => item.id === p.projectId)
+      if (!project) {
+        throw new Error(`项目不存在:${p.projectId}`)
+      }
+      const result = await runImport(store, {
+        projectId: project.id,
+        agentId: p.agentId,
+        projectPath: project.path
+      })
+      if (result.imported > 0) {
+        scheduleSave() // 导入只改内存 store,落盘仍走本层的防抖 + 原子写(T4 同款)
+      }
+      return result
+    }
+  )
 
   return { flush: saver.flush }
 }

@@ -19,13 +19,12 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-// 手算字面量:含 projects/settings/ignoreList 的完整 store
+// 手算字面量:含 projects/sessions/settings 的完整 store
 const FILLED_STORE: AppStore = {
   version: 1,
   projects: [{ id: 'p-1', path: 'D:\\demo', name: 'demo' }],
   sessions: [],
-  settings: { defaultAgentId: 'claude', scrollbackRows: 25000, theme: 'dark' },
-  ignoreList: [{ agentId: 'codex', externalSessionId: 'ext-abc' }]
+  settings: { defaultAgentId: 'claude', scrollbackRows: 25000, theme: 'dark' }
 }
 
 it('写入再读取,字段与值完全一致', async () => {

@@ -2,7 +2,8 @@
 // 通道由任务增量补:T1 落 projects 三通道;T2 增补 agents:list;
 // T3 增补 sessions:create、settings:get 与 pty:* 五通道(spawn/write/resize/kill + data/exit 事件);
 // T4 补齐 sessions:* 全域(rename/remove/open/list,会话记录持久化 CRUD);
-// T5 增补 state:* 三通道(上行 state:title / state:snapshot,下行 state:changed 状态广播)。
+// T5 增补 state:* 三通道(上行 state:title / state:snapshot,下行 state:changed 状态广播);
+// T6 增补 sessions:import(按 agent 扫描存储,把属于该项目的历史会话导入应用记录)。
 import type { AgentListItem } from './agents'
 import type {
   AgentId,
@@ -25,6 +26,7 @@ export const IPC_CHANNELS = {
   sessionsRemove: 'sessions:remove',
   sessionsOpen: 'sessions:open',
   sessionsList: 'sessions:list',
+  sessionsImport: 'sessions:import',
   settingsGet: 'settings:get',
   ptySpawn: 'pty:spawn',
   ptyWrite: 'pty:write',
@@ -60,6 +62,11 @@ export interface SessionsApi {
   // 重开:记录存在则更新 lastOpenedAt 并返回(T4 = 原样拉起,resume 参数由 T8 接入)
   open: (id: SessionId) => Promise<Session>
   list: (projectId: ProjectId) => Promise<Session[]>
+  // T6:扫描该 agent 在本项目目录下的历史会话并入库(按 (agentId, externalSessionId) 去重);skipped = 去重命中数
+  import: (p: { projectId: ProjectId; agentId: AgentId }) => Promise<{
+    imported: number
+    skipped: number
+  }>
 }
 
 // 终端渲染参数(scrollback 默认 10000);T3 只读,设置界面后续任务

@@ -3,13 +3,18 @@
 import type { StateCreator } from 'zustand'
 import { bridge } from '../ipc/bridge'
 import type { AgentListItem } from '../../../shared/agents'
-import type { AgentId, Project, Session, SessionId } from '../../../shared/types'
+import type { AgentId, Project, ProjectId, Session, SessionId } from '../../../shared/types'
 import type { AppState } from './app-store'
 
 // TabSession 只记身份:显示名/项目/agent 等元数据都从 sessions 记录取(记录改了 tab 即时跟随),
 // 运行状态从 run-state-slice 取(state:changed 广播,单一来源)
 export interface TabSession {
   sessionId: SessionId
+}
+
+export interface ImportResult {
+  imported: number
+  skipped: number
 }
 
 export interface SessionsSlice {
@@ -29,6 +34,8 @@ export interface SessionsSlice {
   setActiveTab: (sessionId: SessionId) => void
   renameSession: (id: SessionId, title: string) => Promise<void>
   removeSession: (id: SessionId) => Promise<void>
+  // T6:导入该 agent 在本项目下的历史会话(主进程扫描 + 去重),返回条数供 UI 提示
+  importSessions: (projectId: ProjectId, agentId: AgentId) => Promise<ImportResult>
 }
 
 // 待 spawn 会话:渲染层先开 tab 拿到 fit 提案尺寸再 spawn(Fix-B)。模块级协调数据,
@@ -185,5 +192,15 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
       await get().closeTab(tabId)
     }
     set((state) => ({ sessions: state.sessions.filter((session) => session.id !== id) }))
+  },
+
+  importSessions: async (projectId, agentId) => {
+    const result = await bridge.sessions.import({ projectId, agentId })
+    // 导入只改主进程 store:重新拉该项目的记录并整体替换(一次导入可能落多条,原位合并反而更绕)
+    const list = await bridge.sessions.list(projectId)
+    set((state) => ({
+      sessions: [...state.sessions.filter((session) => session.projectId !== projectId), ...list]
+    }))
+    return result
   }
 })

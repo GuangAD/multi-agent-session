@@ -9,8 +9,7 @@ export const DEFAULT_STORE: AppStore = {
   version: 1,
   projects: [],
   sessions: [],
-  settings: { scrollbackRows: 10000, theme: 'system' },
-  ignoreList: []
+  settings: { scrollbackRows: 10000, theme: 'system' }
 }
 
 // Why: DEFAULT_STORE 是只读常量,兜底路径返回深拷贝,避免调用方(入口持有的内存 store)污染模块级默认值
@@ -58,8 +57,8 @@ export async function loadStore(file: string): Promise<AppStore> {
     settings: {
       ...DEFAULT_STORE.settings,
       ...(typeof partial.settings === 'object' && partial.settings !== null ? partial.settings : {})
-    },
-    ignoreList: Array.isArray(partial.ignoreList) ? partial.ignoreList : []
+    }
+    // 旧版 store.json 若残留 ignoreList 字段,这里不读它:下次整文件写入时自然丢弃(2026-11-21 决策)
   }
 }
 

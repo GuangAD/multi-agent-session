@@ -1,6 +1,7 @@
 // agent 配置契约:定义结构与状态规则(spec「shared/agents.ts 数据结构」;主进程 src/main/agents 引用,渲染层只读)
 // AgentId 复用 shared/types,不在此重复定义(单一拼写)。
-// 结构化克隆注意:Electron IPC 支持 RegExp、不支持函数——定义不挂 sessions 函数时可整体过桥(T2 口径)。
+// 结构化克隆注意:Electron IPC 支持 RegExp、不支持函数——T6 起定义挂了 sessions 函数,
+// agents:list 出站前必须剥离(见 ipc/agents.ts 的摘除与 `// Why:`)。
 import type { AgentId } from './types'
 
 export interface AgentStateRules {
@@ -28,9 +29,10 @@ export interface AgentDefinition {
   icon: string // 第一版为首字母徽标 id
   state: AgentStateRules
   sessions?: {
-    // 本任务留空位,T5–T8 填充(函数不可过 IPC,挂载后 agents:list 需摘除)
-    scan: (projectPath: string) => Promise<ImportCandidate[]>
-    resumeArgv: (ref: { id?: string; filePath?: string }) => string[] | null
+    // T6:从 agent 存储扫出会话候选(homeDir 注入供测试与自定义 agent home;缺省 os.homedir())
+    scan?: (projectPath: string, ctx?: { homeDir?: string }) => Promise<ImportCandidate[]>
+    // T8:重开时的续接参数;null = 该 agent 不支持续接(原样拉起)
+    resumeArgv?: (ref: { id?: string; filePath?: string }) => string[] | null
   }
 }
 

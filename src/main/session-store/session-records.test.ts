@@ -10,8 +10,7 @@ function emptyStore(): AppStore {
     version: 1,
     projects: [],
     sessions: [],
-    settings: { scrollbackRows: 10000, theme: 'system' },
-    ignoreList: []
+    settings: { scrollbackRows: 10000, theme: 'system' }
   }
 }
 

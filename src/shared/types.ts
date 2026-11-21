@@ -34,15 +34,9 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark'
 }
 
-export interface IgnoreEntry {
-  agentId: AgentId
-  externalSessionId: string
-}
-
 export interface AppStore {
   version: 1
   projects: Project[]
   sessions: Session[]
   settings: Settings
-  ignoreList: IgnoreEntry[]
 }

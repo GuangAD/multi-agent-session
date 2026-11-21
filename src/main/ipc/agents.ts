@@ -17,7 +17,13 @@ export function registerAgentsIpc(): void {
     // 按索引回填,保住注册顺序;单命令探测失败按未命中处理(resolveCommandPath 已吞 fs 异常)
     await forEachWithConcurrency(defs, DETECTION_CONCURRENCY, async (def, index) => {
       const resolved = await resolveCommandPath(def.command)
-      items[index] = { def, installed: resolved !== null, path: resolved ?? undefined }
+      items[index] = {
+        // Why: T6 起定义挂着 sessions.scan(函数),结构化克隆不支持函数;渲染层只做展示与选择,
+        // 扫描在主进程内跑,故出站前把 sessions 摘成 undefined(T6 口径 3)。
+        def: { ...def, sessions: undefined },
+        installed: resolved !== null,
+        path: resolved ?? undefined
+      }
     })
     return items
   })
