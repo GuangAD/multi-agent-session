@@ -51,3 +51,18 @@
     1. 状态判定空白快照守卫在引擎侧 `onSnapshot` 入口,只挡极短(len<=2)全空白;真实 CLI 画面恒为多字符,不受影响
     2. 该缺陷是既有行为被 T1 改动暴露(此前行尾常驻点让 working/idle 差异不明显),非 T1 引入
     3. 全量 31 文件/205 用例绿、typecheck exit 0;需用户实机复验「切走后动画保持」
+
+## 收尾(门 3 后变更 + 终审清理)
+
+> 本特性在门 3 呈报后收到两项用户反馈,按「小变更直接追加任务」处理为 T2/T3,已全部完成。
+
+- 终审裁决:可进门 3,无 Critical/Important;T1→T3 衔接自洽(动画渲染 vs 状态判定修复分层正确)、无夹带、无残留 DBG 日志
+- 终审 Minor 清理(本次一并处理):
+  - spec.md 技术选型:LoaderCircle/animate-spin → 三点 animate-pulse(T2 替换),已改并注明来源
+  - `ProjectGroup.tsx` 头注释「状态点来源」→「working 动画来源」,已改
+  - `run-state-display.ts`:删 `dotClassName` 死字段与四个色值(全仓零消费者),头注释改为「仅标签页 label 消费」,已改;`RUN_STATE_DISPLAY` 保留(TerminalTabs 仍用 `.label`)
+  - T1.md 作为历史任务契约未重写(评审建议保留,T2 替换已在 plan.md T2 记录留痕);tasks/ 无 T2/T3 契约属 housekeeping,留后续
+- 文档对账:CONTEXT.md 无新术语(loading/三点 spinner 非项目特有),无新 ADR(不改状态语义、不推翻既有决策);本次无需沉淀
+- 未验证项(门 3 放行条件):brief 7.1 第 1-6 条视觉/交互为 waiver,用户尚未逐条冒烟;T3「切走后动画保持」需用户实机复验(代码层已由用例 14/15 + mutation 钉住,实机观感未验)
+- 遗留 Minor:T1 的 200ms 双击阈值张力(冒烟第 4 条实测,复现则改单常量)、删铅笔后无键盘改名入口(brief 明确要求)
+- 验证:31 文件/205 用例绿、typecheck exit 0(清理后重跑)

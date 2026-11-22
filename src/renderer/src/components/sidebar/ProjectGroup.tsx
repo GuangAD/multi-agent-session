@@ -1,6 +1,6 @@
 // 项目分组:项目行(chevron / 常驻「+」「…」)+ 该项目下可折叠的会话行(spec:components/sidebar/ProjectGroup)
 // 点行本体 = 选中 + 项目展开态取反(一次点击同时完成);行上按钮阻断冒泡,不改变选中。
-// 展开态是渲染层 UI 状态,不落盘(T6 既有约定),默认展开;会话行的状态点来源 = run-state-slice(主进程 state:changed 广播)
+// 展开态是渲染层 UI 状态,不落盘(T6 既有约定),默认展开;会话行的 working 动画来源 = run-state-slice(主进程 state:changed 广播)
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Ellipsis, Plus } from 'lucide-react'
 import { useAppStore } from '../../store/app-store'
