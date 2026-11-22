@@ -9,6 +9,10 @@ import { useAppStore } from '../../store/app-store'
 import { Button } from '../ui/button'
 import type { Session, SessionRunState } from '../../../../shared/types'
 
+// CLI 风格 spinner:braille 点阵逐帧旋转(与 agent CLI 的 working spinner 同形)
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+const SPINNER_FRAME_MS = 80
+
 export function SessionRow({
   session,
   runState,
@@ -27,6 +31,7 @@ export function SessionRow({
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.title)
+  const [spinnerFrame, setSpinnerFrame] = useState(0)
   // 单击打开延后 200ms 给双击消歧;进入编辑或卸载时清掉,避免后续误打开
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Session 只存 agentId:载荷经 store 查找(T2);未知 agent 返回 undefined → 全缺省,徽标走中性兜底砖
@@ -40,6 +45,17 @@ export function SessionRow({
     },
     []
   )
+
+  // spinner 帧驱动:仅 working 时按固定间隔推进 braille 帧,其余态停表(省去后台无谓重渲染)
+  useEffect(() => {
+    if (runState !== 'working') {
+      return
+    }
+    const timer = setInterval(() => {
+      setSpinnerFrame((frame) => (frame + 1) % SPINNER_FRAMES.length)
+    }, SPINNER_FRAME_MS)
+    return () => clearInterval(timer)
+  }, [runState])
 
   const cancelOpen = (): void => {
     if (openTimer.current !== null) {
@@ -105,19 +121,12 @@ export function SessionRow({
           onClick={scheduleOpen}
         >
           {runState === 'working' && (
-            <span className="flex shrink-0 items-center gap-0.5" aria-label="工作中" role="img">
-              <span
-                className="size-1 rounded-full bg-emerald-500 animate-pulse"
-                style={{ animationDelay: '0ms', animationDuration: '900ms' }}
-              />
-              <span
-                className="size-1 rounded-full bg-emerald-500 animate-pulse"
-                style={{ animationDelay: '-600ms', animationDuration: '900ms' }}
-              />
-              <span
-                className="size-1 rounded-full bg-emerald-500 animate-pulse"
-                style={{ animationDelay: '-300ms', animationDuration: '900ms' }}
-              />
+            <span
+              className="shrink-0 font-mono text-emerald-500"
+              aria-label="工作中"
+              role="img"
+            >
+              {SPINNER_FRAMES[spinnerFrame]}
             </span>
           )}
           {/* 载荷驱动:icon/color 从 store 载荷传入;name 未命中回落 agentId——未知 agent 也渲染首字母砖 */}
