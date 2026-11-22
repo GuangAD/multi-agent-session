@@ -10,7 +10,7 @@
 - [x] **T2 spinner 样式改为 CLI 风格多点转圈**
       交付:会话行首 working 动画从 lucide `LoaderCircle` 改为绿色三点错峰循环闪烁（对齐 agent CLI 的 braille spinner 观感）
       挡谁:无
-- [ ] **T3 修复切换标签后 working 动画消失**
+- [x] **T3 修复切换标签后 working 动画消失**
       交付:定位「切到别的标签页后原 working 会话动画消失、点回才恢复」根因并修复；会话只要仍 working，无论标签页是否激活，侧栏动画保持
       挡谁:无
 
@@ -40,3 +40,14 @@
   - 结论:
     1. 三点 spinner 用三个 span + Tailwind `animate-pulse`,相位由 inline `animationDelay` 负值控制,不新增依赖、不改状态语义
     2. 用户要的是 CLI 那种绿色多点 spinner,不是 lucide 单圈;LoaderCircle 已从 import 移除
+- T3 修复切换标签后 working 动画消失 | 完成 | commit 0da1fd56
+  - 基线:da752eea
+  - 根因(用户实机 DBG 日志确认):隐藏标签(display:none)的 xterm 画面塌缩成 1-2 个空白字符(len=1/2,真实工作画面 len=1800+),`onSnapshot` 照常处理会 `byteBuffer=''` + `markActivity()`,把 working/waiting 字节地标清空、活动时间刷新 → 安静门槛后误判 idle。日志时序:切 B → A 快照 len=1 → A `-> idle`;切回 A → 快照 len=1874 → A `-> working`
+  - 评审:初审 Important 1 条(守卫范围过宽)已处置——从 `trim()===''` 收窄为 `length<=2 && trim()===''`,只挡实测的塌缩特征,更长空白仍按既有语义(用例 13);复审 Minor 1 条(用例未锁活动时间)已处置——补 t=600 中间 working 断言 + 最终断言收回 t=2300;两轮复审通过
+  - 回归:用例 14(极短空白不清字节证据,waiting 维持)+ 用例 15(working 症状 + 活动时间不刷新),均 red→green;mutation check 两次通过——改坏守卫(14 红)、部分修复仅刷新活动时间(15 红),还原均全绿
+  - 取证收尾:3 处临时 DBG- 日志(state:changed / snapshot / active_tab)已全部移除,三处文件零 diff
+  - waiver:无(本任务有单测接缝 state-parser,204→205 用例)
+  - 结论:
+    1. 状态判定空白快照守卫在引擎侧 `onSnapshot` 入口,只挡极短(len<=2)全空白;真实 CLI 画面恒为多字符,不受影响
+    2. 该缺陷是既有行为被 T1 改动暴露(此前行尾常驻点让 working/idle 差异不明显),非 T1 引入
+    3. 全量 31 文件/205 用例绿、typecheck exit 0;需用户实机复验「切走后动画保持」
