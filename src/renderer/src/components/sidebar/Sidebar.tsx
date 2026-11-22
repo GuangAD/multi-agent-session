@@ -1,7 +1,7 @@
-// 侧栏:添加目录 + 项目分组树(项目 → 会话行)+ 删除确认弹窗 + agent 选择弹窗(T1)
-// 会话记录来自 store.json(重启不丢);新建会话经 AgentPickerDialog 选 agent(入库 + 开标签页),删除须经确认
+// 侧栏:顶部「项目」标题行(右侧「+」= 系统目录选择框添加项目)+ 项目分组树 + 删除确认弹窗 + agent 选择弹窗(T1)
+// 会话记录来自 store.json(重启不丢);新建/导入会话经 AgentPickerDialog 选 agent,删除须经确认
 import { useState } from 'react'
-import { FolderOpen } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useAppStore } from '../../store/app-store'
 import { AgentPickerDialog } from './AgentPickerDialog'
 import { Button } from '../ui/button'
@@ -22,12 +22,20 @@ export function Sidebar(): React.JSX.Element {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <Button onClick={() => void addProject()}>
-        <FolderOpen className="size-4" aria-hidden />
-        添加目录
-      </Button>
+      {/* 标题行:左侧文字标签 + 右侧「+」(与项目行、标题栏的图标按钮同款 ghost 样式) */}
+      <div className="flex items-center justify-between pr-0.5">
+        <span className="px-1 text-sm font-semibold">项目</span>
+        <Button
+          variant="ghost"
+          aria-label="添加项目"
+          className="!px-1.5 !py-1"
+          onClick={() => void addProject()}
+        >
+          <Plus className="size-4" aria-hidden />
+        </Button>
+      </div>
       {projects.length === 0 ? (
-        <EmptyState title="还没有项目" hint="点击上方「添加目录」,选择一个文件夹开始" />
+        <EmptyState title="还没有项目" hint="点击右上角「+」,选择一个文件夹开始" />
       ) : (
         <ul className="flex-1 space-y-1 overflow-y-auto">
           {projects.map((project) => (

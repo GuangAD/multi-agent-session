@@ -100,7 +100,7 @@ function AgentPickerPanel({
       setMessage(
         imported > 0
           ? `已导入 ${imported} 条${skippedNote}`
-          : // 0 条的两种成因与 ImportMenu 同款口径:无历史会话,或该 agent 的导入支持未接
+          : // 0 条的两种成因(口径承自已删除的 ImportMenu):无历史会话,或该 agent 的导入支持未接
             `没有可导入的新会话${skippedNote}(本机没有该 agent 在该项目下的历史会话,或该 agent 尚未支持导入)`
       )
     } catch (error) {
