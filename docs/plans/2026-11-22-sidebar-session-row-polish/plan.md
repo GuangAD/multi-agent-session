@@ -7,6 +7,12 @@
 - [x] **T1 侧栏行视觉与交互调整**
       交付:项目行无文件夹图标；会话行首 working 旋转动画、行尾状态点全删；双击标题改名（铅笔删除、单击仍打开）；会话行上下留白增加；typecheck 与全量测试绿
       挡谁:无
+- [x] **T2 spinner 样式改为 CLI 风格多点转圈**
+      交付:会话行首 working 动画从 lucide `LoaderCircle` 改为绿色三点错峰循环闪烁（对齐 agent CLI 的 braille spinner 观感）
+      挡谁:无
+- [ ] **T3 修复切换标签后 working 动画消失**
+      交付:定位「切到别的标签页后原 working 会话动画消失、点回才恢复」根因并修复；会话只要仍 working，无论标签页是否激活，侧栏动画保持
+      挡谁:无
 
 ## 依赖
 
@@ -27,3 +33,10 @@
     1. 单击/双击消歧用组件内 `useRef` 定时器(200ms),双击到达时 `cancelOpen` 取消打开、卸载时清理;阈值改一处常量即可调
     2. 行首动画只认 `runState === 'working'`;ProjectGroup 既有 `tabs.some` 守卫保证关闭标签页的会话收到 undefined,动画自然消失,本特性未改该守卫
     3. `RUN_STATE_DISPLAY` 保留供 TerminalTabs 的「已退出」标记消费,会话行不再引用其点色
+- T2 spinner 样式改为 CLI 风格多点转圈 | 完成 | commit 85e71942
+  - 基线:eabe2be3
+  - 评审:可提交,无 Critical/Important;Minor 1 条(animate-pulse 正延迟不够逐点亮暗)已采纳——改 900ms 周期 + 负延迟(0 / -600ms / -300ms)三点均匀错峰,立即进入流动相位
+  - waiver:无自动化接缝(纯渲染视觉,同 T1 口径);观感靠用户手动冒烟对照 CLI 截图
+  - 结论:
+    1. 三点 spinner 用三个 span + Tailwind `animate-pulse`,相位由 inline `animationDelay` 负值控制,不新增依赖、不改状态语义
+    2. 用户要的是 CLI 那种绿色多点 spinner,不是 lucide 单圈;LoaderCircle 已从 import 移除
