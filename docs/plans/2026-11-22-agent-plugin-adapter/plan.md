@@ -10,7 +10,7 @@
 - [x] **T2 渲染层载荷驱动**
       交付:agents 载荷 store(启动装载一次);徽标按载荷渲染(icon=SVG 字符串经 data URL,未知 agent 兜底);AgentPickerDialog 与 SessionRow 接 store;删除 agents-icons 硬编码映射与 AGENT_COLORS 表
       挡谁:T3
-- [ ] **T3 验收用假 agent 冒烟**
+- [x] **T3 验收用假 agent 冒烟**
       交付:临时假 agent 插件 + 清单一行 → `pnpm dev ` 手动过五环(列表出现/安装探测/状态点/新建会话/导入与续接降级路径)→ 移除登记与目录恢复原状;冒烟证据记入开发记录
       挡谁:无(前置:T1、T2)
 
@@ -45,3 +45,13 @@ T2 依赖 T1(载荷的 icon/color 字段与依赖反转先存在,渲染层才有
     1. def.icon 是完整 SVG 文档字符串,data URL 化必须 encodeURIComponent(# 不转义会被 URL 解析截断);CSP img-src 已放行 data:(既有配置)
     2. 品牌 SVG 改经 <img> data URL 渲染后,SVG 内部 id 不再进主文档,同页多枚徽标无重复 id 冲突
     3. App.tsx 启动装载为 Promise.all([loadProjects, loadAgents]) → loadSessions:agents 与项目无关并行装载;loadAgents 自身失败不抛保持 [](sessions 仍随项目之后,顺序理由不变)
+- T3 验收用假 agent 冒烟 | 完成 | 无提交(临时脚手架已撤,工作区恢复干净)
+  - 基线:f1d33d89;临时件:plugins/demo-smoke/plugin.ts + plugins/index.ts 登记行(冒烟后整包移除,未入库)
+  - 五环冒烟结果(用户 2026-11-22 本机 pnpm dev 实测,逐条):①列表+缺失兜底——通过,「冒烟用例」以紫底紫字「冒」兜底砖显示(无 icon.svg),安装态已安装(cmd 命中);②安装探测——通过(同①);③状态点——通过,echo 输出变绿 working、静置 2 秒变灰 idle;④新建会话——通过,demo 会话可建、标签打开、cmd 可交互;⑤导入+续接降级——通过,导入扫出 1 条假候选入库、重开以 null resumeArgv 原样拉起 cmd;二次去重经用户纠正入口后通过(弹窗提示「跳过 1 条」,库内仍 1 条)
+  - 冒烟期三条疑似问题澄清(均非产品缺陷,Controller 已向用户说明,用户确认):①兜底砖「字是紫色」——设计即 12% 透明底+实色字母,是 Controller 此前把字色描述成白色有误;②`exit` 未变红——ADR-0004 常驻 shell,exit 只退内层 demo 进程、外层 PTY 仍在,红点只在标签页/PTY 终结时出现,是 Controller 给的验证方法本身不对;③「可重复导入」——用户点错入口(点「+」走了新建会话,症状=弹窗关闭+多一条记录),按「…→导入历史会话」重测确认去重正常(runImport 复现脚本:首次 imported=1/二次 imported=0 skipped=1;既有用例 4 同证)
+  - waiver:无单测接缝(契约预登记:端到端人工验收,GUI 链路无自动化接缝);本任务无代码入库,评审降级——脚手架 diff 直读 + 四项静态核查(path-match 正斜杠归一/runImport 不读 filePath/state-parser 消费 degraded/ipc/pty 消费 null resumeArgv)通过;独立 reviewer 派发遇模型 5 小时额度上限中断,未产出完整报告,由 Controller 聚焦核查替代并如实登记
+  - 变更登记:无(临时脚手架产物全部撤销)
+  - 结论:
+    1. 新增 agent = 插件包 + 清单一行,全链路(列表/探测/状态/新建/导入/降级)经真实假插件验证成立,brief 7.1 第一条验收通过
+    2. 清单计数守卫(agent-registry.test.ts 钉住 5 条)在临时登记期变红属预期——临时件移除后全量恢复 31 文件/203 用例绿,typecheck exit 0
+    3. 去重的 GUI 验证须走「…→导入历史会话」入口;「+」是新建会话,两者症状不同(前者弹窗留消息/后者弹窗关闭+新记录)
