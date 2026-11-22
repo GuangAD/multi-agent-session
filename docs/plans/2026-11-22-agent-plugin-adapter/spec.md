@@ -40,7 +40,7 @@ interface AgentDefinition {
   name: string
   command: string
   aliases?: string[]
-  icon?: string // 可选:完整 SVG 文档字符串(插件包 icon.svg 由装载器读入,或定义内联)
+  icon?: string // 可选:完整 SVG 文档字符串(插件包 icon.svg 经 ?raw 构建期内联为字符串,或定义内联)
   color: string // 品牌色(固定色值,不随主题;icon 缺失时的兜底砖用色)
   state: AgentStateRules // 形态不变
   sessions?: {
@@ -71,7 +71,7 @@ interface AgentsSlice {
 - `src/shared/agents.ts` -- 契约扩展(icon 语义、color 字段);剥离函数的出站注释沿用
 - `src/main/agents/agent-registry.ts` -- 通用注册表,行为不变;不再 import 任何具体插件
 - `src/main/agents/plugins/index.ts` -- 新增;插件清单:import 五个插件包并逐个 register
-- `src/main/agents/plugins/<id>/` -- 新增 ×5;每包:`plugin.ts`(定义:meta + 状态规则 + 品牌色 + sessions 挂接;icon 经 SDK helper 读同目录 icon.svg,可内联覆盖)、`icon.svg`(品牌图标,可选)、`scan.ts`(扫描器,自 session-import 迁入)、随包 helper(claude-project-dir-encoding / codex-rollout-files)、`__fixtures__/` 与 `<id>.test.ts`(fixture 回放,随迁)
+- `src/main/agents/plugins/<id>/` -- 新增 ×5;每包:`plugin.ts`(定义:meta + 状态规则 + 品牌色 + sessions 挂接;icon 经 import iconSvg from './icon.svg?raw' 构建期内联,可内联覆盖)、`icon.svg`(品牌图标,可选)、`scan.ts`(扫描器,自 session-import 迁入)、随包 helper(claude-project-dir-encoding / codex-rollout-files)、`__fixtures__/` 与 `<id>.test.ts`(fixture 回放,随迁)
 - `src/main/session-store/session-import/` -- 收敛为导入框架:`index.ts`(编排,scan 注入)、SDK 三件(agent-home / path-match / runtime-path-separators)、框架测试(run-import / path-match / agent-home)、守卫测试(scan-wiring,新增反向依赖断言);**五个扫描器与 per-agent helper 迁出**;`__fixtures__` 中五个 agent 的转录 fixture 随迁
 - `src/main/agent-state/` -- 零改动(引擎消费注册表规则;采样 fixture 是引擎分支样本,留守)
 - `src/main/ipc/sessions.ts`、`src/main/ipc/pty.ts` -- 组合点:从注册表取插件、把 scan 递给编排/回填
@@ -84,7 +84,7 @@ interface AgentsSlice {
 
 ## 技术选型与约束
 
-- 有图标的 agent:SVG 文档经 data URL 交给 `<img>`(五枚均为固定自配色,不含 currentColor 依赖);无图标:品牌色 + 首字母兜底砖;装载器读 icon.svg 在打包后可用(asar 对 readFileSync 透明)
+- 有图标的 agent:SVG 文档经 data URL 交给 `<img>`(五枚均为固定自配色,不含 currentColor 依赖);无图标:品牌色 + 首字母兜底砖;icon.svg 经 ?raw 构建期内联(dev 与打包双形态一致,实测见 T1 开发记录)
 - 未知 agent 兜底图标用现有 lucide 图标集(不新增依赖),中性配色
 - 五个品牌 SVG 字符串内容 = 现渲染组件的定稿图形(2026-11-22 预览定稿),迁入插件包为字符串常量,图形本身零改动
 - 状态引擎、PTY、会话存储、backfill 资格、通知:零改动
