@@ -3,6 +3,7 @@ import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createAppWindow } from './app-window'
+import './agents/plugins' // 插件清单装载(唯一登记点):必须先于任何用注册表的 IPC 装配
 import { loadStore } from './session-store/store-persistence'
 import { migrateLegacyStore } from './store-migration'
 import { BackfillCoordinator } from './session-store/backfill'

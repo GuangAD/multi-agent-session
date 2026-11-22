@@ -2,8 +2,8 @@
 // 输入:标题(xterm onTitleChange 经 IPC 上行)、屏幕快照(渲染层节流序列化的视口文本)、
 // 字节环形缓冲(跨 chunk 拼接后子串匹配)、退出事件。判定顺序即证据分级(本任务口径 5):
 //   exited(终态)> waiting 地标 > working 信号 > 标题规则 > 静默超时 idle
-// 规则数据全在 AgentDefinition.state(五家定义见 agents/definitions),引擎不认识具体 agent——
-// 新增 agent 仍是「新增一个定义文件,框架零改动」。
+// 规则数据全在 AgentDefinition.state(由注册表聚合的各插件声明),引擎不认识具体 agent——
+// 新增 agent 仍是「新增一个插件包 + 清单登记一行,框架零改动」。
 // 「working 信号」的读法与 Orca 的 requiresQuiet 同构:画面地标证明画面已绘制,输出在流动时读
 // working,静止达门槛后同一个地标表示就绪画面(Orca codex/antigravity json 的就绪规则都带
 // requiresQuiet,见 .reference/orca-1.4.265/src/main/runtime/agent-state-rules/)。

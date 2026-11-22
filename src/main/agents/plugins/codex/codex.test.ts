@@ -10,7 +10,7 @@ import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { zstdCompressSync } from 'node:zlib'
-import { scanCodex } from './codex'
+import { scanCodex } from './scan'
 
 // Why:fixture 与本测试文件同目录,用 import.meta.dirname 定位,不读 process.cwd()(vitest 根一变即断,评审 Minor-B)。
 const FIXTURE_DIR = join(import.meta.dirname, '__fixtures__')

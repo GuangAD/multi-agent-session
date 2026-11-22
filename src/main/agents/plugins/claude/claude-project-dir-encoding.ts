@@ -5,9 +5,9 @@
 // isClaudeProjectBucketDirectory。
 // 裁剪理由:这些 helper 判定「某个桶目录是否落在某 scope 之下」,本任务的扫描只看单个项目自己的桶
 // (见本目录 claude.ts),用不到。
-// 唯一改写:分隔符归一收到本目录的 runtime-path-separators;源文件的 `// Why:` 风格原注保留。
+// 唯一改写:分隔符归一收到 session-import SDK 的 runtime-path-separators;源文件的 `// Why:` 风格原注保留。
 // 作用:算出 Claude Code 在 ~/.claude/projects/ 下为某个项目目录建的桶名。
-import { normalizeRuntimePathSeparators } from './runtime-path-separators'
+import { normalizeRuntimePathSeparators } from '../../../session-store/session-import/runtime-path-separators'
 
 /** Encode case-preserving raw paths and NFC variants; comparison keys lose Windows case and macOS can supply NFD. */
 export function encodeClaudeProjectPaths(pathValue: string): string[] {

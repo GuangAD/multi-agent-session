@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { scanKimi } from './kimi'
+import { scanKimi } from './scan'
 
 const FIXTURE_DIR = join(import.meta.dirname, '__fixtures__')
 const INDEX_FIXTURE = 'kimi-session-index.jsonl'

@@ -1,9 +1,9 @@
-// Pi 定义(brief 第 5 节固定清单)
+// Pi 插件包:定义对象 = 身份 + 状态规则 + 品牌图标/配色 + 会话扫描/续接挂接(brief 第 5 节固定清单)
 // 状态规则按**本机安装的 pi 1.5.0** 校准(2026-11-21 冒烟回归:初版照 Orca pi.json 锚点写的
 // `π ⠋` 干活标题在该版本已不存在,pi 会话的状态点永远停在 idle)
-import type { AgentDefinition } from '../../../shared/agents'
-// T6 登记的领域双向依赖例外:sessions-import 按 agentId 取定义,定义挂自己的 scan
-import { scanPi } from '../../session-store/session-import/pi'
+import type { AgentDefinition } from '../../../../shared/agents'
+import iconSvg from './icon.svg?raw'
+import { scanPi } from './scan'
 
 // working 地标 = pi 的 working 指示器旋转帧:bundle 的 Loader DEFAULT_FRAMES
 // = U+280B U+2819 U+2839 U+2838 U+283C U+2834 U+2826 U+2827 U+2807 U+280F,80ms 换一帧,
@@ -12,11 +12,13 @@ import { scanPi } from '../../session-store/session-import/pi'
 // 那会让 working 永久命中、状态再也不回落(失败形态第 1 条);点阵帧只由指示器自己画。
 const WORKING_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
-export const piAgent: AgentDefinition = {
+export const piPlugin: AgentDefinition = {
   id: 'pi',
   name: 'Pi',
   command: 'pi',
-  icon: 'P',
+  // 图标来源 = 同目录 icon.svg 经 ?raw 构建期内联(打包形态无随包资产,见 src/main/env.d.ts)
+  icon: iconSvg,
+  color: '#059669',
   state: {
     title: {
       // Why: pi 1.5.0 唯一的标题写入是 `updateTerminalTitle()` → `π - <session> - <cwd>`

@@ -1,12 +1,14 @@
 // claude 会话存储适配:定位 <home>/.claude/projects/<编码项目目录>/<会话 id>.jsonl,解析出导入候选
-// (externalSessionId / externalTitle / cwd / activityAt)。目录编码见 claude-project-dir-encoding.ts(整文件搬)。
+// (externalSessionId / externalTitle / cwd / activityAt)。目录编码见同包 claude-project-dir-encoding.ts(整文件搬)。
+// 插件包形态(T1):本文件即 claude 插件的 sessions.scan,由 plugin.ts 挂接。
 // 解析裁剪自 Orca src/main/ai-vault/scanners/claude/session-scanner-primary-parsers.ts (v1.4.265, MIT)
 // 与同目录的文本归一:只留列表页需要的字段(id/cwd/标题/最后时间戳),消息正文、token 统计、
 // 预览消息、子代理计数与注入上下文块过滤未搬。
 import { promises as fs, type Dirent } from 'node:fs'
 import { basename, extname, join } from 'node:path'
-import { resolveAgentHome } from './agent-home'
-import type { ImportCandidate } from '../../../shared/agents'
+// SDK 三件留守 session-import(扫描器自 session-import 迁入插件包,SDK 引用按新相对路径回指)
+import { resolveAgentHome } from '../../../session-store/session-import/agent-home'
+import type { ImportCandidate } from '../../../../shared/agents'
 import {
   encodeClaudeProjectPaths,
   isClaudeProjectOwnBucketName

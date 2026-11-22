@@ -152,10 +152,17 @@ export function registerSessionsIpc(
       if (!project) {
         throw new Error(`项目不存在:${p.projectId}`)
       }
+      // T1 依赖反转:编排不查注册表——本层先归一别名、从插件取 scan 注入;无 scan 时 runImport 按 0 处理
+      const def = agentRegistry.getById(p.agentId)
+      if (!def) {
+        throw new Error(`未知 agent:${p.agentId}`)
+      }
       const result = await runImport(store, {
         projectId: project.id,
-        agentId: p.agentId,
-        projectPath: project.path
+        agentId: def.id,
+        agentName: def.name,
+        projectPath: project.path,
+        scan: def.sessions?.scan
       })
       if (result.imported > 0) {
         scheduleSave() // 导入只改内存 store,落盘仍走本层的防抖 + 原子写(T4 同款)

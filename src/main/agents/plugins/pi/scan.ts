@@ -1,5 +1,6 @@
 // pi 会话存储适配:定位 <home>/.pi/agent/sessions/<编码桶>/<时间戳>_<uuid>.jsonl,解析出导入候选
 // (externalSessionId / externalTitle / cwd / activityAt),外加该 .jsonl 的绝对路径——续接要用它(T8)。
+// 插件包形态(T1):本文件即 pi 插件的 sessions.scan。
 // 解析裁剪自 Orca src/main/ai-vault/scanners/session-scanner-graph-parsers.ts 的
 // consumeMessageGraphRecordLine(agent 'pi')(v1.4.265, MIT):只留 type=session 的 id/cwd、首条 role=user
 // 消息文本与时间线;模型变更、token 统计、消息正文落盘、OMP 署名折叠未搬。
@@ -7,8 +8,9 @@
 // role=system 那条是 harness 系统提示(本机样本里 68KB),不是人打的字。
 import { promises as fs, type Dirent } from 'node:fs'
 import { basename, extname, join } from 'node:path'
-import { resolveAgentHome } from './agent-home'
-import type { ImportCandidate } from '../../../shared/agents'
+// SDK 三件留守 session-import(扫描器自 session-import 迁入插件包,SDK 引用按新相对路径回指)
+import { resolveAgentHome } from '../../../session-store/session-import/agent-home'
+import type { ImportCandidate } from '../../../../shared/agents'
 
 // 标题上限与 Orca normalizeTitleText 一致(96 字符),超出截断加省略号
 const TITLE_TEXT_LIMIT = 96

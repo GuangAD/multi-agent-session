@@ -1,13 +1,16 @@
-// Codex CLI 定义(brief 第 5 节固定清单)
-// 状态规则初版照抄 Orca agent-state-rules/codex.json 的信号要点;规则引擎 T5 落地,此处只提供数据。
-import type { AgentDefinition } from '../../../shared/agents'
-import { scanCodex } from '../../session-store/session-import/codex'
+// Codex CLI 插件包:定义对象 = 身份 + 状态规则 + 品牌图标/配色 + 会话扫描/续接挂接(brief 第 5 节固定清单)
+// 状态规则初版照抄 Orca agent-state-rules/codex.json 的信号要点;规则引擎零改动(agent-state)。
+import type { AgentDefinition } from '../../../../shared/agents'
+import iconSvg from './icon.svg?raw'
+import { scanCodex } from './scan'
 
-export const codexAgent: AgentDefinition = {
+export const codexPlugin: AgentDefinition = {
   id: 'codex',
   name: 'Codex CLI',
   command: 'codex',
-  icon: 'C',
+  // 图标来源 = 同目录 icon.svg 经 ?raw 构建期内联(打包形态无随包资产,见 src/main/env.d.ts)
+  icon: iconSvg,
+  color: '#0284c7',
   state: {
     screen: {
       // Why: Orca codex.json 锚点 ready_header——启动头部横幅 `openai codex`(其下含 `model:`/`directory:` 行)是跨版本稳定的就绪画面,横幅整个 turn 都在(header_ready 规则 requiresQuiet)。

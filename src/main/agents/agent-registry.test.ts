@@ -1,9 +1,11 @@
 // 接缝 agentRegistry 模块行为测试(契约「测试规格」第 1–5 条)
 // 期望值来源:brief 第 5 节固定清单(claude/codex/agy/pi/kimi,kimi 别名 kimi-code)与手算;
-// 直接调用注册表,不经 IPC。注册表在模块加载时自注册五份定义(新增 agent = 新增 definitions 文件并登记)。
+// 直接调用注册表,不经 IPC。T1 插件化:注册表不再自带清单,import 插件清单装载真实注册表
+//(新增 agent = 新增 plugins/<id>/ 插件包 + 清单一行)。
 import { describe, expect, it } from 'vitest'
 import { agentRegistry } from './agent-registry'
-import { claudeAgent } from './definitions/claude'
+import './plugins'
+import { claudePlugin } from './plugins/claude/plugin'
 
 describe('agentRegistry', () => {
   it('固定清单:依次取 claude/codex/antigravity/pi/kimi,各返回对应定义且 id 一致(brief 第 5 节)', () => {
@@ -41,6 +43,6 @@ describe('agentRegistry', () => {
   })
 
   it('register 注册重复 claude 抛错(约定)', () => {
-    expect(() => agentRegistry.register([claudeAgent])).toThrow()
+    expect(() => agentRegistry.register([claudePlugin])).toThrow()
   })
 })

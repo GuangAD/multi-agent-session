@@ -3,6 +3,7 @@
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from './channels'
 import { agentRegistry } from '../agents/agent-registry'
+import { buildAgentListItem } from '../agents/agent-list'
 import { resolveCommandPath } from '../command-path/command-path-resolver'
 import { forEachWithConcurrency } from '../command-path/map-with-concurrency'
 import type { AgentListItem } from '../../shared/agents'
@@ -17,13 +18,9 @@ export function registerAgentsIpc(): void {
     // 按索引回填,保住注册顺序;单命令探测失败按未命中处理(resolveCommandPath 已吞 fs 异常)
     await forEachWithConcurrency(defs, DETECTION_CONCURRENCY, async (def, index) => {
       const resolved = await resolveCommandPath(def.command)
-      items[index] = {
-        // Why: T6 起定义挂着 sessions.scan(函数),结构化克隆不支持函数;渲染层只做展示与选择,
-        // 扫描在主进程内跑,故出站前把 sessions 摘成 undefined(T6 口径 3)。
-        def: { ...def, sessions: undefined },
-        installed: resolved !== null,
-        path: resolved ?? undefined
-      }
+      // Why: 定义挂着 sessions 函数,结构化克隆不支持函数;载荷构造(含剥离)抽成纯函数
+      // agents/agent-list.ts,单测直接钉形状(icon/color 透传、函数剥离)。
+      items[index] = buildAgentListItem(def, resolved !== null, resolved ?? undefined)
     })
     return items
   })

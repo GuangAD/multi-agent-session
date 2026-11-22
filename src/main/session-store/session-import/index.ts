@@ -1,10 +1,12 @@
-// 会话导入编排(接缝 runImport / dedupeKey):按 agent 定义取扫描器 → 候选 → cwd 匹配项目 → 去重 → 入库
-// 只改传入 store 的 sessions 段,不碰 fs:落盘由 ipc/sessions.ts 的防抖保存器编排(T4 同款分工)。
-// 去重以 (agentId, externalSessionId) 为键(brief 7.1「重复导入不重复」);删除记录不登记任何忽略项——
-// 2026-11-21 用户决策:删掉的会话再次导入时应当直接回来,故无忽略清单过滤。
+// 会话导入编排(接缝 runImport / dedupeKey):扫描器经入参注入(scan 依赖反转,T1 插件化)→ 候选 →
+// cwd 匹配项目 → 去重 → 入库。只改传入 store 的 sessions 段,不碰 fs:落盘由 ipc/sessions.ts 的防抖保存器编排
+// (T4 同款分工)。去重以 (agentId, externalSessionId) 为键(brief 7.1「重复导入不重复」);删除记录不登记任何
+// 忽略项——2026-11-21 用户决策:删掉的会话再次导入时应当直接回来,故无忽略清单过滤。
+// 依赖方向(守卫钉住):本目录生产文件不 import agents 域——组合点在 IPC 层(ipc/sessions.ts 从注册表
+// 取插件并把 sessions?.scan 注入);无 scan 时按 0 处理,语义不变。
 import { randomUUID } from 'node:crypto'
-import { agentRegistry } from '../../agents/agent-registry'
 import { matchProjectDir } from './path-match'
+import type { ImportCandidate } from '../../../shared/agents'
 import type { AgentId, AppStore, ProjectId, Session } from '../../../shared/types'
 
 // 纯函数:键里带 agentId —— 不同 agent 的会话 id 空间互不相干,同一个 id 字符串可以是两条会话
@@ -34,15 +36,23 @@ function existingSessionKeys(store: AppStore): Set<string> {
 
 export async function runImport(
   store: AppStore,
-  p: { projectId: ProjectId; agentId: AgentId; projectPath: string }
+  p: {
+    projectId: ProjectId
+    agentId: AgentId
+    // 显示名(无标题候选的兜底标题,沿用旧口径);别名归一与取插件都在组合点完成
+    agentName: string
+    projectPath: string
+    // T1 依赖反转:扫描函数由组合点注入;缺省 = 该 agent 不支持导入,按 0 处理
+    scan?: (projectPath: string, ctx?: { homeDir?: string }) => Promise<ImportCandidate[]>
+    homeDir?: string
+  }
 ): Promise<{ imported: number; skipped: number }> {
-  // 别名先归一(agentRegistry.getById 支持别名);没有扫描器 = 该 agent 暂不支持导入,按 0 处理
-  const def = agentRegistry.getById(p.agentId)
-  const scan = def?.sessions?.scan
-  if (!def || !scan) {
+  // 没有扫描器 = 按 0 处理,不抛错(既有口径);编排不查注册表——scan 由组合点注入
+  const { scan } = p
+  if (!scan) {
     return { imported: 0, skipped: 0 }
   }
-  const candidates = await scan(p.projectPath)
+  const candidates = await scan(p.projectPath, { homeDir: p.homeDir })
   const existingKeys = existingSessionKeys(store)
   const importedAt = new Date().toISOString()
   let imported = 0
@@ -53,7 +63,7 @@ export async function runImport(
     if (!matchProjectDir(candidate.cwd, p.projectPath)) {
       continue
     }
-    const key = keyOf(def.id, candidate.externalSessionId)
+    const key = keyOf(p.agentId, candidate.externalSessionId)
     if (existingKeys.has(key)) {
       skipped++
       continue
@@ -62,9 +72,9 @@ export async function runImport(
     store.sessions.push(
       toImportedSession(candidate, {
         projectId: p.projectId,
-        agentId: def.id,
+        agentId: p.agentId,
         importedAt,
-        agentName: def.name
+        agentName: p.agentName
       })
     )
     imported++

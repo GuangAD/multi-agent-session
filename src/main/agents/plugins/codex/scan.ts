@@ -1,16 +1,17 @@
 // codex 会话存储适配:遍历 <home>/.codex/sessions/**/rollout-*.jsonl(.zst),解析出导入候选
-// (externalSessionId / externalTitle / cwd / activityAt)。
+// (externalSessionId / externalTitle / cwd / activityAt)。插件包形态(T1):本文件即 codex 插件的 sessions.scan。
+// 文件名/双形态规则在同包 codex-rollout-files.ts(移植件)。
 // 解析裁剪自 Orca src/main/ai-vault/scanners/codex/session-scanner-codex-parser.ts (v1.4.265, MIT):
 // 只留 session_meta(id/cwd/标题) + 首条用户消息当兜底标题 + 最后时间戳;token 统计、消息正文、
 // 标题索引文件、非用户来源(worker 转录)过滤未搬。
 // 去重裁剪自 Orca src/main/ai-vault/scanners/codex/codex-session-root-dedup.ts (v1.4.265, MIT):
 // 同一 thread id 的多份(换根 bridging/backfill、双形态孪生)只留一条;inode 级证明未搬(见下方说明)。
-// 文件名/双形态规则在 codex-rollout-files.ts(移植件)。
 import { promises as fs, type BigIntStats, type Dirent } from 'node:fs'
 import { join } from 'node:path'
 import { zstdDecompressSync } from 'node:zlib'
-import { resolveAgentHome } from './agent-home'
-import type { ImportCandidate } from '../../../shared/agents'
+// SDK 三件留守 session-import(扫描器自 session-import 迁入插件包,SDK 引用按新相对路径回指)
+import { resolveAgentHome } from '../../../session-store/session-import/agent-home'
+import type { ImportCandidate } from '../../../../shared/agents'
 import {
   COMPRESSED_ROLLOUT_SUFFIX,
   parseCodexRolloutThreadId,

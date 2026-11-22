@@ -1,14 +1,18 @@
-// Antigravity CLI 定义(brief 第 5 节固定清单;命令名 agy 沿用 Orca catalog)
-// 状态规则初版照抄 Orca agent-state-rules/antigravity.json 的信号要点;规则引擎 T5 落地,此处只提供数据。
-import type { AgentDefinition } from '../../../shared/agents'
-// T6 登记的领域双向依赖例外:sessions-import 按 agentId 取定义,定义挂自己的 scan
-import { scanAntigravity } from '../../session-store/session-import/antigravity'
+// Antigravity 插件包:定义对象 = 身份 + 状态规则 + 品牌图标/配色 + 会话扫描/续接挂接
+// (brief 第 5 节固定清单;命令名 agy 沿用 Orca catalog)
+// 状态规则初版照抄 Orca agent-state-rules/antigravity.json 的信号要点;规则引擎零改动(agent-state)。
+import type { AgentDefinition } from '../../../../shared/agents'
+import iconSvg from './icon.svg?raw'
+import { scanAntigravity } from './scan'
 
-export const antigravityAgent: AgentDefinition = {
+export const antigravityPlugin: AgentDefinition = {
   id: 'antigravity',
   name: 'Antigravity',
   command: 'agy',
-  icon: 'A',
+  // 图标来源 = 同目录 icon.svg 经 ?raw 构建期内联(打包形态无随包资产,见 src/main/env.d.ts)
+  icon: iconSvg,
+  // antigravity 为官方多色图标,color 仍给出品牌主蓝(载荷必填字段;渲染层是否消费归 T2)
+  color: '#3186FF',
   state: {
     screen: {
       // Why: Orca antigravity.json 规则 composer_ready(idle 语义,requiresQuiet)的第四行 `^\? for shortcuts`——composer 提示行是就绪画面的稳定地标。

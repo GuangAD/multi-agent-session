@@ -1,7 +1,9 @@
 // 进程间契约:渲染层唯一类型来源(AGENTS.md 工程边界)
 // 数据模型定义自 spec「数据结构」,plan 附录 B。
 
-export type AgentId = 'claude' | 'codex' | 'antigravity' | 'pi' | 'kimi'
+// AgentId 开放为字符串(T1 插件化):agent 集合由主进程插件清单决定(agents/plugins),不再是固定联合;
+// 渲染层的 Record<AgentId, …> 映射与既有行为自动兼容
+export type AgentId = string
 export type SessionId = string
 export type ProjectId = string
 

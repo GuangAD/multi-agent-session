@@ -5,11 +5,11 @@
 // 轮询定时器用 fake timers 驱动;节流档位锚点 = Orca agent-completion-poll-cadence.ts
 // POLL_TIER_INTERVAL_MS(750/2000/3000/15000),放弃时限 = controller 裁决 300_000ms。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { antigravityAgent } from '../agents/definitions/antigravity'
-import { claudeAgent } from '../agents/definitions/claude'
-import { codexAgent } from '../agents/definitions/codex'
-import { kimiAgent } from '../agents/definitions/kimi'
-import { piAgent } from '../agents/definitions/pi'
+import { antigravityPlugin as antigravityAgent } from '../agents/plugins/antigravity/plugin'
+import { claudePlugin as claudeAgent } from '../agents/plugins/claude/plugin'
+import { codexPlugin as codexAgent } from '../agents/plugins/codex/plugin'
+import { kimiPlugin as kimiAgent } from '../agents/plugins/kimi/plugin'
+import { piPlugin as piAgent } from '../agents/plugins/pi/plugin'
 import {
   BACKFILL_GIVE_UP_MS,
   BackfillCoordinator,

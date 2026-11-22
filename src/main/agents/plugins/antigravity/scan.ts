@@ -1,5 +1,6 @@
 // antigravity 会话存储适配:brain 目录里的 transcript 只给消息,不给 cwd——cwd 从三个旁证关联出来
 // (history 行的 conversationId > 首条 prompt 的 hash + 时间邻近 > cache 里唯一的 WorkspaceURIs)。
+// 插件包形态(T1):本文件即 antigravity 插件的 sessions.scan。
 // Ported from stablyai/orca src/main/ai-vault/scanners/antigravity/session-scanner-antigravity-paths.ts,
 // session-scanner-antigravity-parser.ts, session-scanner-antigravity-history.ts,
 // session-scanner-antigravity-metadata.ts、antigravity-history-prompt.ts 与
@@ -13,8 +14,9 @@ import { createHash } from 'node:crypto'
 import { promises as fs, type Dirent } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolveAgentHome } from './agent-home'
-import type { ImportCandidate } from '../../../shared/agents'
+// SDK 三件留守 session-import(扫描器自 session-import 迁入插件包,SDK 引用按新相对路径回指)
+import { resolveAgentHome } from '../../../session-store/session-import/agent-home'
+import type { ImportCandidate } from '../../../../shared/agents'
 
 // 标题上限与 Orca normalizeTitleText 一致(96 字符),超出截断加省略号
 const TITLE_TEXT_LIMIT = 96

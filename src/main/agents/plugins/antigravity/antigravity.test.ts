@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { scanAntigravity } from './antigravity'
+import { scanAntigravity } from './scan'
 
 const FIXTURE_DIR = join(import.meta.dirname, '__fixtures__')
 const TRANSCRIPT_FIXTURE = 'antigravity-transcript-opening-prompt.jsonl'

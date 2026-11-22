@@ -1,5 +1,5 @@
 // kimi 会话存储适配:双源拼一个候选——state.json 给 id/标题/时间线,session_index.jsonl 给 cwd。
-// 目录布局:~/.kimi-code/sessions/<工作区目录>/session_<id>/state.json,索引在 ~/.kimi-code/session_index.jsonl
+// 插件包形态(T1):本文件即 kimi 插件的 sessions.scan。目录布局:~/.kimi-code/sessions/<工作区目录>/session_<id>/state.json,索引在 ~/.kimi-code/session_index.jsonl
 // (索引路径按布局推导,不信 state.json 里内嵌的路径)。
 // 裁剪自 Orca src/main/ai-vault/scanners/kimi/session-scanner-kimi-paths.ts 与
 // session-scanner-kimi-parser.ts (v1.4.265, MIT):保留「会话 id = 目录名且带 session_ 前缀」「cwd 只从索引取」
@@ -7,8 +7,9 @@
 // 本机未装 kimi:目录布局与 state.json 键取自上述 Orca 源码,尚未经本机实测核对。
 import { promises as fs, type Dirent } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { resolveAgentHome } from './agent-home'
-import type { ImportCandidate } from '../../../shared/agents'
+// SDK 三件留守 session-import(扫描器自 session-import 迁入插件包,SDK 引用按新相对路径回指)
+import { resolveAgentHome } from '../../../session-store/session-import/agent-home'
+import type { ImportCandidate } from '../../../../shared/agents'
 
 // 标题上限与 Orca normalizeTitleText 一致(96 字符),超出截断加省略号
 const TITLE_TEXT_LIMIT = 96

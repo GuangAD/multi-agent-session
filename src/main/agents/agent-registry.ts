@@ -1,11 +1,8 @@
 // agent 定义注册表:收集全部定义,供安装检测/新建会话选择器/状态解析/导入查询统一取用
 // (spec 模块划分;接缝:agentRegistry.register/.getById/.list)
+// T1 插件化:本模块不再 import 任何具体插件、不再自带固定清单——唯一登记点在 ./plugins,
+// 由入口 src/main/index.ts 装载;新增 agent = 新增插件包 + 清单一行,注册表本体零改动。
 import type { AgentDefinition } from '../../shared/agents'
-import { antigravityAgent } from './definitions/antigravity'
-import { claudeAgent } from './definitions/claude'
-import { codexAgent } from './definitions/codex'
-import { kimiAgent } from './definitions/kimi'
-import { piAgent } from './definitions/pi'
 
 // 内表:数组保注册顺序;id 直接索引,别名经顺序归一(命中同一定义)
 const defs: AgentDefinition[] = []
@@ -37,6 +34,3 @@ export const agentRegistry = {
     return [...defs]
   }
 }
-
-// 固定清单(brief 第 5 节:claude/codex/agy/pi/kimi);新增 agent = 新增 definitions 文件并在此登记
-agentRegistry.register([claudeAgent, codexAgent, antigravityAgent, piAgent, kimiAgent])

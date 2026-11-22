@@ -36,6 +36,7 @@ const benchDef: AgentDefinition = {
   name: '台架',
   command: 'ping',
   icon: '',
+  color: 'bench-only', // 契约必填字段(T1);PTY 链路只读 command,值不参与判定
   state: {}
 }
 

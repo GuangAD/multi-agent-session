@@ -1,7 +1,7 @@
-// agent 配置契约:定义结构与状态规则(spec「shared/agents.ts 数据结构」;主进程 src/main/agents 引用,渲染层只读)
+// agent 配置契约:定义结构与状态规则(spec「数据结构」;主进程 src/main/agents 引用,渲染层只读)
 // AgentId 复用 shared/types,不在此重复定义(单一拼写)。
-// 结构化克隆注意:Electron IPC 支持 RegExp、不支持函数——T6 起定义挂了 sessions 函数,
-// agents:list 出站前必须剥离(见 ipc/agents.ts 的摘除与 `// Why:`)。
+// 结构化克隆注意:Electron IPC 支持 RegExp、不支持函数——定义挂着 sessions 函数,
+// agents:list 出站前必须剥离(见 src/main/agents/agent-list.ts 的 buildAgentListItem)。
 import type { AgentId } from './types'
 
 export interface AgentStateRules {
@@ -33,7 +33,8 @@ export interface AgentDefinition {
   name: string
   command: string // PATH 探测命令名
   aliases?: string[] // 如 kimi-code
-  icon: string // 第一版为首字母徽标 id
+  icon?: string // 完整 SVG 文档字符串;插件包 icon.svg 经 ?raw 构建期内联,可内联覆盖;缺省 undefined(渲染层兜底砖)
+  color: string // 品牌色(固定色值,不随主题)
   state: AgentStateRules
   sessions?: {
     // T6:从 agent 存储扫出会话候选(homeDir 注入供测试与自定义 agent home;缺省 os.homedir())

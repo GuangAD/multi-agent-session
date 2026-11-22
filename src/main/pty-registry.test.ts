@@ -8,7 +8,8 @@ import { join, win32 } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { spawn as ptySpawn, type IPty, type IWindowsPtyForkOptions } from 'node-pty'
 import { agentRegistry } from './agents/agent-registry'
-import { claudeAgent } from './agents/definitions/claude'
+import './agents/plugins' // T1 插件化:装载真实清单,getById(kimi-code) 才有据可查
+import { claudePlugin as claudeAgent } from './agents/plugins/claude/plugin'
 import {
   buildAgentLaunchLine,
   buildPowerShellLaunchScript,

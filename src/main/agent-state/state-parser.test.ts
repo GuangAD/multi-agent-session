@@ -9,6 +9,7 @@
 // 都靠 setSystemTime/advanceTimersByTime 驱动,不靠真实等待。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { agentRegistry } from '../agents/agent-registry'
+import '../agents/plugins' // T1 插件化:注册表不自带清单,装载插件清单后 defOf 才取得到定义
 import { createTracker, STATE_DEBOUNCE_MS, type Tracker, type TrackerOptions } from './state-parser'
 import { antigravityFixture } from './__fixtures__/antigravity.fixture'
 import { claudeFixture } from './__fixtures__/claude.fixture'
@@ -28,10 +29,11 @@ import type { SessionRunState } from '../../shared/types'
 // 规则只留字节流 waiting 地标 + 安静门槛:地标本身必须覆盖「菜单持有键盘」的通用形状(这里借用 Orca
 // codex.json plan_implement_menu 的文本,但归属是引擎分支样本,不是 codex 的产品规则)。
 const BYTES_WAITING_DEF: AgentDefinition = {
-  id: 'codex', // 仅满足 AgentId 联合类型:引擎不查注册表,本定义只在用例内传给 createTracker
+  id: 'codex', // 仅满足 AgentId(开放为字符串,T1):引擎不查注册表,本定义只在用例内传给 createTracker
   name: 'bytes-branch 样本',
   command: 'bytes-branch',
   icon: 'B',
+  color: 'test-only', // 契约必填字段(T1);引擎只读 state,值不参与判定
   state: {
     bytes: { working: [], waiting: ['implement this plan?'] },
     idleQuietMs: 2000
