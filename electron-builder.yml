@@ -30,6 +30,8 @@ asarUnpack:
   - '**/node_modules/node-pty/**'
 win:
   executableName: Soloport
+  # 应用图标:exe 内嵌 + 桌面/开始菜单快捷方式(2026-11-22 用户提供的品牌 S 标生成)
+  icon: resources/icon.ico
   target:
     - target: nsis
       arch:

@@ -35,7 +35,9 @@ export function createAppWindow(): BrowserWindow {
           }
         }
       : {}),
-    ...(process.platform === 'linux' ? { icon } : {}),
+    // 窗口图标:Linux 用 png;Windows 开发期任务栏也用它(打包后 exe 内嵌 icon.ico,
+    // 由 electron-builder win.icon 决定)
+    ...(process.platform === 'linux' || process.platform === 'win32' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
