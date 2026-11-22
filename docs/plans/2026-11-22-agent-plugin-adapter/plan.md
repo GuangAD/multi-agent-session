@@ -4,7 +4,7 @@
 
 ## 任务
 
-- [ ] **T1 主进程插件化迁移**
+- [x] **T1 主进程插件化迁移**
       交付:五个自包含插件包落成(定义/扫描器/fixture/随包 helper 同住);插件清单装载注册;runImport 改为扫描器注入(session-import 生产代码不再 import agents 域);scan-wiring 增加反向依赖守卫;全量测试绿(fixture 回放随迁全绿)
       挡谁:T2
 - [ ] **T2 渲染层载荷驱动**
