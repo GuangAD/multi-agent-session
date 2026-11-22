@@ -1,12 +1,12 @@
-// 侧栏:添加目录 + 新建会话 + 项目分组树(项目 → 会话行)+ 删除确认弹窗
-// 会话记录来自 store.json(重启不丢),新建 = 入库 + 开标签页,删除须经确认
+// 侧栏:添加目录 + 项目分组树(项目 → 会话行)+ 删除确认弹窗 + agent 选择弹窗(T1)
+// 会话记录来自 store.json(重启不丢);新建会话经 AgentPickerDialog 选 agent(入库 + 开标签页),删除须经确认
 import { useState } from 'react'
 import { FolderOpen } from 'lucide-react'
 import { useAppStore } from '../../store/app-store'
+import { AgentPickerDialog } from './AgentPickerDialog'
 import { Button } from '../ui/button'
 import { ConfirmDialog } from '../ui/confirm-dialog'
 import { EmptyState } from '../ui/empty-state'
-import { NewSessionMenu } from './NewSessionMenu'
 import { ProjectGroup } from './ProjectGroup'
 import type { Session } from '../../../../shared/types'
 
@@ -26,7 +26,6 @@ export function Sidebar(): React.JSX.Element {
         <FolderOpen className="size-4" aria-hidden />
         添加目录
       </Button>
-      <NewSessionMenu />
       {projects.length === 0 ? (
         <EmptyState title="还没有项目" hint="点击上方「添加目录」,选择一个文件夹开始" />
       ) : (
@@ -44,6 +43,7 @@ export function Sidebar(): React.JSX.Element {
           ))}
         </ul>
       )}
+      <AgentPickerDialog />
       <ConfirmDialog
         open={pendingDelete !== null}
         title={`删除会话「${pendingDelete?.title ?? ''}」?`}

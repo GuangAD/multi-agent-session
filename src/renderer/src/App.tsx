@@ -34,7 +34,7 @@ function App(): React.JSX.Element {
   const activeTabId = useAppStore((state) => state.activeTabId)
   const setActiveTab = useAppStore((state) => state.setActiveTab)
   const closeTab = useAppStore((state) => state.closeTab)
-  const setNewSessionMenuOpen = useAppStore((state) => state.setNewSessionMenuOpen)
+  const openAgentDialog = useAppStore((state) => state.openAgentDialog)
   const [leftOpen, setLeftOpen] = useState(true)
   const [rightPanel, setRightPanel] = useState<RightPanel>(null)
   // 刷新计数:标题栏的刷新按钮把计数 +1,面板以 `${projectId}:${tick}` 作 key 重挂取新数据
@@ -144,11 +144,13 @@ function App(): React.JSX.Element {
       }
 
       const key = event.key.toLowerCase()
-      // Ctrl+N:展开左栏并打开「新建会话」菜单(菜单内部再选 agent)
+      // Ctrl+N:展开左栏并打开「新建会话」弹窗(目标 = 选中项目;无选中项目只展开左栏,不开弹窗)
       if (key === 'n' && !event.shiftKey) {
         event.preventDefault()
         setLeftOpen(true)
-        setNewSessionMenuOpen(true)
+        if (activeProject) {
+          openAgentDialog({ mode: 'new', projectId: activeProject.id })
+        }
         return
       }
       // Ctrl+B:收起/展开左栏
@@ -176,7 +178,7 @@ function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [tabs, activeTabId, setActiveTab, closeTab, setNewSessionMenuOpen])
+  }, [tabs, activeTabId, setActiveTab, closeTab, openAgentDialog, activeProject])
 
   return (
     <div className="flex h-screen flex-col overflow-hidden text-zinc-900 dark:text-zinc-100">
@@ -276,7 +278,7 @@ function App(): React.JSX.Element {
       </header>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* 左栏:侧栏(添加目录 / 新建会话 / 项目 + 会话树);开关在标题栏 */}
+        {/* 左栏:侧栏(添加目录 / 项目 + 会话树;新建/导入的 agent 选择弹窗也挂在侧栏);开关在标题栏 */}
         {leftOpen && (
           <aside className="flex min-h-0 w-60 shrink-0 flex-col border-r border-zinc-200 p-2 dark:border-zinc-700">
             <Sidebar />
