@@ -260,7 +260,7 @@ daemon/远程主机/WSL、worktree 模型、native chat 结构化会话、MCP/AC
 
 ### A6 后补:目录与源码读取方式
 
-- 目录设计四原则:进程边界分层(main 全部 Node 能力 / preload 唯一桥 / renderer 纯 UI / shared 契约)、主进程目录名 = 领域名且目录 = 里程碑、扩展点收敛于 `agents/definitions/`(新增 agent 零框架改动)、契约先行(shared/ipc-contract ↔ main/ipc/channels 一一对应)
+- 目录设计四原则:进程边界分层(main 全部 Node 能力 / preload 唯一桥 / renderer 纯 UI / shared 契约)、主进程目录名 = 领域名且目录 = 里程碑、扩展点收敛于 `agents/plugins/<id>/ + 清单一行`(新增 agent 零框架改动,2026-11-22 插件化后)、契约先行(shared/ipc-contract ↔ main/ipc/channels 一一对应)
 - Orca 源码就在当前 worktree(v1.4.265),开发时只读直取;移植深度三档:整文件搬(纯函数无基建依赖)/ 裁剪搬(剥 WSL、execution-host、tracer)/ 模式重写(绑运行时的引擎);移植文件头标注来源(`// Ported from stablyai/orca <path>`,MIT),`// Why:` 注释风格保留
 
 ## 附录 B:空目录初始化清单(M1 施工图)
