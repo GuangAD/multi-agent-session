@@ -24,7 +24,7 @@ T2 依赖 T1(载荷的 icon/color 字段与依赖反转先存在,渲染层才有
 
 ## 开发记录
 
-- T1 主进程插件化迁移 | 完成 | commit 待回填
+- T1 主进程插件化迁移 | 完成 | commit 66aeee51
   - 基线:2c4b6af3
   - 评审:Important 1 条已处置(评审工件 .review/T1.patch 漏 env.d.ts——git add -N 范围笔误,已补齐重生成,非代码问题);Minor 4 条:①② 陈旧注释(shared/agents.ts icon 注释、kimi/plugin.ts 缺失语义)已就地修;③ 反向守卫不递归子目录/不识别 export-from 形式——留作后续加固;④ 未知 agentId 组合点由静默 0 条改 fail-loud——记录即可
   - waiver:无
