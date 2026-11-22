@@ -19,6 +19,23 @@
   overflow-y: scroll;
 }
 
+/* 2026-11-22 修复:右缘「双滚动条 + 10px 死带」。
+   CDP 实测(DPR 1.25):viewport offsetWidth 654 / clientWidth 644 → 原生滚动条真实占 10px;
+   同时 xterm 自绘条 `.xterm-vertical` 宽 7px(opacity 0,hover/滚动显形)也在同一右缘,
+   而 fit 只按配置的 scrollbar.width=7 预留 → 原生那 10px 没被预留,视觉上两根条并排、
+   内容离边缘还差一截。
+   Why 隐藏原生条而不是调 fit 预留:布局里真实可用宽度由 viewport.clientWidth 决定,
+   原生条宽度随系统/缩放变(实测 10px,声明是 12px),按变量预留会引入新的漂移;
+   而 xterm 自绘条宽度就是我们配置的 7px(fit 已按它扣),宽度一致、单一来源。
+   隐藏后滚动仍由 xterm 自己的 wheel/key 处理与自绘条拖动承担(VS Code 同款形态)。 */
+.xterm-container .xterm-viewport {
+  scrollbar-width: none;
+}
+
+.xterm-container .xterm-viewport::-webkit-scrollbar {
+  display: none;
+}
+
 /* terminal.css:41-42。Round DOM scrollbar thumbs; xterm's square default has no configuration option. */
 .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
   border-radius: 4px;
