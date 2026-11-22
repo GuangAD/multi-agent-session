@@ -3,7 +3,7 @@
 // working 动画来自主进程 state:changed 广播(渲染层不自行判定);其余态与缺省不画
 // 标签页存在与否已由标签栏表达,行内不再留状态点
 import { useEffect, useRef, useState } from 'react'
-import { LoaderCircle, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { AgentBadge } from '../../agents-display'
 import { useAppStore } from '../../store/app-store'
 import { Button } from '../ui/button'
@@ -105,10 +105,20 @@ export function SessionRow({
           onClick={scheduleOpen}
         >
           {runState === 'working' && (
-            <LoaderCircle
-              className="size-3.5 shrink-0 animate-spin text-emerald-500"
-              aria-label="工作中"
-            />
+            <span className="flex shrink-0 items-center gap-0.5" aria-label="工作中" role="img">
+              <span
+                className="size-1 rounded-full bg-emerald-500 animate-pulse"
+                style={{ animationDelay: '0ms', animationDuration: '900ms' }}
+              />
+              <span
+                className="size-1 rounded-full bg-emerald-500 animate-pulse"
+                style={{ animationDelay: '-600ms', animationDuration: '900ms' }}
+              />
+              <span
+                className="size-1 rounded-full bg-emerald-500 animate-pulse"
+                style={{ animationDelay: '-300ms', animationDuration: '900ms' }}
+              />
+            </span>
           )}
           {/* 载荷驱动:icon/color 从 store 载荷传入;name 未命中回落 agentId——未知 agent 也渲染首字母砖 */}
           <AgentBadge
