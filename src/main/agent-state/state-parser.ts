@@ -199,6 +199,13 @@ export function createTracker(def: AgentDefinition, opts: TrackerOptions = {}): 
       if (exited) {
         return
       }
+      // 极短空白快照忽略:隐藏标签页(display:none)的 xterm 画面会塌缩成 1-2 个空白字符,
+      // 不是 agent 真实状态。若照常处理会清空 byteBuffer 字节证据、刷新活动时间,
+      // 使 working/waiting 地标丢失 → 切走别的标签后会话被误判 idle。
+      // 只挡极短(len<=2)且全空白:更长的空白可能是真实清屏,仍按既有语义清空证据(用例 13)。
+      if (visibleText.length <= 2 && visibleText.trim() === '') {
+        return
+      }
       lastSnapshot = visibleText
       // 快照到达即宣告更早的字节证据过期:byteBuffer 是「会话开始以来最近 64KB」的只增日志,没有
       // 「上次快照之后」的语义。Why: 屏幕快照是比字节流更强、更新的证据;waiting 分支又在判定链最前

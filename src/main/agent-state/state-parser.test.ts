@@ -35,7 +35,7 @@ const BYTES_WAITING_DEF: AgentDefinition = {
   icon: 'B',
   color: 'test-only', // 契约必填字段(T1);引擎只读 state,值不参与判定
   state: {
-    bytes: { working: [], waiting: ['implement this plan?'] },
+    bytes: { working: ['working-marker'], waiting: ['implement this plan?'] },
     idleQuietMs: 2000
   }
 }
@@ -266,5 +266,46 @@ describe('stateTracker 三源判定(接缝 createTracker)', () => {
     vi.advanceTimersByTime(STATE_DEBOUNCE_MS) // t=2600
     expect(tracker.state(), '快照已宣告字节证据过期,不得再粘在 waiting').toBe('idle')
     expect(broadcasts).toEqual(['waiting', 'idle'])
+  })
+
+  it('14. 空白快照(隐藏标签画面塌缩)不得清空字节证据 → 维持状态', () => {
+    // 期望值来源:本 bug 的真实症状——切到别的标签后隐藏标签快照塌成 len=1(全空白),
+    // 当前 onSnapshot 会 byteBuffer='' + markActivity,使字节地标证据丢失 → 误判 idle。
+    // 修复后:空白快照整段忽略,既有字节证据与活动时间不变,超过安静门槛仍按原证据判定。
+    const tracker = createTracker(BYTES_WAITING_DEF)
+    const broadcasts: SessionRunState[] = []
+    tracker.onChange((state) => broadcasts.push(state))
+
+    tracker.onBytes('> 1. Yes, implement this plan?\r\n')
+    vi.advanceTimersByTime(STATE_DEBOUNCE_MS) // waiting 落地
+    expect(tracker.state()).toBe('waiting')
+
+    // 隐藏标签画面塌缩:极短空白快照(len=1)。修复前会清空 byteBuffer → 安静门槛后转 idle;修复后忽略。
+    tracker.onSnapshot(' ') // 实测塌缩快照 len=1,单个空白字符
+    vi.advanceTimersByTime(2000 + STATE_DEBOUNCE_MS) // 越过安静门槛+去抖
+    expect(tracker.state(), '空白快照不得清掉字节证据,仍 waiting').toBe('waiting')
+    expect(broadcasts).toEqual(['waiting'])
+  })
+
+  it('15. 极短空白快照不刷新活动时间:working 症状下也按时进入 idle', () => {
+    // 期望值来源:用户症状是 working 动画消失;working 受安静门槛约束(与 waiting 不同),
+    // 能验证「活动时间未被空白快照刷新」。手算:onBytes 在 t=0 markActivity,
+    // 空白快照在 t=300 被忽略(不刷活动时间)→ 安静门槛 t=2000 到点 → 去抖 300 → t=2300 idle。
+    const tracker = createTracker(BYTES_WAITING_DEF)
+    const broadcasts: SessionRunState[] = []
+    tracker.onChange((state) => broadcasts.push(state))
+
+    tracker.onBytes('working-marker')
+    vi.advanceTimersByTime(STATE_DEBOUNCE_MS) // t=300:working 落地
+    expect(tracker.state()).toBe('working')
+
+    // 连续极短空白快照:若刷新活动时间,最终断言时点会晚 300ms 而仍是 working(错误)
+    tracker.onSnapshot(' ')
+    tracker.onSnapshot('\r')
+    vi.advanceTimersByTime(STATE_DEBOUNCE_MS) // t=600:快照不应改写证据,仍 working
+    expect(tracker.state(), '空白快照后安静门槛未被重置,仍 working').toBe('working')
+    vi.advanceTimersByTime(2000 - STATE_DEBOUNCE_MS) // t=2300:按时 idle(若活动时间被刷新则此刻仍 working)
+    expect(tracker.state(), '空白快照不刷新活动时间,安静门槛按时到点').toBe('idle')
+    expect(broadcasts).toEqual(['working', 'idle'])
   })
 })
