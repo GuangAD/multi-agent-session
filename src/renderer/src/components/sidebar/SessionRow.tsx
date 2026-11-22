@@ -1,11 +1,10 @@
-// 会话行:agent 徽标 + 显示名 + 运行状态点 + 行内重命名 + 删除入口
+// 会话行:agent 徽标 + 显示名 + 工作中旋转动画 + 行内重命名 + 删除入口
 // 重命名只改应用侧显示名(brief 第 5 节),agent 侧原名与对话 id 不受影响
-// 状态点语义(working 绿 / waiting 橙 / idle 灰 / exited 红)来自 state:changed 广播,
-// 取代 T4 的「有活动标签页」圆点(标签页存在与否已由标签栏表达,一行不留两个点)
-import { useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+// working 动画来自主进程 state:changed 广播(渲染层不自行判定);其余态与缺省不画
+// 标签页存在与否已由标签栏表达,行内不再留状态点
+import { useEffect, useRef, useState } from 'react'
+import { LoaderCircle, Trash2 } from 'lucide-react'
 import { AgentBadge } from '../../agents-display'
-import { RUN_STATE_DISPLAY } from '../../run-state-display'
 import { useAppStore } from '../../store/app-store'
 import { Button } from '../ui/button'
 import type { Session, SessionRunState } from '../../../../shared/types'
@@ -19,7 +18,7 @@ export function SessionRow({
   onDelete
 }: {
   session: Session
-  // 缺项 = 尚未收到该会话的首次状态广播(不画点)
+  // 缺项 = 尚未收到该会话的首次状态广播(不画动画)
   runState?: SessionRunState
   active: boolean
   onOpen: () => void
@@ -28,10 +27,37 @@ export function SessionRow({
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.title)
+  // 单击打开延后 200ms 给双击消歧;进入编辑或卸载时清掉,避免后续误打开
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Session 只存 agentId:载荷经 store 查找(T2);未知 agent 返回 undefined → 全缺省,徽标走中性兜底砖
   const agent = useAppStore((state) => state.agentById(session.agentId))
 
+  useEffect(
+    () => () => {
+      if (openTimer.current !== null) {
+        clearTimeout(openTimer.current)
+      }
+    },
+    []
+  )
+
+  const cancelOpen = (): void => {
+    if (openTimer.current !== null) {
+      clearTimeout(openTimer.current)
+      openTimer.current = null
+    }
+  }
+
+  const scheduleOpen = (): void => {
+    cancelOpen()
+    openTimer.current = setTimeout(() => {
+      openTimer.current = null
+      onOpen()
+    }, 200)
+  }
+
   const startEditing = (): void => {
+    cancelOpen()
     setDraft(session.title)
     setEditing(true)
   }
@@ -47,7 +73,7 @@ export function SessionRow({
 
   return (
     <li
-      className={`group flex items-center gap-1 rounded px-1 ${
+      className={`group flex items-center gap-1 rounded px-1 py-1 ${
         active ? 'bg-zinc-200 dark:bg-zinc-700' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800'
       }`}
     >
@@ -76,33 +102,25 @@ export function SessionRow({
               ? `${session.title}(原名:${session.externalTitle})`
               : session.title
           }
-          onClick={onOpen}
+          onClick={scheduleOpen}
         >
+          {runState === 'working' && (
+            <LoaderCircle
+              className="size-3.5 shrink-0 animate-spin text-emerald-500"
+              aria-label="工作中"
+            />
+          )}
           {/* 载荷驱动:icon/color 从 store 载荷传入;name 未命中回落 agentId——未知 agent 也渲染首字母砖 */}
           <AgentBadge
             icon={agent?.def.icon}
             color={agent?.def.color}
             name={agent?.def.name ?? session.agentId}
           />
-          <span className="min-w-0 flex-1 truncate text-sm">{session.title}</span>
-          {runState && (
-            <span
-              role="img"
-              aria-label={`运行状态:${RUN_STATE_DISPLAY[runState].label}`}
-              title={`运行状态:${RUN_STATE_DISPLAY[runState].label}`}
-              className={`size-1.5 shrink-0 rounded-full ${RUN_STATE_DISPLAY[runState].dotClassName}`}
-            />
-          )}
+          <span className="min-w-0 flex-1 truncate text-sm" onDoubleClick={startEditing}>
+            {session.title}
+          </span>
         </button>
       )}
-      <Button
-        variant="ghost"
-        aria-label={`重命名会话 ${session.title}`}
-        className="opacity-0 group-hover:opacity-100"
-        onClick={startEditing}
-      >
-        <Pencil className="size-3.5" aria-hidden />
-      </Button>
       <Button
         variant="ghost"
         aria-label={`删除会话 ${session.title}`}

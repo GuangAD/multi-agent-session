@@ -2,7 +2,7 @@
 // 点行本体 = 选中 + 项目展开态取反(一次点击同时完成);行上按钮阻断冒泡,不改变选中。
 // 展开态是渲染层 UI 状态,不落盘(T6 既有约定),默认展开;会话行的状态点来源 = run-state-slice(主进程 state:changed 广播)
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Ellipsis, Folder, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Ellipsis, Plus } from 'lucide-react'
 import { useAppStore } from '../../store/app-store'
 import { SESSION_LIST_COLLAPSED_LIMIT, orderSessionsForDisplay } from '../../session-order'
 import { Button } from '../ui/button'
@@ -73,7 +73,6 @@ export function ProjectGroup({
         ) : (
           <ChevronRight className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400" aria-hidden />
         )}
-        <Folder className="size-4 shrink-0 text-amber-500" aria-hidden />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm">{project.name}</span>
           <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">
