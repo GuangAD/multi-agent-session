@@ -51,6 +51,13 @@
     1. 状态判定空白快照守卫在引擎侧 `onSnapshot` 入口,只挡极短(len<=2)全空白;真实 CLI 画面恒为多字符,不受影响
     2. 该缺陷是既有行为被 T1 改动暴露(此前行尾常驻点让 working/idle 差异不明显),非 T1 引入
     3. 全量 31 文件/205 用例绿、typecheck exit 0;需用户实机复验「切走后动画保持」
+- 追加 spinner 迭代(门 3 后第 2 次,用户「要多个点转圈」)| 完成 | commit 106c00f5
+  - 基线:1d7409db
+  - 变更:用户指出三点 `animate-pulse` 是原地闪烁、不是转圈;改为 CLI 标准 braille 帧序列 `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`(10 帧 × 80ms),组件内 `spinnerFrame` state + 仅 working 时运行的定时器驱动,停止态清表省去后台重渲染;绿色 `font-mono`
+  - 验证:typecheck exit 0、31 文件/205 用例绿;无 pulse/LoaderCircle 残留
+  - 结论:
+    1. braille 帧序列逐帧切换 = CLI spinner 的真实形态,点绕圈移动,贴合用户第二张截图
+    2. 三次 spinner 迭代历史:LoaderCircle 单圈 → 三点 pulse 闪烁 → braille 帧序列转圈;最终以 braille 为准
 
 ## 收尾(门 3 后变更 + 终审清理)
 

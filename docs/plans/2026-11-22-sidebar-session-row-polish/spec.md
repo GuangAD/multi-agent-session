@@ -18,7 +18,7 @@
 
 ## 技术选型与约束
 
-- loading 用三个 `bg-emerald-500` 圆点 + Tailwind `animate-pulse`（900ms 周期、负延迟 0/-600/-300ms 错峰），不新增依赖；门 3 后 T2 由 LoaderCircle 单圈改为此形态（见 plan.md T2 记录）
+- loading 用 CLI 标准 braille 帧序列 `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`（10 帧 × 80ms 逐帧切换、点绕圈移动），绿色 `font-mono`；仅 working 时驱动定时器；不新增依赖。迭代史：LoaderCircle 单圈 → 三点 pulse 闪烁 → braille 帧序列（见 plan.md）
 - 单击/双击消歧用组件内 `useRef` 存定时器 id，cleanup 在组件卸载时清除，避免 setState on unmounted
 - 双击只绑在标题元素上，不绑整个行主体；删除按钮与编辑态保持原有命中区
 - `RUN_STATE_DISPLAY` 保留供标签页使用，不因会话行不消费而删除
