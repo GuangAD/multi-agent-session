@@ -153,7 +153,7 @@ function AgentPickerPanel({
                     mode === 'new' ? () => startNewSession(agent) : () => void runImport(agent)
                   }
                 >
-                  <AgentBadge agentId={def.id} icon={def.icon} />
+                  <AgentBadge agentId={def.id} />
                   <span className="min-w-0 flex-1 truncate">{def.name}</span>
                   {mode === 'new' && !installed && (
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">未安装</span>

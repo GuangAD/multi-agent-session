@@ -75,8 +75,8 @@ export function SessionRow({
           }
           onClick={onOpen}
         >
-          {/* Session 只存 agentId;徽标首字母由 id 推导(agents-display 的 icon 语义即首字母) */}
-          <AgentBadge agentId={session.agentId} icon={session.agentId.slice(0, 1).toUpperCase()} />
+          {/* Session 只存 agentId;品牌图标按 id 从 agents-icons 取(大小可调,行内用默认 20) */}
+          <AgentBadge agentId={session.agentId} />
           <span className="min-w-0 flex-1 truncate text-sm">{session.title}</span>
           {runState && (
             <span

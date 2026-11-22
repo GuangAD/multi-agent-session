@@ -1,29 +1,30 @@
-// agent 首字母徽标(plan:agents-display.tsx——agent 名称与徽标渲染;M2 首字母彩色徽标,M7 换品牌图标)
+// agent 品牌徽标(plan:agents-display.tsx——agent 名称与徽标渲染;M7 品牌图标落地)
+// 无底色形态:品牌 SVG 直接渲染;固定比例(viewBox 锁死)、大小可调(size 属性,默认 20);
+// 颜色按 agent 固定,不随主题翻转;Antigravity 用官方多色图标自带配色,其余为品牌固定色
 import type { AgentId } from '../../shared/types'
+import { AGENT_ICONS } from './agents-icons'
 
-// 徽标底色按 agent id 固定五色(brief 第 8 节授权项:具体色值实施自定;绿/橙语义仅状态点用)
-const BADGE_CLASSES: Record<AgentId, string> = {
-  claude: 'bg-orange-500/15 text-orange-700 dark:text-orange-400',
-  codex: 'bg-sky-500/15 text-sky-700 dark:text-sky-400',
-  antigravity: 'bg-violet-500/15 text-violet-700 dark:text-violet-400',
-  pi: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
-  kimi: 'bg-rose-500/15 text-rose-700 dark:text-rose-400'
+// 固定前景色;antigravity 为官方多色图标,不注入颜色(undefined = 不设 color)
+const AGENT_COLORS: Record<AgentId, string | undefined> = {
+  claude: '#d97757',
+  codex: '#0284c7',
+  antigravity: undefined,
+  pi: '#059669',
+  kimi: '#1783ff'
 }
 
-// icon 取定义的「首字母徽标 id」(definitions/*.ts 的 icon 字段),底色按 id 区分同名首字母(claude/codex 同为 C)
+// 品牌图标按 agentId 取自 agents-icons;definitions 的 icon 字段(首字母时期遗留)不再消费
 export function AgentBadge({
   agentId,
-  icon
+  size = 20
 }: {
   agentId: AgentId
-  icon: string
+  size?: number
 }): React.JSX.Element {
+  const Icon = AGENT_ICONS[agentId]
   return (
-    <span
-      aria-hidden
-      className={`flex size-5 shrink-0 items-center justify-center rounded text-xs font-semibold ${BADGE_CLASSES[agentId]}`}
-    >
-      {icon}
+    <span aria-hidden className="inline-flex shrink-0" style={{ color: AGENT_COLORS[agentId] }}>
+      <Icon size={size} />
     </span>
   )
 }
