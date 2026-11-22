@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Pencil, Trash2 } from 'lucide-react'
 import { AgentBadge } from '../../agents-display'
 import { RUN_STATE_DISPLAY } from '../../run-state-display'
+import { useAppStore } from '../../store/app-store'
 import { Button } from '../ui/button'
 import type { Session, SessionRunState } from '../../../../shared/types'
 
@@ -27,6 +28,8 @@ export function SessionRow({
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.title)
+  // Session 只存 agentId:载荷经 store 查找(T2);未知 agent 返回 undefined → 全缺省,徽标走中性兜底砖
+  const agent = useAppStore((state) => state.agentById(session.agentId))
 
   const startEditing = (): void => {
     setDraft(session.title)
@@ -75,8 +78,12 @@ export function SessionRow({
           }
           onClick={onOpen}
         >
-          {/* Session 只存 agentId;品牌图标按 id 从 agents-icons 取(大小可调,行内用默认 20) */}
-          <AgentBadge agentId={session.agentId} />
+          {/* 载荷驱动:icon/color 从 store 载荷传入;name 未命中回落 agentId——未知 agent 也渲染首字母砖 */}
+          <AgentBadge
+            icon={agent?.def.icon}
+            color={agent?.def.color}
+            name={agent?.def.name ?? session.agentId}
+          />
           <span className="min-w-0 flex-1 truncate text-sm">{session.title}</span>
           {runState && (
             <span

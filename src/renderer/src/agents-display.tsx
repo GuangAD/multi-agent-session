@@ -1,30 +1,56 @@
-// agent 品牌徽标(plan:agents-display.tsx——agent 名称与徽标渲染;M7 品牌图标落地)
-// 无底色形态:品牌 SVG 直接渲染;固定比例(viewBox 锁死)、大小可调(size 属性,默认 20);
-// 颜色按 agent 固定,不随主题翻转;Antigravity 用官方多色图标自带配色,其余为品牌固定色
-import type { AgentId } from '../../shared/types'
-import { AGENT_ICONS } from './agents-icons'
+// agent 品牌徽标(T2 载荷驱动):icon/color/name 全部由调用方从 store 载荷(def)取来传入,
+// 组件不持任何按 id 的映射表。双形态:
+//   · icon 非空(完整 SVG 文档字符串,插件包构建期内联)→ data URL 交给 <img>;
+//     品牌图标均为固定自配色,不注入颜色;
+//   · icon 缺失 → 首字母兜底砖:圆角底 + 名称首字母,已知 agent 用品牌色
+//     (底取低透明度、字母取实色),完全未知(全缺省)用中性 zinc 同款。
+// 颜色按载荷固定,不随主题翻转(品牌图标定稿口径)。
 
-// 固定前景色;antigravity 为官方多色图标,不注入颜色(undefined = 不设 color)
-const AGENT_COLORS: Record<AgentId, string | undefined> = {
-  claude: '#d97757',
-  codex: '#0284c7',
-  antigravity: undefined,
-  pi: '#059669',
-  kimi: '#1783ff'
+// SVG 文档 → data URL:内容经 encodeURIComponent(#、% 等字符不转义会被 URL 截断)
+function toSvgDataUrl(svg: string): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
-// 品牌图标按 agentId 取自 agents-icons;definitions 的 icon 字段(首字母时期遗留)不再消费
 export function AgentBadge({
-  agentId,
+  icon,
+  color,
+  name,
   size = 20
 }: {
-  agentId: AgentId
+  icon?: string
+  color?: string
+  name?: string
   size?: number
 }): React.JSX.Element {
-  const Icon = AGENT_ICONS[agentId]
+  if (icon) {
+    return (
+      <img
+        src={toSvgDataUrl(icon)}
+        alt=""
+        aria-hidden
+        width={size}
+        height={size}
+        className="shrink-0"
+      />
+    )
+  }
+  // 兜底砖:字母取名称首字符(无名称则空砖);底色 color-mix 12% 透明度配比属观感,
+  // 手动冒烟覆盖(T2 测试规格:不进单测)。未知 agent 全缺省 → 中性 zinc 同款。
+  const letter = name?.trim().charAt(0).toUpperCase() ?? ''
   return (
-    <span aria-hidden className="inline-flex shrink-0" style={{ color: AGENT_COLORS[agentId] }}>
-      <Icon size={size} />
+    <span
+      aria-hidden
+      className={`inline-flex shrink-0 items-center justify-center rounded font-semibold ${
+        color ? '' : 'bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400'
+      }`}
+      style={{
+        width: size,
+        height: size,
+        fontSize: Math.round(size * 0.5),
+        ...(color ? { backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)`, color } : {})
+      }}
+    >
+      {letter}
     </span>
   )
 }

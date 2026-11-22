@@ -28,6 +28,7 @@ function App(): React.JSX.Element {
   const setRunState = useAppStore((state) => state.setRunState)
   const loadProjects = useAppStore((state) => state.loadProjects)
   const loadSessions = useAppStore((state) => state.loadSessions)
+  const loadAgents = useAppStore((state) => state.loadAgents)
   const projects = useAppStore((state) => state.projects)
   const selectedProjectId = useAppStore((state) => state.selectedProjectId)
   const tabs = useAppStore((state) => state.tabs)
@@ -44,15 +45,17 @@ function App(): React.JSX.Element {
 
   const activeProject = projects.find((item) => item.id === selectedProjectId) ?? null
 
-  // 启动顺序:先项目,再按项目逐个拉会话记录(sessions:list 载荷是单个 projectId)
+  // 启动顺序:项目与 agent 载荷并行(agents:list 与项目无关;项目一旦失败不得阻断 agent 装载——
+  // 弹窗清单只在启动装一次,顺序 await 会把它连坐跳过),会话记录仍随项目之后
+  // (sessions:list 载荷是单个 projectId);loadAgents 自身失败不抛,只保持空列表
   useEffect(() => {
     void (async () => {
-      await loadProjects()
+      await Promise.all([loadProjects(), loadAgents()])
       await loadSessions()
     })().catch((error) => {
       console.error('加载项目与会话记录失败:', error)
     })
-  }, [loadProjects, loadSessions])
+  }, [loadProjects, loadSessions, loadAgents])
 
   // 运行状态唯一来源:主进程 state:changed(三源引擎去抖后的判定;PTY 退出也在其中转 exited)
   // Why: 状态点的语义(working/waiting/idle/exited)全部由引擎裁定,渲染层只落地不判断
