@@ -33,7 +33,7 @@ T2 依赖 T1(弹窗组件与 ui-slice 弹窗描述状态先存在,T2 的入口�
     1. AgentPickerPanel 以 mode:projectId 作 key:覆盖打开即全新弹窗(重拉清单、清消息),T2 接项目行入口无需处理覆盖残留
     2. 导入运行中按 Ctrl+N 会把弹窗切到 new 模式、导入后台继续完成(消息不再显示)——契约未规定,终审时可再定夺
     3. Esc 监听挂 window;弹窗遮罩拦截点击,焦点进不了终端,与 CLI 的 Esc 冲突场景不可达,冒烟顺带确认
-- T2 侧栏项目树重构 | 完成 | commit 待回填
+- T2 侧栏项目树重构 | 完成 | commit fc17f042
   - 基线:b2aacb32
   - 评审:Important 1 条已修(行级 keydown 未隔离嵌套按钮键盘激活 → 行 onKeyDown 加 target 守卫,复审 ADDRESSED)+ Minor 1 条顺手修(菜单面板空白点击冒泡 → 面板 stopPropagation);Minor 2 条记录在案:① role="menu" 键盘契约(Esc/方向键)未实现,后续需要时补;② 底部项目菜单「更多」面板有滚动区裁剪风险,冒烟确认
   - waiver:同契约预登记(UI 装配不加单测);键盘守卫的自动 mutation check 不可达(组件键盘行为无测试接缝),以手动冒烟替代并标注未自动化
@@ -43,3 +43,8 @@ T2 依赖 T1(弹窗组件与 ui-slice 弹窗描述状态先存在,T2 的入口�
     2. 层级约定:MoreMenu 遮罩 z-40、面板 z-50,AgentPickerDialog 遮罩 z-50;菜单与弹窗不会同时存在
     3. 范围外观察(留终审):行本体 Space 未 preventDefault,聚焦行按 Space 可能引发侧栏滚动,系 T2 之前既有行为
   - 冒烟清单(门 3 前 controller 执行,未自动化):brief 7.1 六条 + 焦点在「+」「…」按 Enter/Space 不触发行切换 + 面板空白点击不改选中 + 底部项目「更多」面板不被裁剪
+- 终审(整特性 cc3ce86a..fc17f042)| 完成 | 裁决:可合并
+  - 评审:无 Critical / 无 Important;三条接缝(生产/消费一致、两删除零残留、双入口行为一致)逐条核验通过;挂账 Minor M1-M6 逐条核验均可留
+  - controller 就地修复:projects-slice.ts 两条孤儿注释(引用已删 NewSessionMenu → 现状描述),复审确认与现状一致;终审后门禁 pnpm typecheck exit 0 + pnpm test 29 files / 195 tests 全绿
+  - 遗留(登记备跟进):M2 导入运行中 Ctrl+N/B 切走弹窗,结果消息不显示(数据无风险);M3 role="menu" 键盘契约未实现;M4 底部项目「更多」面板可能被滚动区裁剪;M5 行本体 Space 未 preventDefault(特性前既有);M6 弹窗无初始焦点管理,Tab 进终端后 Esc 会同时关弹窗并送 ^[ 给 CLI(窄路径低损;T1 冒烟备注「不可达」口径已修正)
+  - 沉淀对账:本特性无新 CONTEXT.md 词条、无新 ADR(纯 UI 重排,可逆;无新领域术语),与文件实况相符
