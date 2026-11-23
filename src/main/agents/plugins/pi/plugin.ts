@@ -42,9 +42,10 @@ export const piPlugin: AgentDefinition = {
   sessions: {
     // T7:导入扫描(home = <home>/.pi/agent/sessions)
     scan: scanPi,
-    // T8:续接参数。外部参照 Orca agent-resume-argv.ts case 'pi' 原文:transcriptPath 存在才
-    // ['pi', '--session', transcriptPath],否则 null——pi 只按转录路径续接,id 不替代;
-    // 此处按裁决返回参数部分,无 filePath → null
-    resumeArgv: (ref) => (ref.filePath ? ['--session', ref.filePath] : null)
+    // T8:续接参数(2026-11-23 用户裁决:pi 1.6.0 的 --session 接受路径或完整/部分 id,
+    // pi 退出时自打印「To resume this session: pi --session <id>」即官方推荐形态,命令行
+    // 不再携带完整转录路径)。id 缺失的旧记录降级用转录路径;两者皆无 → null 原样拉起。
+    resumeArgv: (ref) =>
+      ref.id ? ['--session', ref.id] : ref.filePath ? ['--session', ref.filePath] : null
   }
 }
