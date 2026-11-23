@@ -4,7 +4,7 @@
 import { EventEmitter } from 'node:events'
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, win32 } from 'node:path'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { spawn as ptySpawn, type IPty, type IWindowsPtyForkOptions } from 'node-pty'
 import { agentRegistry } from './agents/agent-registry'
@@ -159,10 +159,9 @@ describe('buildShellLaunchLine', () => {
     expect(buildShellLaunchLine('C:\\tools\\pi.cmd')).toBe('"C:\\tools\\pi.cmd"')
   })
 
-  it('注入行拼装:PTY 交 shell(file=ComSpec、args 空),spawn 后经 pty.write 写「引号绝对路径 + \\r」(测试规格 #3)', async () => {
-    // 独立事实源:fixture 可执行体确实位于 join(dir, binName);期望注入行 =
-    // 引号包裹的该文件 win32 原生分隔符形态(stdlib 规整) + '\r' 结尾。
-    // resolveCommandPath 输出的混排斜杠是实现细节,注入行必须规整为原生形态。
+  it('注入行拼装:PTY 交 shell(file=ComSpec、args 空),spawn 后经 pty.write 写「引号裸命令名 + \\r」(测试规格 #3)', async () => {
+    // 独立事实源:注入行 = 引号包裹的裸命令名(def.command='claude')+ '\r' 结尾;
+    // 可执行体在 PATH 目录的事实由 resolveCommandPath 探测(安装检测),命令行不再携带路径。
     const dir = await mkdtemp(join(tmpdir(), 'agent-sessions-inject-'))
     try {
       const binName = process.platform === 'win32' ? 'claude.EXE' : 'claude'
@@ -187,11 +186,8 @@ describe('buildShellLaunchLine', () => {
       const [file, args] = ptySpawnMock.mock.calls[0]
       expect(file).toBe(process.env.ComSpec ?? 'cmd.exe')
       expect(args).toEqual([])
-      // 注入行与用户键入同通道:走 pty.write,全文 = 引号路径 + \r
-      const realPath = join(dir, binName)
-      const expected =
-        process.platform === 'win32' ? `"${win32.normalize(realPath)}"\r` : `"${realPath}"\r`
-      expect(writes).toEqual([expected])
+      // 注入行与用户键入同通道:走 pty.write,全文 = 引号裸命令名 + \r(2026-11-23 裸名裁决)
+      expect(writes).toEqual(['"claude"\r'])
     } finally {
       await rm(dir, { recursive: true, force: true })
       ptyRegistry.killAll()

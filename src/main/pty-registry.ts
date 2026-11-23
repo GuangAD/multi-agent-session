@@ -4,7 +4,7 @@
 import { execFile } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { createWriteStream, type WriteStream } from 'node:fs'
-import { join, win32 } from 'node:path'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { spawn as ptySpawn, type IPty } from 'node-pty'
 import { resolveCommandPath } from './command-path/command-path-resolver'
@@ -286,9 +286,10 @@ export const ptyRegistry = {
     if (!resolved) {
       throw new Error(`未找到 ${p.def.name} 的命令:${p.def.command}(未安装或不在 PATH)`)
     }
-    // 规整外观:resolveCommandPath 返回可能正斜杠混排(移植件不改),Windows 下统一反斜杠,
-    // 注入行交 cmd 识别原生路径形态(解析后绝对路径/.cmd shim 直拉已实测,见开发记录)
-    const launchCommand = process.platform === 'win32' ? win32.normalize(resolved) : resolved
+    // 交给 shell 的命令用裸名(argv[0]):shell 按 PATH+PATHEXT 自行解析,与用户手动键入同形
+    // (2026-11-23 用户裁决:命令行显示 pi 而非完整 shim 路径)。resolveCommandPath 的结果
+    // 只作安装检测——它与本 spawn 的 shell 共用同一 PATH 语义,探测得到则 shell 内裸名可达。
+    const launchCommand = argv[0]
     // shell 底座(ADR-0004):PTY 跑常驻 shell,agent CLI 由应用在 shell 内启动——
     // CLI 退出回提示符,标签页与交互保留。T11 起 shell 可选(settings.shell,默认 powershell):
     // 非 cmd 需要先把 shell 本体解析成绝对路径(node-pty 在 Windows 直接拉裸命令名不可靠)
