@@ -149,18 +149,19 @@ describe('buildSpawnArgv', () => {
 
 describe('buildShellLaunchLine', () => {
   it('含空格路径:统一双引号包裹(测试规格 #1,构造反例)', () => {
-    // 手算字面量:规则 = 命令整体包一层双引号,不做其他加工
+    // 手算字面量:规则 = 含空白才包裹(与 quoteLaunchArg 同规则),不做其他加工
     expect(buildShellLaunchLine('C:\\Program Files\\nodejs\\pi.cmd')).toBe(
       '"C:\\Program Files\\nodejs\\pi.cmd"'
     )
   })
 
-  it('无空格路径:同样双引号包裹(测试规格 #2,统一规则)', () => {
-    expect(buildShellLaunchLine('C:\\tools\\pi.cmd')).toBe('"C:\\tools\\pi.cmd"')
+  it('无空白命令:原样不加引号(裸名与手动键入同形)', () => {
+    expect(buildShellLaunchLine('pi')).toBe('pi')
+    expect(buildShellLaunchLine('C:\\tools\\pi.cmd')).toBe('C:\\tools\\pi.cmd')
   })
 
-  it('注入行拼装:PTY 交 shell(file=ComSpec、args 空),spawn 后经 pty.write 写「引号裸命令名 + \\r」(测试规格 #3)', async () => {
-    // 独立事实源:注入行 = 引号包裹的裸命令名(def.command='claude')+ '\r' 结尾;
+  it('注入行拼装:PTY 交 shell(file=ComSpec、args 空),spawn 后经 pty.write 写「裸命令名 + \\r」(测试规格 #3)', async () => {
+    // 独立事实源:注入行 = 裸命令名(def.command='claude',无空白不加引号)+ '\r' 结尾;
     // 可执行体在 PATH 目录的事实由 resolveCommandPath 探测(安装检测),命令行不再携带路径。
     const dir = await mkdtemp(join(tmpdir(), 'agent-sessions-inject-'))
     try {
@@ -187,7 +188,7 @@ describe('buildShellLaunchLine', () => {
       expect(file).toBe(process.env.ComSpec ?? 'cmd.exe')
       expect(args).toEqual([])
       // 注入行与用户键入同通道:走 pty.write,全文 = 引号裸命令名 + \r(2026-11-23 裸名裁决)
-      expect(writes).toEqual(['"claude"\r'])
+      expect(writes).toEqual(['claude\r'])
     } finally {
       await rm(dir, { recursive: true, force: true })
       ptyRegistry.killAll()
@@ -211,7 +212,7 @@ describe('quoteLaunchArg / buildAgentLaunchLine(launchArgs 引号包裹)', () =>
   it('含空格参数 → 双引号包裹(pi resume 形态:--session <转录路径>)', () => {
     expect(quoteLaunchArg('C:\\a b\\session.jsonl')).toBe('"C:\\a b\\session.jsonl"')
     expect(buildAgentLaunchLine('pi', ['--session', 'C:\\a b\\session.jsonl'])).toBe(
-      '"pi" --session "C:\\a b\\session.jsonl"'
+      'pi --session "C:\\a b\\session.jsonl"'
     )
   })
 
@@ -222,7 +223,7 @@ describe('quoteLaunchArg / buildAgentLaunchLine(launchArgs 引号包裹)', () =>
 
   it('多参数混合(一个含空格一个不含)→ 分别处理、单空格连接', () => {
     expect(buildAgentLaunchLine('pi', ['--session', 'C:\\a b\\session.jsonl', '--verbose'])).toBe(
-      '"pi" --session "C:\\a b\\session.jsonl" --verbose'
+      'pi --session "C:\\a b\\session.jsonl" --verbose'
     )
   })
 })
@@ -389,7 +390,7 @@ describe('shell 分支(T11:settings.shell = cmd | powershell | pwsh)', () => {
 
   it('注入行:只有 cmd 需要写(以 CR 结尾);非 cmd 返回 null 不写任何东西', () => {
     const cmdLine = buildShellInjectLine('cmd', 'C:/x/pi.cmd', ['--session', 'f'])
-    expect(cmdLine).toBe('"C:/x/pi.cmd" --session f' + String.fromCharCode(13))
+    expect(cmdLine).toBe('C:/x/pi.cmd --session f' + String.fromCharCode(13))
     expect(buildShellInjectLine('powershell', 'C:/x/pi.cmd')).toBeNull()
     expect(buildShellInjectLine('pwsh', 'C:/x/pi.cmd')).toBeNull()
   })

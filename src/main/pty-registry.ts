@@ -33,15 +33,17 @@ export function resolvePtyFirstSize(
   return isValid(cols) && isValid(rows) ? { cols, rows } : { ...UNMEASURED_PTY_SIZE }
 }
 
-// 接缝(纯函数,ADR-0004):agent 启动命令行 = 绝对路径统一双引号包裹;注入行 = 该行 + '\r',
+// 接缝(纯函数,ADR-0004):agent 启动命令行 = 命令名(含空白才加引号);注入行 = 该行 + '\r',
 // spawn 后经 pty.write 写入 shell,与用户键入同通道(cmd 的输入行回显即用户看到的命令行)。
-// 边界:不做 cmd 元字符(^ & | >)的转义矩阵——command 是应用经 resolveCommandPath 构造的
-// 绝对路径,自身不含引号,不是用户自由输入;若未来接受用户可控命令行,须先补转义。
+// 边界:不做 cmd 元字符(^ & | >)的转义矩阵——command 是注册表定义的命令名,不是用户自由
+// 输入;若未来接受用户可控命令行,须先补转义。
 // cmd 输入行的结束符 = CR(0x0D)。Why 用 fromCharCode 而不是源码里的转义序列:本仓文件在
 // CRLF 工作树下编辑,字符串字面量里的转义容易被工具链误当行尾吃掉,常量写法对此免疫。
 const CARRIAGE_RETURN = String.fromCharCode(13)
+// 命令含空白才加引号(与 quoteLaunchArg 同规则):注册表定义的命令(pi/claude 等)是单
+// token 裸名,不加引号与用户手动键入同形;含空白的命令形态仍需引号保护。
 export function buildShellLaunchLine(command: string): string {
-  return `"${command}"`
+  return /\s/.test(command) ? `"${command}"` : command
 }
 
 // Fix-2(评审 Important-2,接缝纯函数):launchArgs 逐参数引号包裹——参数含空白即双引号包住
@@ -104,7 +106,7 @@ export function buildShellInjectLine(
   return buildAgentLaunchLine(command, args) + CARRIAGE_RETURN
 }
 
-// 注入行 = 引号命令 + 空格 + 逐参数(引号处理)单空格拼串;无 args 返回 buildShellLaunchLine(command)
+// 注入行 = 命令(含空白才加引号) + 空格 + 逐参数(引号处理)单空格拼串;无 args 返回 buildShellLaunchLine(command)
 export function buildAgentLaunchLine(command: string, args?: string[]): string {
   const line = buildShellLaunchLine(command)
   if (!args || args.length === 0) {
@@ -356,8 +358,8 @@ export const ptyRegistry = {
     // Fix-C 确认:注入发生在 spawn 之后,而 spawn 尺寸已是 fit 真值(Fix-B 保证 spawn 等首个
     // fit 完成),pi 启动即拿到正确宽度,注入时机无需再改。
     // T8(controller 裁决 2)+ 评审 Fix-2:注入行经 buildAgentLaunchLine 组装——launchArgs 非空时
-    // = 引号命令 + 逐参数(含空白者双引号包裹,如 pi 的 --session <转录路径>)拼串;参数同样
-    // 来自应用构造(externalSessionId/转录路径,非用户自由输入),Windows 路径不含 ",
+    // = 命令(含空白才加引号) + 逐参数(含空白者双引号包裹,如 pi 的 --session <转录路径>)拼串;
+    // 参数同样来自应用构造(externalSessionId/转录路径,非用户自由输入),Windows 路径不含 ",
     // 维持「不引 shell 转义矩阵」边界(ADR-0004 边界注释的 T8 延伸)。
     const injectLine = buildShellInjectLine(shellKind, launchCommand, p.launchArgs)
     if (injectLine !== null) {
