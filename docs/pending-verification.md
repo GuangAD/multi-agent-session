@@ -96,6 +96,13 @@
       注:本轮 CSS 修复(隐藏原生条)保留——它消除了三层叠加中确定的一层,方向没错但不够。
 - [ ] **新进展(2026-11-23 01:37,待用户在第二台机器复验)** —— 本机 node_modules 损坏缺 `node-pty`/`@xterm`(应用起不来),`pnpm install` 重装后干净启动,**用户复核右缘观感「很完美」**。CDP 量化(DPR 1,容器 1672px):viewport offsetWidth=clientWidth=1672(原生条 0),screen 1657,残差 15px = 7px 自绘条沟槽 + 约 8px 取整余数(≈1 格,向下取整固有)。**用户说明:应用在两台机器上运行**——11-22 的「依然存在」复核与本日的「完美」可能分属两机。第二台机器复验前的头号差异变量:字体安装情况(回退链落到不同字体 → canvas/DOM 度量不一致复现)、DPI 缩放(本机 DPR 1,修复时的量化在 DPR 1.25)、GPU/渲染路径。若第二台机器复现:先按上述变量逐项对照两机,再回到滚动状态量化(上一条的 a/b/c)。
 
+## 二之三、终端 emoji 宽度错位(2026-11-23 修复,待肉眼确认)
+
+- [x] **已修:含 emoji 的行整体左移一格、右边框错位** —— 根因:xterm 内置宽度表只有 Unicode 6(`✅`/`❌` 宽度算 1),而 agent CLI 按 Unicode 9+ 排版(emoji 算 2 格)。修复:装 `@xterm/addon-unicode11@0.10.0-beta.330`、Terminal 开 `allowProposedApi`、open 后激活 `unicode.activeVersion = '11'`。证据:探针 `before ✅=1` → `after ✅=2`(中文/ASCII 不变);单测 + mutation check;31 文件 / 206 用例绿。详见 `docs/issues/2026-11-23-emoji-wide-char-misalignment.md`
+- [ ] **肉眼复核(需要你)**:`pnpm dev` 打开含 `✅`/`❌` 的表格行,该行右边框应与上下行对齐、不再左移一格
+- [x] **已修:WebGL context loss 无回退** —— addon 在 context loss 时只 fire `onContextLoss`、不自 dispose(源码确认),我们原先未订阅,GPU 上下文丢失后终端会空白/冻结不恢复。修复:订阅后 `webglAddon.dispose()`,dispose 内部 `setRenderer(DOM)` 自动回退。回归用例 + mutation check 通过。详见 `docs/issues/2026-11-23-terminal-addon-audit.md`
+- [ ] **运行时确认(需要你,非必须)**:如遇 GPU 上下文丢失场景(远程桌面切换/休眠唤醒),终端应回退 DOM 继续绘制;可用 DevTools 注入 `WEBGL_lose_context` 模拟
+
 ## 三、已知边界(不算缺陷,记录备查)
 
 - 未跟踪的新文件在 Git 面板点开没有 diff(显示「暂存后可见差异」):`git diff HEAD` 对未跟踪文件为空。

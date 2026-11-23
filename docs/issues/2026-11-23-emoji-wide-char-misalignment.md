@@ -1,6 +1,6 @@
 # 终端 emoji/宽字符宽度错位:含图标行整体左移一格
 
-> 2026-11-23 | 状态:**已定位根因,待修** | 根因:xterm 内置宽度表只有 Unicode 6(emoji 算 1 格),pi 按 Unicode 9+ 排版(emoji 算 2 格),含 emoji 的行整体左移一格,竖线错位看似断开
+> 2026-11-23 | 状态:**已修复(待实机目视确认)** | 根因:xterm 内置宽度表只有 Unicode 6(emoji 算 1 格),pi 按 Unicode 9+ 排版(emoji 算 2 格),含 emoji 的行整体左移一格,竖线错位看似断开。修复 = 加载 `@xterm/addon-unicode11` 并激活版本 `'11'`
 
 ## 一、现象
 
@@ -54,6 +54,14 @@ Orca 装了 `@xterm/addon-unicode11@0.10.0-beta.330`(`.reference/orca-1.4.265/pa
    terminal.unicode.activeVersion = '11'
    ```
 
+
+**实施记录(2026-11-23)**:
+- 依赖:`@xterm/addon-unicode11@0.10.0-beta.330`(与 Orca 同版本线)
+- `use-terminal.ts`:Terminal 构造加 `allowProposedApi: true`;`open()` 后 `try { loadAddon(new Unicode11Addon()); unicode.activeVersion = '11' } catch {}`(addon 不可用时保持 Unicode 6,仅 emoji 行可能错位,不回退其他能力)
+- 回归用例:`use-terminal.test.ts` 新增「宽字符宽度表(Unicode 11)」,断言 `allowProposedApi === true` 与 `unicode.activeVersion === '11'`;mutation check 通过(把 activeVersion 改回 '6' → 用例转红且红因指向缺陷;还原转绿)
+- 端到端探针(真实 xterm + addon):`before ✅=1 ❌=1 中=2 A=1` → `after ✅=2 ❌=2 中=2 A=1`,中文/ASCII 不受影响
+- `pnpm typecheck` exit 0;`pnpm test` 31 文件 / 206 用例全绿
+- **待用户实机确认**:打开含 `✅`/`❌` 的表格,含图标行右边框应与上下行对齐
 **可裁剪**:Orca 额外包了一层 ZWJ provider(`terminal-unicode-provider.ts`,处理 👨‍👩‍👧 类组合 emoji)。本项目单窗口场景可先不做,观察是否出现组合 emoji 错位再补。
 
 ## 四、验证方式(修后)

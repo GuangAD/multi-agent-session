@@ -4,6 +4,7 @@
 //   挂单 handler 四分支(Shift 本地滚 / mouse mode 放大重放 / alt buffer 非 mouse 转翻页键 / xterm 默认)
 // + 窗口跟随:每终端 ResizeObserver 观察容器 + RAF 稳定帧收敛
 // + 状态引擎的两路渲染层输入源(T5):标题(onTitleChange 上行)与屏幕快照(节流序列化视口可见行)
+import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 // Fix-B 右侧空白治理:提案 = 盒子的纯函数(device/dpr cell 尺寸,与当前列数解耦),见 stable-cell-fit-addon.ts
@@ -222,6 +223,9 @@ export function openTerminal(
     fontWeight: TERMINAL_FONT_WEIGHT,
     fontWeightBold: TERMINAL_FONT_WEIGHT_BOLD,
     scrollbar: { width: 7 },
+    // unicode 是 proposed API(宽度表 provider 注册与 activeVersion 都在其下);
+    // 不开这一项,loadAddon(Unicode11Addon) 会直接抛错
+    allowProposedApi: true,
     scrollSensitivity: 1.15,
     fastScrollSensitivity: 5,
     scrollOnUserInput: true
@@ -234,11 +238,29 @@ export function openTerminal(
   // ─ 边框每格出一个暗点(用户实机 + dev 复现);Windows Terminal 与挂了本 addon 的 Orca 均无
   // 此现象——webgl renderer 对 box-drawing/block/powerline 走 CustomGlyphs 矢量自绘
   // (xtermjs#2409),不依赖字体字形。getContext('webgl2') 失败会在 loadAddon 内同步 throw,
-  // 接住即留在 DOM renderer,行为不劣于现状;context loss 由 addon 自 dispose 回退 DOM。
+  // 接住即留在 DOM renderer,行为不劣于现状。
+  // Why 订阅 onContextLoss 并主动 dispose:addon 收到 webglcontextlost 只 preventDefault 并起
+  // 3 秒计时器,未恢复时仅 fire 本事件、**不会自 dispose**(读 addon 0.20.0-beta.329 源码);
+  // 而回退 DOM renderer 的动作在 dispose 回调里(setRenderer(_createRenderer()))。
+  // 不订阅则 GPU 上下文丢失(驱动重置/远程桌面切换/休眠唤醒)后终端停在失效渲染器上白屏不恢复。
   try {
-    terminal.loadAddon(new WebglAddon())
+    const webglAddon = new WebglAddon()
+    webglAddon.onContextLoss(() => {
+      webglAddon.dispose() // 内部 setRenderer(DOM):xterm 自动回退,画面重绘
+    })
+    terminal.loadAddon(webglAddon)
   } catch {
     // 无 WebGL2 / GPU 受限环境(远程桌面等):保持 DOM renderer
+  }
+  // 宽字符宽度表(2026-11-23,对齐 Orca):xterm 内置宽度表只有 Unicode 6,该表下 emoji
+  // (U+2705 ✅ / U+274C ❌ 等)宽度算 1;而 agent CLI 按 Unicode 9+ 排版、emoji 算 2 格,
+  // 于是含 emoji 的行少占一格、右边框整体左移一格,视觉上像框线断开(用户实机截图)。
+  // 加载 addon 并激活版本 '11' 后两侧宽度一致;失败只影响宽度表,不回退其他能力。
+  try {
+    terminal.loadAddon(new Unicode11Addon())
+    terminal.unicode.activeVersion = '11'
+  } catch {
+    // addon 不可用时保持内置 Unicode 6 表,行为不劣于现状(仅 emoji 行可能错位)
   }
   // 键入 → PTY;fit 提出的尺寸变化 → pty:resize 回传
   terminal.onData((data) => {
