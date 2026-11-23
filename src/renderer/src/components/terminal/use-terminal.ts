@@ -4,6 +4,7 @@
 //   挂单 handler 四分支(Shift 本地滚 / mouse mode 放大重放 / alt buffer 非 mouse 转翻页键 / xterm 默认)
 // + 窗口跟随:每终端 ResizeObserver 观察容器 + RAF 稳定帧收敛
 // + 状态引擎的两路渲染层输入源(T5):标题(onTitleChange 上行)与屏幕快照(节流序列化视口可见行)
+import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 // Fix-B 右侧空白治理:提案 = 盒子的纯函数(device/dpr cell 尺寸,与当前列数解耦),见 stable-cell-fit-addon.ts
 import { StableCellFitAddon } from './stable-cell-fit-addon'
@@ -228,6 +229,17 @@ export function openTerminal(
   const fitAddon = new StableCellFitAddon()
   terminal.loadAddon(fitAddon)
   terminal.open(container)
+  // WebGL 渲染器(2026-11-23,对齐 Orca terminal-rendering/):DOM renderer 每格独立放字体
+  // 字形,cell 宽非整数(实测 8.203px)时浏览器亚像素栅格化在格子边界抗锯齿,pi 输入框的连续
+  // ─ 边框每格出一个暗点(用户实机 + dev 复现);Windows Terminal 与挂了本 addon 的 Orca 均无
+  // 此现象——webgl renderer 对 box-drawing/block/powerline 走 CustomGlyphs 矢量自绘
+  // (xtermjs#2409),不依赖字体字形。getContext('webgl2') 失败会在 loadAddon 内同步 throw,
+  // 接住即留在 DOM renderer,行为不劣于现状;context loss 由 addon 自 dispose 回退 DOM。
+  try {
+    terminal.loadAddon(new WebglAddon())
+  } catch {
+    // 无 WebGL2 / GPU 受限环境(远程桌面等):保持 DOM renderer
+  }
   // 键入 → PTY;fit 提出的尺寸变化 → pty:resize 回传
   terminal.onData((data) => {
     void bridge.pty.write({ sessionId, data })

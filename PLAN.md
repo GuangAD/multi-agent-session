@@ -26,7 +26,7 @@
 
 - electron + electron-vite + TypeScript strict
 - React 19 + Zustand(状态)+ Tailwind CSS 4(样式)
-- node-pty(PTY)+ @xterm/xterm + addon-fit(终端)
+- node-pty(PTY)+ @xterm/xterm + addon-fit + addon-webgl(终端)
 - simple-git(status/diff/log/stage/commit 封装)
 - 持久化:`userData/projects.json` 自读写(fs + JSON,不引 store 库)
 
@@ -280,7 +280,7 @@ daemon/远程主机/WSL、worktree 模型、native chat 结构化会话、MCP/AC
 | `README.md` | 当前真实状态,不写未实现功能 |
 | `.gitignore` | `node_modules/`、`out/`、`dist/`、`.tmp/`、`.review/`、`*.log`、`.DS_Store`(`.reference/` 自 2026-11-20 起入库,不再忽略) |
 | `package.json` | scripts:`dev`/`build`/`typecheck`(node+web 两投影)/`test`/`rebuild`(electron-rebuild);engines node 24;packageManager pnpm |
-| 依赖 | dependencies:`node-pty`、`simple-git`;devDependencies:`electron`、`electron-vite`、`electron-builder`、`@electron/rebuild`、`typescript`、`vitest`、`react`、`react-dom`、`zustand`、`@xterm/xterm`、`@xterm/addon-fit`、`tailwindcss` + `@tailwindcss/vite`、`@vitejs/plugin-react`、`lucide-react` |
+| 依赖 | dependencies:`node-pty`、`simple-git`;devDependencies:`electron`、`electron-vite`、`electron-builder`、`@electron/rebuild`、`typescript`、`vitest`、`react`、`react-dom`、`zustand`、`@xterm/xterm`、`@xterm/addon-fit`、`@xterm/addon-webgl`、`tailwindcss` + `@tailwindcss/vite`、`@vitejs/plugin-react`、`lucide-react` |
 | `electron.vite.config.ts` | main/preload/renderer 三段;`node-pty` 列入 main external;renderer 挂 react + tailwind 插件 |
 | `tsconfig.json` + `tsconfig.node.json` + `tsconfig.web.json` | base + main/preload(Node 侧)+ renderer(web 侧,jsx react-jsx) |
 | `vitest.config.ts` | environment node,仅跑纯逻辑单测 |
