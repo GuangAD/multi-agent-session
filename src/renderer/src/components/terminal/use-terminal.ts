@@ -21,8 +21,10 @@ import type { SessionId, Settings } from '../../../../shared/types'
 interface TerminalEntry {
   terminal: Terminal
   fitAddon: StableCellFitAddon
-  // open 目标容器(TerminalView 渲染的 div):外观应用以 container.style.display 判定可见性
+  // open 目标容器(TerminalView 渲染的 div):外观应用与首帧 fit 以 container.style.display 判定可见性
   container: HTMLElement
+  // spawn 就绪回调是否已发:隐藏期跳过首帧 fit 时保持 false,由首次可见的 activateTerminal 补发
+  readyFired: boolean
   // 窗口跟随:容器观察者与稳定帧循环的待决 RAF id(closeTerminal 时显式撤销)
   fitResizeObserver: ResizeObserver | null
   pendingFitRafId: number | null
@@ -38,8 +40,9 @@ const SHIFT_WHEEL_SCROLL_LINES = 3
 // Why: window resize→fitAll 挂钩测不到布局级容器变化(侧栏开合/面板拖拽),且高频拖拽下
 // fit 直接收敛会振荡;改为每终端用自己的 ResizeObserver 观察容器,经 RAF 帧循环等「提出尺寸
 // 稳定」再收敛。裁剪点:去掉 Orca 的 continuation registry/callbacks 泛化与可见性探测——
-// 隐藏实例(display:none)不触发尺寸变化,FitAddon.proposeDimensions 对隐藏容器返回
-// undefined、fit() 自动跳过,无需显式 hidden 检查;切回显示由 activateTerminal 的现有 fit 兜住。
+// 隐藏实例(display:none)不触发尺寸变化,但 fit() 不能就此跳过检查:本项目的 StableCellFitAddon
+// 按盒子尺寸提案,0 尺寸盒经 terminal-grid-size-for-box 会落到 2×1 最小网格并被 fit 当作真实尺寸
+// (xterm 原生 FitAddon 才会对隐藏容器返回 undefined)。故所有 fit 调用点都必须显式判 display。
 type ProposedDimensions = {
   cols: number
   rows: number
@@ -302,7 +305,8 @@ export function openTerminal(
     fitAddon,
     container,
     fitResizeObserver: null,
-    pendingFitRafId: null
+    pendingFitRafId: null,
+    readyFired: false
   }
   terminals.set(sessionId, entry)
   // 窗口跟随:observer 观察容器,尺寸变化(含窗口/侧栏/面板引发的)经稳定帧循环收敛 fit
@@ -319,9 +323,16 @@ export function openTerminal(
     if (!entry) {
       return // 已在同一帧内被关闭
     }
+    // 隐藏容器(display:none)不能 fit:盒子是 0 尺寸,自定义 addon 的提案会落到 2×1 最小网格,
+    // fit 会把它当真实尺寸应用并经 onResize → pty.resize 打到后台 agent(T6 评审 P1-2:
+    // 改回滚行数会重建隐藏标签,这条路因此可达)。不 fit 也不回调 ready——spawn 等
+    // activateTerminal 的可见后 fit 再来(隐藏标签本就不该在这时拉进程)。
+    if (entry.container.style.display === 'none') {
+      return
+    }
     entry.fitAddon.fit()
-    // Fix-B:首个 fit 收敛后回调——此时 cols/rows 是真实尺寸,spawn 用它作初始尺寸,
     // TUI(pi 等)启动即正确宽度(它收不到后续 resize 通知,见 sessions-slice 的 Why)
+    entry.readyFired = true
     terminalReadyHandler?.(sessionId, entry.terminal.cols, entry.terminal.rows)
   })
 }
@@ -381,6 +392,11 @@ export function activateTerminal(sessionId: SessionId): void {
       return // 已被 dispose(快速开关 tab 的竞态)
     }
     entry.fitAddon.fit()
+    // 隐藏期被跳过 ready 的会话(创建时不可见),在首次可见时补发一次——此时 cols/rows 是真实尺寸
+    if (!entry.readyFired) {
+      entry.readyFired = true
+      terminalReadyHandler?.(sessionId, entry.terminal.cols, entry.terminal.rows)
+    }
     entry.terminal.focus()
   })
 }

@@ -2,6 +2,7 @@
 // Shell 改动只影响之后新开的终端(既有语义,AGENTS.md/契约第 5 节);回滚行数按
 // 「变化即重建实例」生效(TerminalView 既有 effect,scrollback 是创建期参数)。
 import { updateSettings, useSettings } from '../../store/settings-slice'
+import { NumberField } from './NumberField'
 import type { Settings, ShellKind } from '../../../../shared/types'
 
 const SHELL_OPTIONS: Array<{ value: ShellKind; label: string }> = [
@@ -48,14 +49,14 @@ export function GeneralSection(): React.JSX.Element {
           <span className="block text-xs text-ink-muted">1000 ~ 50000;改动即重建终端实例</span>
         </span>
         <span className="shrink-0">
-          <input
-            type="number"
+          <NumberField
+            ariaLabel="回滚缓冲区行数"
             min={1000}
             max={50000}
             step={1000}
-            className={`${controlClass} w-24`}
             value={settings.scrollbackRows}
-            onChange={(event) => patch({ scrollbackRows: Number(event.target.value) })}
+            onCommit={(next) => patch({ scrollbackRows: next })}
+            className={`${controlClass} w-24`}
           />
         </span>
       </label>

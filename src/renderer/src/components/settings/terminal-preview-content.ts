@@ -2,6 +2,7 @@
 // Ported from stablyai/orca src/renderer/src/components/settings/terminal/appearance/terminal-preview-content.ts (MIT)
 // Why 移植现成文本:它已覆盖 16 色、斜体、暗淡与背景色,并在 36 列宽度下逐行不折行——
 // 预览的价值就是让这些色位同时露面,自己另写一段不会有更好的覆盖。
+// 与源唯一的差异:提示符里的产品名改为本项目的 soloport(源里是 Orca),这是用户可见文案。
 const RESET = '\x1b[0m'
 const DIM = '\x1b[2m'
 const ITALIC = '\x1b[3m'
@@ -15,7 +16,7 @@ const BG_GREEN = '\x1b[42m'
 const FG_BLACK = '\x1b[30m'
 
 function prompt(): string {
-  return `${BLUE}~/orca${RESET} ${MAGENTA}main${RESET} ${YELLOW}*${RESET} $ `
+  return `${BLUE}~/soloport${RESET} ${MAGENTA}main${RESET} ${YELLOW}*${RESET} $ `
 }
 
 // Fit PREVIEW_COLS at the default font so xterm does not wrap preview lines.

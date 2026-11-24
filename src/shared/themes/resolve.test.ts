@@ -59,6 +59,18 @@ describe('selectTerminalTheme(主题选择解析:三态 + 系统深浅 + 双槽)
 })
 
 describe('resolveTerminalAppearance(终端外观解析:字段独立映射 + 夹紧)', () => {
+  it('用例 5b(终审 Minor③):浅槽 id 不在目录 → 落默认浅主题 Builtin Tango Light', async () => {
+    // 浅槽兜底走的是另一个常量,深槽用例测不到;浅色态 + 打错字必须仍给出可用配色
+    const { selectTerminalTheme } = await import('./resolve')
+    const { TERMINAL_THEMES } = await import('./catalog')
+    const picked = selectTerminalTheme(
+      { theme: 'light', terminalThemeDark: 'Ghostty Default Style Dark', terminalThemeLight: 'No Such Light' },
+      false
+    )
+    expect(picked.mode).toBe('light')
+    expect(picked.theme).toBe(TERMINAL_THEMES['Builtin Tango Light'])
+  })
+
   it('用例 6:terminalFontFamily 缺省 → 输出完整默认回退链;scrollback 直通', async () => {
     const { resolveTerminalAppearance } = await import('./resolve')
     const out = resolveTerminalAppearance(makeSettings({ scrollbackRows: 20000 }), true)

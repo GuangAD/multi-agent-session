@@ -113,3 +113,13 @@ brief 第 6 节无欠账,无遗留项。
     3. 预览实例用独立 Terminal,不进 use-terminal 注册表,故 applyToAll 不会误改预览
 - 整特性收尾补测(自查第 3/4 条) | applyAppearance 在 spec 接口面清单标为「接缝」却无用例(自查发现的缺口) | 处置:theme.ts 的 applyAppearance 增加可注入 root 参数(默认 document.documentElement,不新增依赖、不引 jsdom),新增 theme.test.ts 6 条用例覆盖:dark+非默认主题、default 不挂类、切换清旧类幂等、目录外 id 兜底、全部目录 id 对齐、三态解析衔接;mutation check:去掉 default 判断后「default 不挂主题类」与「目录内每个 id」两条精确转红(2 failed / 4 passed),还原后 6 passed | 全量 43 文件 299 passed
 - 挂起 Minor ② 关闭(整特性收尾) | 新增 app-themes-css.test.ts 2 条:直接读 theme-tokens.css,解析 :root/.dark 与 14 个 .theme-<id> 块,与 APP_THEMES 逐值比对(9 token × 16 形态) | mutation check:把 warm 浅形态 accent 末位由 9 改 a 后「其余每套主题」用例精确转红(1 failed/1 passed),还原后 2 passed | 全量 44 文件 301 passed
+- 整特性终审(门 3 前) | 独立 reviewer 裁决 **BLOCK**(2 项 P1),其余 P2/挂起 Minor 可后置;已全部按裁决处置
+  - 终审发现的接缝缺口:S8「隐藏终端跳过 fit」分支零测试(正是 P1-2 的藏身处)、S10 外观重放无测试(设计如此,依赖冒烟)、S2 INITIAL_SETTINGS 无锚定(评审手工比对当前同值)
+  - **P1-1 已修**:数字输入逐键直连 patch → 主进程夹紧回写,字号无法键入 16(键「1」即被夹成 8),回滚行数逐键重建全部终端且中间值落盘。处置:新增 NumberField 组件(本地草稿态,失焦/回车提交,方向键即时提交,空串/非数字/越界本地不提交),字号/行高/回滚行数三处改用
+  - **P1-2 已修**:openTerminal 首帧 fit 无隐藏守卫 → 0 尺寸盒经 StableCellFitAddon 提案成 2×1 并被 fit 当真,经 onResize → pty.resize(2,1) 打到后台 agent(T6 订阅让该路径可达)。处置:首帧 RAF 加 `display === 'none'` 守卫并跳过 ready;新增 readyFired 标记,首次可见的 activateTerminal 补发一次 ready(否则隐藏期创建��会话永不 spawn);同时纠正文件头那句与自定义 addon 矛盾的断言。补 S8 用例(隐藏不 fit、外观应用不 fit、可见照旧 fit):**mutation check 去掉守卫 → 该用例精确转红(1 failed / 28 passed)**
+  - P2-1(TDZ 残留面)未修,记录:hoisted function 只保证可调用,INITIAL_SETTINGS 仍是 const;结构解法与 Minor① 同一刀(默认值提到 shared),建议门 3 后单独立项
+  - P2-2 已修:预览初态改 `resolveDark(settings.theme, systemPrefersDark())`(此前 system+系统浅色时预览显示深色,两副面孔)
+  - P2-3 已修:预览创建失败时渲染占位文案,不再留空白边框
+  - P2-4 已修:TerminalTabs 头注释与订阅行为对齐;预览切换钮 aria-label 随当前态变化;预览示例提示符产品名 Orca → soloport(文件头登记该偏离)
+  - Minor③ 已修:补浅槽坏 id 用例(浅槽兜底走另一常量,深槽用例测不到);**mutation check:浅色态改用深默认 → 用例 5b 精确转红(1 failed / 16 passed)**
+  - 最终验证:typecheck 0 error;`pnpm test` 44 文件 303 passed;`pnpm build` 产物 CSS 35.97KB,--app-base×17 / data-scrollbars×13 / theme-warm×2 / xterm-container×3(与终审给出的期望值逐项吻合)

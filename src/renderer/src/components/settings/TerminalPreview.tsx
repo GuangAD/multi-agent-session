@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { Moon, Sun } from 'lucide-react'
 import { resolveTerminalAppearance } from '../../../../shared/themes/resolve'
+import { resolveDark, systemPrefersDark } from '../../theme'
 import { Button } from '../ui/button'
 import { PREVIEW_BUFFER } from './terminal-preview-content'
 import type { Settings } from '../../../../shared/types'
@@ -17,8 +18,13 @@ const PREVIEW_ROWS = 15
 export function TerminalPreview({ settings }: { settings: Settings }): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
-  // 预览深浅只切自己,不动主题三态、不落盘(验收条目 6)
-  const [previewDark, setPreviewDark] = useState(settings.theme !== 'light')
+  // 预览深浅只切自己,不动主题三态、不落盘(验收条目 6)。
+  // 初值必须是「当前解析出的深浅」,否则 theme=system + 系统浅色时预览初态是深色、真实终端是浅色
+  // ——两副面孔即 brief 的失败形态(终审 P2-2)
+  const [previewDark, setPreviewDark] = useState(() =>
+    resolveDark(settings.theme, systemPrefersDark())
+  )
+  const [failed, setFailed] = useState(false)
 
   // 创建/销毁只随挂载:选项变化走下面的 effect,不重建实例(重建会丢滚入位置与闪一下)
   useEffect(() => {
@@ -39,6 +45,7 @@ export function TerminalPreview({ settings }: { settings: Settings }): React.JSX
       })
     } catch (error) {
       console.error('创建预览终端失败,预览区将以占位显示:', error)
+      setFailed(true) // 契约要求失败有占位文案(终审 P2-3),不留空白边框
       return
     }
     terminal.open(container)
@@ -75,7 +82,7 @@ export function TerminalPreview({ settings }: { settings: Settings }): React.JSX
         <span className="text-xs text-ink-muted">预览</span>
         <Button
           variant="ghost"
-          aria-label="预览切换到深色(仅预览)"
+          aria-label={previewDark ? '预览切换到浅色(仅预览)' : '预览切换到深色(仅预览)'}
           title="仅切换预览,不改主题设置"
           className="!px-1 !py-0.5"
           onClick={() => setPreviewDark((dark) => !dark)}
@@ -83,12 +90,16 @@ export function TerminalPreview({ settings }: { settings: Settings }): React.JSX
           {previewDark ? <Moon className="size-3.5" aria-hidden /> : <Sun className="size-3.5" aria-hidden />}
         </Button>
       </div>
-      <div
-        ref={containerRef}
-        className="overflow-auto p-1"
-        data-scrollbars="sleek"
-        aria-label="终端外观预览"
-      />
+      {failed ? (
+        <p className="p-2 text-xs text-ink-muted">预览不可用(终端渲染器未初始化),外观设置不受影响。</p>
+      ) : (
+        <div
+          ref={containerRef}
+          className="overflow-auto p-1"
+          data-scrollbars="sleek"
+          aria-label="终端外观预览"
+        />
+      )}
     </div>
   )
 }

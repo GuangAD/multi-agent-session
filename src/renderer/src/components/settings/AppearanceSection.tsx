@@ -14,6 +14,7 @@ import { applyAppearance, resolveDark, systemPrefersDark } from '../../theme'
 import { updateSettings, useSettings } from '../../store/settings-slice'
 import type { Settings } from '../../../../shared/types'
 import { TerminalPreview } from './TerminalPreview'
+import { NumberField } from './NumberField'
 
 
 const FONT_WEIGHTS: Array<{ value: number; label: string }> = [
@@ -140,14 +141,13 @@ export function AppearanceSection(): React.JSX.Element {
         </select>
       </Row>
       <Row label="字号" hint="8 ~ 32">
-        <input
-          type="number"
+        <NumberField
+          ariaLabel="终端字号"
           min={8}
           max={32}
-          step={1}
-          className={`${controlClass} w-20`}
           value={settings.terminalFontSize}
-          onChange={(event) => patch({ terminalFontSize: Number(event.target.value) })}
+          onCommit={(next) => patch({ terminalFontSize: next })}
+          className={`${controlClass} w-20`}
         />
       </Row>
       <Row label="字重">
@@ -164,14 +164,14 @@ export function AppearanceSection(): React.JSX.Element {
         </select>
       </Row>
       <Row label="行高" hint="1.0 ~ 2.0">
-        <input
-          type="number"
+        <NumberField
+          ariaLabel="终端行高"
           min={1}
           max={2}
           step={0.1}
-          className={`${controlClass} w-20`}
           value={settings.terminalLineHeight}
-          onChange={(event) => patch({ terminalLineHeight: Number(event.target.value) })}
+          onCommit={(next) => patch({ terminalLineHeight: next })}
+          className={`${controlClass} w-20`}
         />
       </Row>
       <Row label="光标样式">

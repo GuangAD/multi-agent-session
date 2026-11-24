@@ -541,6 +541,30 @@ describe('use-terminal 外观应用随系统深浅换槽(T5 用例 3)', () => {
   })
 })
 
+describe('隐藏终端的 fit 守卫(终审 P1-2)', () => {
+  it('display:none 的容器不 fit、不发 spawn 就绪回调;可见容器照旧 fit', () => {
+    // 隐藏容器:首帧 fit 必须被守卫挡掉——否则 0 尺寸盒被 StableCellFitAddon 提案成 2×1,
+    // fit 会把 2×1 当真实尺寸并经 onResize → pty.resize 打到后台 agent
+    openTerminal('s-hidden', 10000, makeSettings(), false, makeContainerStub('none'))
+    const hiddenFit = createdFitAddons.at(-1)!
+    flushAnimationFrame()
+    expect(hiddenFit.fitCalls, '隐藏终端首帧不得 fit').toBe(0)
+
+    // 隐藏终端的外观应用同样跳过 fit(与 applyTerminalAppearanceToAll 的既有守卫同口径)
+    applyTerminalAppearanceToAll(makeSettings({ terminalFontSize: 20 }), false)
+    flushAnimationFrame()
+    expect(hiddenFit.fitCalls, '隐藏终端的外观应用也不得 fit').toBe(0)
+    closeTerminal('s-hidden')
+
+    // 可见容器:守卫不得把正常路径一起挡掉
+    openTerminal('s-visible', 10000, makeSettings(), false, makeContainerStub())
+    const visibleFit = createdFitAddons.at(-1)!
+    flushAnimationFrame()
+    expect(visibleFit.fitCalls, '可见终端首帧应 fit 一次').toBe(1)
+    closeTerminal('s-visible')
+  })
+})
+
 describe('use-terminal 创建期外观来自设置(T5 用例 2)', () => {
   it('openTerminal 传入 fontSize=20 的设置:新实例 options 取解析输出而非本地常量', () => {
     openTerminal('s-from-settings', 10000, makeSettings({ terminalFontSize: 20 }), false, makeContainerStub())

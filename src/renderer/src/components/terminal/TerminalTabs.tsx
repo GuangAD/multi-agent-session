@@ -1,5 +1,5 @@
 // 终端区:标签页栏 + 每会话一个常驻 TerminalView(tab 切换仅切可见性)
-// scrollback 取 settings(默认 10000);设置界面属后续任务,本任务只读一次
+// scrollback 订阅 settings 切片:设置对话框改行数即让 TerminalView 的既有 effect 重建实例
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useAppStore } from '../../store/app-store'
