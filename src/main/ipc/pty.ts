@@ -8,7 +8,11 @@ import { statSync } from 'node:fs'
 import { IPC_CHANNELS } from './channels'
 import { ptyRegistry } from '../pty-registry'
 import { agentRegistry } from '../agents/agent-registry'
-import { BackfillCoordinator, filterFreshCandidates } from '../session-store/backfill'
+import {
+  BackfillCoordinator,
+  filterFreshCandidates,
+  pickBackfillTitle
+} from '../session-store/backfill'
 import { sessionRecords } from '../session-store/session-records'
 import { getReceiverInfo } from '../agent-hooks/receiver'
 import type { Injector } from '../agent-hooks/injector'
@@ -19,7 +23,7 @@ import type { PtyDataEvent, PtyExitEvent } from '../../shared/ipc-contract'
 function sendToRenderer(
   getWindow: () => BrowserWindow | null,
   channel: string,
-  payload: PtyDataEvent | PtyExitEvent
+  payload: PtyDataEvent | PtyExitEvent | Session
 ): void {
   const window = getWindow()
   if (window && !window.isDestroyed()) {
@@ -28,11 +32,14 @@ function sendToRenderer(
 }
 
 // T8 回填编排(controller 裁决 4):spawn 成功后,自建且尚无 externalSessionId 的会话自动
-// claim 资格并按节流轮询;发现新候选由本层把 id(及转录路径,有则)写回记录并防抖落盘
+// T8 回填编排(controller 裁决 4):spawn 成功后,自建且尚无 externalSessionId 的会话自动
+// claim 资格并按节流轮询;发现新候选由本层把 id(及转录路径/标题,有则)写回记录、防抖落盘并
+// 广播 sessions:changed(2026-11-24:渲染层侧栏即时跟随)——标题缺失时接力 pollForTitle 补捞
 // (跟随 T4 既有模式:直接改 session 对象 + scheduleSave,sessionRecords 无 update 方法)。
 function startBackfillIfEligible(
   store: AppStore,
   scheduleSave: () => void,
+  getWindow: () => BrowserWindow | null,
   session: Session,
   def: AgentDefinition
 ): void {
@@ -82,13 +89,34 @@ function startBackfillIfEligible(
     if (!id) {
       return // 放弃:记录保持无 id(重开原样拉起)
     }
-    // 写回记录:id(及转录路径,有则)+ 防抖落盘(poll 只回 id,候选由闭包留在 lastCandidates)
+    // 写回记录:id(及转录路径/标题,有则)+ 防抖落盘 + 广播渲染层(poll 只回 id,候选由闭包留在 lastCandidates)
     session.externalSessionId = id
     const found = lastCandidates.find((candidate) => candidate.externalSessionId === id)
     if (found?.filePath) {
       session.externalFilePath = found.filePath
     }
+    const title = pickBackfillTitle(session.title, def.name, found)
+    if (title) {
+      session.title = title
+    }
     scheduleSave()
+    sendToRenderer(getWindow, IPC_CHANNELS.sessionsChanged, session)
+    // 标题补捞:候选尚无标题(pi 启动即建文件、首条消息前无标题)且用户未改名时接力轮询,
+    // 节流沿用回填档位、2 分钟放弃(标题只是显示优化);拿到后再守卫一次——补捞期间会话可能
+    // 被删除或被用户改名,记录不在/名字已换即放弃,绝不覆盖用户命名
+    if (found && !found.externalTitle && session.title === def.name) {
+      void BackfillCoordinator.pollForTitle(session.id, id, () => scan(project.path)).then(
+        (lateTitle) => {
+          const current = sessionRecords.get(store, session.id)
+          if (!current || !lateTitle || current.title !== def.name) {
+            return // 已删除/超时/补捞期间用户改名:不动
+          }
+          current.title = lateTitle
+          scheduleSave()
+          sendToRenderer(getWindow, IPC_CHANNELS.sessionsChanged, current)
+        }
+      )
+    }
   })
 }
 
@@ -125,7 +153,11 @@ export function registerPtyIpc(
       // 接收器未启动/端口未就绪则不注入(该会话无 hook 上报,spawn 照常)
       // hook-run-state T3:spawn 前自愈(配置缺失补写;失败不阻塞 spawn,该会话无 hook 上报)
       if (injector) {
-        try { await injector.ensureProject(p.cwd) } catch (error) { console.error('[agent-hooks] spawn 前注入自愈失败:', error) }
+        try {
+          await injector.ensureProject(p.cwd)
+        } catch (error) {
+          console.error('[agent-hooks] spawn 前注入自愈失败:', error)
+        }
       }
       const receiverInfo = getReceiverInfo()
       await ptyRegistry.spawn({
@@ -148,7 +180,7 @@ export function registerPtyIpc(
       // spawn 成功后自动 claim + 轮询(controller 裁决 4);imported / 已有 id 不参与
       const session = sessionRecords.get(store, p.sessionId)
       if (session && session.origin === 'created' && !session.externalSessionId) {
-        startBackfillIfEligible(store, scheduleSave, session, def)
+        startBackfillIfEligible(store, scheduleSave, getWindow, session, def)
       }
     }
   )

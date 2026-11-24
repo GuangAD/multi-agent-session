@@ -37,6 +37,8 @@ export interface SessionsSlice {
   removeSession: (id: SessionId) => Promise<void>
   // T6:导入该 agent 在本项目下的历史会话(主进程扫描 + 去重),返回条数供 UI 提示
   importSessions: (projectId: ProjectId, agentId: AgentId) => Promise<ImportResult>
+  // 主进程回填/标题补捞改写记录后的原位落位(sessions:changed 广播;externalSessionId/标题)
+  applyExternalUpdate: (session: Session) => void
 }
 
 // 待 spawn 会话:渲染层先开 tab 拿到 fit 提案尺寸再 spawn(Fix-B)。模块级协调数据,
@@ -216,5 +218,9 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
       sessions: [...state.sessions.filter((session) => session.projectId !== projectId), ...list]
     }))
     return result
+  },
+  // 主进程回填/标题补捞改写记录后的原位落位(sessions:changed 广播):与 renameSession 同语义
+  applyExternalUpdate: (session) => {
+    set((state) => ({ sessions: upsertSession(state.sessions, session) }))
   }
 })

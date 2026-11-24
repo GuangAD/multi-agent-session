@@ -12,8 +12,11 @@ import { kimiPlugin as kimiAgent } from '../agents/plugins/kimi/plugin'
 import { piPlugin as piAgent } from '../agents/plugins/pi/plugin'
 import {
   BACKFILL_GIVE_UP_MS,
+  BACKFILL_TITLE_GIVE_UP_MS,
   BackfillCoordinator,
-  filterFreshCandidates
+  filterFreshCandidates,
+  pickBackfillTitle,
+  pollForTitle
 } from './backfill'
 import type { ImportCandidate } from '../../shared/agents'
 import type { Session } from '../../shared/types'
@@ -81,8 +84,12 @@ it('用例 2:同 agent+项目两会话均请求 claim → 仅先开者 true,后�
   expect(BackfillCoordinator.claim(second, [first])).toBe(false)
   expect(BackfillCoordinator.pollingSessions().map((item) => item.id)).toEqual(['s-first'])
   // 资格按「同一 agent + 项目目录」计:跨项目、跨 agent 不构成冲突(手算同键判定的反面)
-  expect(BackfillCoordinator.claim(makeSession({ id: 's-other-proj', projectId: 'proj-2' }), [first])).toBe(true)
-  expect(BackfillCoordinator.claim(makeSession({ id: 's-other-agent', agentId: 'codex' }), [first])).toBe(true)
+  expect(
+    BackfillCoordinator.claim(makeSession({ id: 's-other-proj', projectId: 'proj-2' }), [first])
+  ).toBe(true)
+  expect(
+    BackfillCoordinator.claim(makeSession({ id: 's-other-agent', agentId: 'codex' }), [first])
+  ).toBe(true)
 })
 
 it('用例 3:先开者 release 后,后开者 claim 变 true(接棒)', () => {
@@ -231,5 +238,80 @@ describe('filterFreshCandidates(候选新鲜度护栏)', () => {
       () => claimedAtMs
     )
     expect(result).toEqual([])
+  })
+})
+
+// —— 标题写回与补捞(2026-11-24:回填成功后用 agent 侧标题更新会话名)——
+// 场景:新建会话初始名 = agent 显示名;回填拿到 externalSessionId 时候选里本就解析出了
+// externalTitle(首条用户提示等),应顺手写回;pi 这类启动即建文件的 agent 标题晚于文件,
+// 需要「标题补捞」轻量轮询。
+
+describe('pickBackfillTitle(标题写回判定)', () => {
+  it('候选有标题且记录仍是默认 agent 名 → 返回该标题', () => {
+    expect(pickBackfillTitle('Pi', 'Pi', { externalTitle: '帮我写个脚本' })).toBe('帮我写个脚本')
+  })
+
+  it('用户已手动改名(title ≠ agent 显示名)→ null,不覆盖用户命名', () => {
+    expect(pickBackfillTitle('我的会话', 'Pi', { externalTitle: '帮我写个脚本' })).toBeNull()
+  })
+
+  it('候选无标题或纯空白 → null(交给补捞,不写空标题)', () => {
+    expect(pickBackfillTitle('Pi', 'Pi', undefined)).toBeNull()
+    expect(pickBackfillTitle('Pi', 'Pi', {})).toBeNull()
+    expect(pickBackfillTitle('Pi', 'Pi', { externalTitle: '   ' })).toBeNull()
+  })
+})
+
+describe('pollForTitle(标题补捞轮询)', () => {
+  const candidateOf = (id: string, title?: string): ImportCandidate => ({
+    externalSessionId: id,
+    ...(title !== undefined ? { externalTitle: title } : {}),
+    cwd: 'D:/proj-1'
+  })
+
+  it('若干轮后目标 id 候选出现标题 → 返回标题;同 scan 里其他 id 不串', async () => {
+    let round = 0
+    const scan = vi.fn(async () => {
+      round += 1
+      if (round === 1) {
+        return [
+          candidateOf('ext-1'),
+          candidateOf('other-1', '别人的标题') // 干扰项:必须按 externalSessionId 精确匹配
+        ]
+      }
+      return [candidateOf('ext-1', '真实标题'), candidateOf('other-1', '别人的标题')]
+    })
+    const pending = pollForTitle('s-title', 'ext-1', scan)
+    await vi.advanceTimersByTimeAsync(0) // 首扫:有候选、无标题
+    await vi.advanceTimersByTimeAsync(750)
+    await expect(pending).resolves.toBe('真实标题')
+  })
+
+  it('超时(BACKFILL_TITLE_GIVE_UP_MS = 120_000)→ null,标题保持 agent 名', async () => {
+    expect(BACKFILL_TITLE_GIVE_UP_MS).toBe(120_000)
+    const scan = vi.fn(async () => [candidateOf('ext-1')]) // 有候选、永远无标题
+    const pending = pollForTitle('s-timeout', 'ext-1', scan)
+    await vi.advanceTimersByTimeAsync(BACKFILL_TITLE_GIVE_UP_MS - 1)
+    expect(scan.mock.calls.length).toBeGreaterThan(0) // 期间确实在轮询
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(pending).resolves.toBeNull()
+  })
+
+  it('release(关标签/删会话)中止在途补捞 → 立即 null', async () => {
+    const scan = vi.fn(async () => [])
+    const pending = pollForTitle('s-abort', 'ext-1', scan)
+    await vi.advanceTimersByTimeAsync(0) // 排空首扫
+    BackfillCoordinator.release('s-abort')
+    await expect(pending).resolves.toBeNull()
+  })
+
+  it('重入:同会话已在补捞 → 第二次直接 null,不叠加循环', async () => {
+    const scan = vi.fn(async () => [])
+    const first = pollForTitle('s-reentry', 'ext-1', scan)
+    const second = pollForTitle('s-reentry', 'ext-1', scan)
+    await expect(second).resolves.toBeNull()
+    BackfillCoordinator.release('s-reentry')
+    await expect(first).resolves.toBeNull()
+    expect(scan).toHaveBeenCalledTimes(1) // 只有一轮在跑
   })
 })

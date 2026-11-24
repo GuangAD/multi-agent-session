@@ -286,4 +286,14 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 口径登记:①PS 5.1 对原生命令的参数引号有已知缺陷(引号内嵌/结尾反斜杠;PS 7.2+ 才有 `$PSNativeCommandArgumentPassing`),本机探针覆盖了「含空格参数」这一实际场景,残余风险记入待验证清单 ②`pwsh` 未安装,选择后 resolveCommandPath 返回 null → 退回裸名 `pwsh.exe` → node-pty 报错,如实暴露,不做额外兜底 ③`Settings.shell` 为必填:三个测试夹具同步补 `shell` 字段(形状变更的正常代价,不放宽断言) ④迁移后的 store.json 已含 `shell: 'powershell'`(loadStore 合并默认值),无需手工改
   - 文档变更登记:`docs/pending-verification.md` 新增「一之二、终端 shell 换成 PowerShell」七项待验证(含改回 cmd 的方法);本条 dev 记录
   - 下游结论:①换 shell 只影响「agent 退出后你回到的提示符」;agent 的 TUI/滚轮/尺寸/状态点走 ConPTY 与 xterm,与 shell 无关 ②新增 shell 种类时改 `resolveShellExecutable` + `buildShellSpawnArgs`(+ 可能 `buildPowerShellLaunchScript`),并同步 `SHELLS` 校验枚举 ③若将来做设置界面:写 `settings.shell` 即可,注册表读的是 `store.settings.shell`(每次 spawn 现取,不需重启) ④终端内按键守卫按 `.xterm` 判断,与 shell 无关,换 shell 不影响快捷键边界
+- 2026-11-24 12:11 | 需求变更(用户提出并确认方案):新建会话初始名 = agent 显示名,回填拿到 externalSessionId 后用 agent 侧标题更新会话名
+  - 动机:新建会话立即以「Pi」等 agent 名命名,信息量为零;agent 侧标题(首条用户提示等)扫描器本就解析(`ImportCandidate.externalTitle`),只是回填写回时被丢弃
+  - 实现(7 文件):①`backfill.ts` 新增 `pickBackfillTitle`(写回判定纯函数:候选有非空标题且记录仍为默认 agent 名才采用,用户手动改名不覆盖)+ `BACKFILL_TITLE_GIVE_UP_MS = 120_000` + `pollForTitle`(标题补捞轮询:pi 启动即建文件、标题晚于文件出现,按已知 id 精确匹配候选接力捞标题,节流沿用回填档位、2 分钟放弃;release 随资格释放一并中止)②`ipc/pty.ts` 回填写回段扩为 id + 转录路径 + 标题,补捞到手后重查记录存在性与改名守卫再写;每次写回广播 `sessions:changed`③契约新增下行通道 `sessions:changed`(载荷 = Session),preload 暴露 `sessions.onChanged`④渲染层 `sessions-slice.applyExternalUpdate`(复用 upsertSession 原位替换)+ App.tsx 订阅,侧栏即时跟随
+  - 关键设计:标题补捞不复用回填 scan 闭包(known 集合会排除已写回 id,复用即永远捞不到),独立按 id 过滤,不做新鲜度护栏(id 已锁定不存在串线,不需资格);写回前后双重守卫(发现时 + 补捞到手时)防覆盖用户命名与悬空写回
+  - 测试:backfill.test.ts 新增 7 条(写回判定 3 + 补捞轮询 4);mutation check 留痕:去掉改名守卫 → 「用户已手动改名」用例精确转红 → 还原 22 passed
+  - 验证:typecheck 双投影 0 error;vitest 247 passed / 36 files(基线 244 + 本轮 7,自洽;`pty-registry.kill-tree.test.ts` 3 条在沙箱内因 tasklist 拒绝访问失败,git stash 基线复跑同样失败,坐实为沙箱环境限制非本改动);`pnpm build` 通过(T9 白屏教训:渲染层改动必过 build);eslint 改动文件 0 error
+  - 口径登记:①`Session.externalTitle`(agent 侧原名,认亲用)本轮不写——导入记录有值、自建回填记录保持空,如需对齐另立小改 ②初始名保留 agent 显示名不改「未命名」:回填失败时 agent 名仍有信息量 ③claude/codex 发现文件时标题已存在(首条消息后才建文件),补捞主要服务 pi 这类启动即建文件的 agent;kimi/antigravity 标题行为本机未装,装后复核
+  - 环境事故(留痕):本轮沙箱内 node_modules 128234 个文件 ACL 损坏(tsc/vitest 入口等读不了,icacls 查询被拒),经用户授权 `icacls node_modules /reset /t /c` 沙箱外重置后恢复;损坏疑源为 2026-11-24 11:10 那次 `pnpm install`,若复发优先排查该次安装
+  - 文档变更登记:`docs/pending-verification.md` 新增「五、会话名随回填自动更新」R1–R4 待验证;本条 dev 记录
+  - 提交状态:未提交(等用户冒烟确认)
 <!-- 四层文档的任何改动都在这里另行留一行 -->

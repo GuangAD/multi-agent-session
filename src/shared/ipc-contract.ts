@@ -55,9 +55,12 @@ export const IPC_CHANNELS = {
   gitBranches: 'git:branches',
   gitCheckout: 'git:checkout',
   // 主进程 → 渲染层事件通道(ipcRenderer.on 订阅)
+  // 主进程 → 渲染层事件通道(ipcRenderer.on 订阅)
   ptyData: 'pty:data',
   ptyExit: 'pty:exit',
-  stateChanged: 'state:changed'
+  stateChanged: 'state:changed',
+  // 主进程回填/标题补捞改写会话记录(externalSessionId/标题)后的广播(渲染层原位 upsert)
+  sessionsChanged: 'sessions:changed'
 } as const
 
 // preload 暴露给渲染层的桥接 API 面;main 按此注册 handler
@@ -88,6 +91,8 @@ export interface SessionsApi {
     imported: number
     skipped: number
   }>
+  // 主进程回填/标题补捞改写记录后的广播(externalSessionId/标题写回;渲染层原位 upsert,侧栏即时跟随)
+  onChanged: (listener: (session: Session) => void) => () => void
 }
 
 // 终端渲染参数(scrollback 默认 10000)与主题;T3 只读,T11 增补写入(主题切换)

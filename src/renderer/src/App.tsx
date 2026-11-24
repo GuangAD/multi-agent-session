@@ -34,6 +34,7 @@ function App(): React.JSX.Element {
   const tabs = useAppStore((state) => state.tabs)
   const activeTabId = useAppStore((state) => state.activeTabId)
   const setActiveTab = useAppStore((state) => state.setActiveTab)
+  const applyExternalUpdate = useAppStore((state) => state.applyExternalUpdate)
   const closeTab = useAppStore((state) => state.closeTab)
   const openAgentDialog = useAppStore((state) => state.openAgentDialog)
   const [leftOpen, setLeftOpen] = useState(true)
@@ -62,6 +63,13 @@ function App(): React.JSX.Element {
   useEffect(
     () => bridge.state.onChanged((event) => setRunState(event.sessionId, event.state)),
     [setRunState]
+  )
+
+  // 主进程回填/标题补捞改写会话记录(externalSessionId/标题)→ 原位落位,侧栏即时跟随。
+  // Why 走事件而不是重拉列表:一次广播一条记录,upsert 幂等,无需按项目全量刷新
+  useEffect(
+    () => bridge.sessions.onChanged((session) => applyExternalUpdate(session)),
+    [applyExternalUpdate]
   )
 
   // 上报「当前前台会话」给主进程(T11 通知判定),切标签/窗口聚焦变化都重报一次。

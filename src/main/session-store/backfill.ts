@@ -2,6 +2,8 @@
 // 同一 agent + 项目目录同时只有一个会话持有资格:先开者持有,其关闭或回填成功时释放,
 // 后开者接棒;持有者按节流轮询该 agent 存储的新会话文件,发现即把候选 id 返回给编排层写回记录;
 // imported 会话永不参与;轮询到头(放弃时限)无果则放弃,记录保持无 id(brief 第 5 节)。
+// 标题随行(2026-11-24):回填拿到 id 后,agent 侧标题(externalTitle)写回会话名;标题晚于
+// 会话文件出现时(pi)由 pollForTitle 轻量补捞,见下「标题写回与标题补捞」节。
 // Why: scan 由编排层注入——本模块不 import agents 域(领域横向依赖禁令,spec 模块划分)。
 // 落点:src/main/session-store/backfill.ts(spec 接口面清单「BackfillCoordinator」)
 import type { ImportCandidate } from '../../shared/agents'
@@ -51,6 +53,99 @@ export function filterFreshCandidates(
   return fresh.sort((a, b) => a.mtimeMs - b.mtimeMs).map((item) => item.candidate)
 }
 
+// —— 标题写回与标题补捞(2026-11-24:回填成功后用 agent 侧标题更新会话名)——
+
+// 标题补捞放弃时限:从启动补捞起算 2 分钟。
+// Why 比回填 300_000ms 短:标题只是显示优化,不值得陪跑回填全程;超时保持 agent 名,无害。
+export const BACKFILL_TITLE_GIVE_UP_MS = 120_000
+
+// 标题写回判定(纯函数):候选带非空标题且记录仍是默认 agent 显示名才采用。
+// Why 守卫:回填写回发生在 spawn 后数秒~数分钟,期间用户可能已双击改名;用户命名 > agent 侧标题。
+// 边界(如实登记):用户故意把会话名改成与 agent 显示名完全相同会被覆盖——极罕见,不为它加字段。
+export function pickBackfillTitle(
+  sessionTitle: string,
+  agentName: string,
+  candidate?: { externalTitle?: string }
+): string | null {
+  const externalTitle = candidate?.externalTitle?.trim()
+  if (!externalTitle || sessionTitle !== agentName) {
+    return null
+  }
+  return externalTitle
+}
+
+// 在途标题补捞的中止回调:release(关标签/删会话)时一并中止——agent 已死,标题不可能再出现,
+// 继续轮询只是空转;编排层另有「记录还在不在」守卫,这里负责及时止损。
+const titlePolls = new Map<SessionId, () => void>()
+
+// 标题补捞轮询:pi 等启动即建会话文件的 agent,标题(首条用户消息)晚于文件出现,而 poll 拿到
+// id 就收场——标题由本函数接力:按已知 externalSessionId 精确匹配候选拿到非空标题即返回;
+// Why 不复用回填 scan 闭包的 known 过滤:已写回的 id 恰会被它排除;也不做新鲜度护栏,
+// id 已锁定不存在串线。节流档位沿用回填;超时/中止返回 null(标题保持 agent 名,无害)。
+export function pollForTitle(
+  sessionId: SessionId,
+  externalSessionId: string,
+  scan: () => Promise<ImportCandidate[]>
+): Promise<string | null> {
+  if (titlePolls.has(sessionId)) {
+    return Promise.resolve(null) // 重入:同会话已在补捞,不叠加循环
+  }
+  let scanTimer: ReturnType<typeof setTimeout> | null = null
+  let deadlineTimer: ReturnType<typeof setTimeout> | null = null
+  let tierIndex = 0
+  let settled = false
+
+  return new Promise<string | null>((resolve) => {
+    const finish = (result: string | null): void => {
+      if (settled) {
+        return
+      }
+      settled = true
+      if (scanTimer) {
+        clearTimeout(scanTimer)
+      }
+      if (deadlineTimer) {
+        clearTimeout(deadlineTimer)
+      }
+      titlePolls.delete(sessionId)
+      resolve(result)
+    }
+    titlePolls.set(sessionId, () => finish(null))
+
+    deadlineTimer = setTimeout(() => finish(null), BACKFILL_TITLE_GIVE_UP_MS)
+
+    const tick = async (): Promise<void> => {
+      if (settled) {
+        return
+      }
+      let candidates: ImportCandidate[]
+      try {
+        candidates = await scan()
+      } catch {
+        candidates = [] // 扫描瞬时失败按无候选处理,继续节流(与 poll 同口径)
+      }
+      if (settled) {
+        return // scan await 期间被 release:不再写回
+      }
+      const title = candidates
+        .find((candidate) => candidate.externalSessionId === externalSessionId)
+        ?.externalTitle?.trim()
+      if (title) {
+        finish(title)
+        return
+      }
+      // 节流:档位逐级放慢,封顶档循环(与 poll 同款)
+      const interval =
+        BACKFILL_POLL_INTERVALS_MS[Math.min(tierIndex, BACKFILL_POLL_INTERVALS_MS.length - 1)]
+      tierIndex += 1
+      scanTimer = setTimeout(() => {
+        void tick()
+      }, interval)
+    }
+    void tick()
+  })
+}
+
 // 内表:当前持资格(轮询中)的会话;claim 登记、release 摘除(poll 结束自动摘)
 const holders = new Map<SessionId, Session>()
 // claim 时刻:5 分钟放弃时限的起算点(controller 裁决 3:从 claim 起算)
@@ -87,6 +182,10 @@ function release(sessionId: SessionId): void {
   const abort = activePolls.get(sessionId)
   if (abort) {
     abort() // 以 null 收场,编排层不会写回
+  }
+  const titleAbort = titlePolls.get(sessionId)
+  if (titleAbort) {
+    titleAbort() // 标题补捞随资格释放一并中止(agent 已死,标题不可能再出现)
   }
 }
 
@@ -179,4 +278,11 @@ function pollingSessions(): Session[] {
 
 // 契约伪代码的接缝名(spec 接口面清单「BackfillCoordinator」);成员为上面的模块级纯函数,
 // Why 独立函数:poll 的收场闭包要调 release,对象字面量方法互相引用需 this,独立函数更直白
-export const BackfillCoordinator = { claim, poll, release, releaseAll, pollingSessions }
+export const BackfillCoordinator = {
+  claim,
+  poll,
+  pollForTitle,
+  release,
+  releaseAll,
+  pollingSessions
+}

@@ -9,6 +9,7 @@ import type {
   PtyExitEvent,
   StateChangedEvent
 } from '../shared/ipc-contract'
+import type { Session } from '../shared/types'
 
 // 事件订阅类型化封装:监听器只收载荷,退订函数回收包装器(契约推荐形态)
 function subscribe<Payload>(channel: string, listener: (payload: Payload) => void): () => void {
@@ -37,7 +38,10 @@ const api: AppApi = {
     open: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsOpen, id),
     list: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.sessionsList, projectId),
     setActive: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsSetActive, id),
-    import: (p) => ipcRenderer.invoke(IPC_CHANNELS.sessionsImport, p)
+    import: (p) => ipcRenderer.invoke(IPC_CHANNELS.sessionsImport, p),
+    // 下行:主进程回填/标题补捞改写记录(externalSessionId/标题)后的广播
+    onChanged: (listener: (session: Session) => void) =>
+      subscribe<Session>(IPC_CHANNELS.sessionsChanged, listener)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),
