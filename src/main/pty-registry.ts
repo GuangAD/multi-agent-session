@@ -277,6 +277,8 @@ export const ptyRegistry = {
     launchArgs?: string[]
     // 终端里常驻的 shell(T11 增补;由 ipc/pty.ts 从 settings.shell 传入,缺省 cmd)
     shell?: ShellKind
+    // hook-run-state T2:hook 路由令牌(env 追加段,由 ipc/pty.ts 从接收器取;缺省不注入)
+    hookEnv?: Record<string, string>
   }): Promise<void> {
     // Why: 同 id 二次 spawn 若直接 set 会覆盖内表,首个 pty 失去引用成孤儿;
     // 渲染层 randomUUID 下不可达,纵深防御:冲突即抛错,不覆盖、不拉起第二个进程
@@ -320,7 +322,10 @@ export const ptyRegistry = {
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
         TERM_PROGRAM: 'soloport',
-        TERM_PROGRAM_VERSION: '0.1.0'
+        TERM_PROGRAM_VERSION: '0.1.0',
+        // hook 路由令牌(hook-run-state T2):转发脚本沿进程链继承后读 env 回传事件;
+        // shell(agent 的父进程)与 hook 脚本(CLI 的子进程)都在这条继承链上
+        ...(p.hookEnv ?? {})
       },
       // Ported from stablyai/orca src/main/daemon/pty-subprocess/native-pty-spawn.ts (MIT)
       // Why: 我们 spawn 未传 useConptyDll 时走系统 conhost 的旧 ConPTY——它消费鼠标模式

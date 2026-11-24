@@ -72,10 +72,9 @@ vi.mock('../../ipc/bridge', () => ({
       write: vi.fn(async () => undefined),
       resize: vi.fn(async () => undefined)
     },
-    // T5:标题/屏幕快照上行;本组用例不触发上行(快照取空行即不上行),给齐形状即可
     state: {
-      reportTitle: vi.fn(async () => undefined),
-      reportSnapshot: vi.fn(async () => undefined)
+      onChanged: vi.fn(() => () => undefined),
+      onNotifyOpen: vi.fn(() => () => undefined)
     }
   }
 }))
@@ -122,9 +121,6 @@ vi.mock('@xterm/xterm', () => ({
       return { dispose: () => undefined }
     }
     onResize(_listener: (size: { cols: number; rows: number }) => void): { dispose: () => void } {
-      return { dispose: () => undefined }
-    }
-    onTitleChange(): { dispose: () => void } {
       return { dispose: () => undefined }
     }
     dispose(): void {}

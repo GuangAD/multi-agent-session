@@ -13,6 +13,8 @@ import { registerSessionsIpc } from './ipc/sessions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerPtyIpc } from './ipc/pty'
 import { registerStateIpc } from './ipc/state'
+import { registerHooksIpc } from './ipc/hooks'
+import { createInjector } from './agent-hooks/injector'
 import { registerFilesIpc } from './ipc/files'
 import { registerGitIpc } from './ipc/git'
 import { ptyRegistry } from './pty-registry'
@@ -50,7 +52,10 @@ app.whenReady().then(async () => {
   // store 文件路径由主进程决定(userData/store.json);store-persistence 只认传入路径
   const storePath = join(app.getPath('userData'), 'store.json')
   const store = await loadStore(storePath)
-  registerProjectsIpc(store, storePath)
+  // hook-run-state T3:注入器(启动 reconcile;spawn 前自愈经 ipc/pty;项目增删联动经 ipc/projects)
+  const injector = createInjector({ store, scriptsDir: join(app.getPath('userData'), 'hook-scripts') })
+  void injector.reconcile()
+  registerProjectsIpc(store, storePath, injector)
   registerAgentsIpc()
   // T8:防抖落盘器从 sessions IPC 层导出,入口组合转交 ipc/pty.ts(回填写回用;不跨域 import)
   const sessionsIpc = registerSessionsIpc(store, storePath)
@@ -58,9 +63,10 @@ app.whenReady().then(async () => {
   // T11:settings 写入需要窗口(切换 nativeTheme 后同步标题栏 overlay 配色)与落盘路径
   registerSettingsIpc(store, () => BrowserWindow.getAllWindows()[0] ?? null, storePath)
   // 单窗口应用:事件出站直接取当前窗口(无窗口时不发)
-  registerPtyIpc(store, sessionsIpc.scheduleSave, () => BrowserWindow.getAllWindows()[0] ?? null)
+  registerPtyIpc(store, sessionsIpc.scheduleSave, () => BrowserWindow.getAllWindows()[0] ?? null, injector)
   // 状态引擎编排(三源喂食 + state:changed 广播):订阅注册表的 data/exit,与会话记录同源取 agentId
   registerStateIpc(store, () => BrowserWindow.getAllWindows()[0] ?? null)
+  registerHooksIpc(injector)
   // T9:文件浏览三通道(无 store/窗口依赖,装配不传参)
   registerFilesIpc()
   registerGitIpc()

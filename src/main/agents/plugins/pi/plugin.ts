@@ -1,16 +1,10 @@
 // Pi 插件包:定义对象 = 身份 + 状态规则 + 品牌图标/配色 + 会话扫描/续接挂接(brief 第 5 节固定清单)
-// 状态规则按**本机安装的 pi 1.5.0** 校准(2026-11-21 冒烟回归:初版照 Orca pi.json 锚点写的
-// `π ⠋` 干活标题在该版本已不存在,pi 会话的状态点永远停在 idle)
+// 状态规则:hook 事件映射(hook-run-state;事件语义经本机 pi 1.6.0 包内 docs/extensions.md
+// 核对,2026-11-23,见 docs/agent-hooks-capability-survey.md。pi 无 shell-command hook,
+// 接入形态 = 我们编写的进程内 TS 扩展,POST 原生事件名)。
 import type { AgentDefinition } from '../../../../shared/agents'
 import iconSvg from './icon.svg?raw'
 import { scanPi } from './scan'
-
-// working 地标 = pi 的 working 指示器旋转帧:bundle 的 Loader DEFAULT_FRAMES
-// = U+280B U+2819 U+2839 U+2838 U+283C U+2834 U+2826 U+2827 U+2807 U+280F,80ms 换一帧,
-// 画在编辑器上边框 / 状态行(真机冒烟确认:braille 转圈 + 紧随的 Working 文字)。
-// Why 用点阵帧而不是旁边的 "Working" 文字:对话正文里可能出现 Working 字样并留在屏幕上,
-// 那会让 working 永久命中、状态再也不回落(失败形态第 1 条);点阵帧只由指示器自己画。
-const WORKING_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
 export const piPlugin: AgentDefinition = {
   id: 'pi',
@@ -20,25 +14,32 @@ export const piPlugin: AgentDefinition = {
   icon: iconSvg,
   color: '#059669',
   state: {
-    title: {
-      // Why: pi 1.5.0 唯一的标题写入是 `updateTerminalTitle()` → `π - <session> - <cwd>`
-      // (APP_TITLE = "π"),静止与干活同形——干活信号只在屏幕上,标题这里只留静止锚点。
-      // 空数组 = 「本条源不提供该状态」的显式表态(AgentStateRules 的 two 槽形状不可省略)。
-      working: [],
-      idle: [/^π - /]
-    },
-    screen: {
-      // 干活中:状态行/上边框出现旋转帧;回合结束后帧消失,安静达门槛 → 标题静止锚点 → idle
-      working: WORKING_FRAMES,
-      // 空数组理由同 title.working:本机 pi 没有等待输入的菜单(见上方说明)。
-      waiting: []
-    },
-    // 不配 waiting 地标:pi 不做逐工具授权(docs/security.md:「does not ask for approval before
-    // every tool call」),唯一的阻塞对话框是项目信任(本机冒烟未出现);真出现时再按实证补规则,
-    // 不凭猜测提前写。
-    // idle 安静门槛:指示器 80ms 一帧、干活期输出不断流,安静 2s 即回合结束。
-    idleQuietMs: 2000
+    hooks: {
+      working: [
+        // input = 提交的提示词到达(2026-11-24 源码核对:emitInput 仅由 steer/followUp/prompt 提交路径调用,
+        // 非逐键);turn_start/turn_end = 每回合边界。ui_prompt_end 不挂 working——冒烟实证:pi 启动欢迎屏
+        // (ctx.ui 阻塞屏)关闭也发它,关闭后 pi 闲在提示符却被置 working,spinner 卡到首个回合结束;
+        // 「对话框关闭回 working」已由 turn_start(下回合)/turn_end(本回合收尾)/agent_settled(完成)自然覆盖
+        'input',
+        'turn_start',
+        'turn_end'
+      ],
+      waiting: [
+        // ui_prompt_start = 扩展经 ctx.ui.* 画的阻塞屏(notification-only,0.85.0 起有;启动欢迎屏也走它,
+        // waiting 无 UI 表现故无副作用);project_trust = 项目信任询问(仅未保存信任的首次,源码核对
+        // resolveProjectTrusted:已保存信任早退不发;且事件在项目扩展加载前发出,项目级扩展实际收不到)
+        'ui_prompt_start',
+        'project_trust'
+      ],
+      idle: [
+        // agent_settled = 「final idle signal」(权威「不会再继续」);session_shutdown = pi 退出回 shell
+        'agent_settled',
+        'session_shutdown'
+      ]
+    }
   },
+  // 项目级注入(.pi/extensions/soloport-state.ts,进程内 TS 扩展;需 pi 信任该项目)——hook-run-state T3
+  hooks: { kind: 'pi-extension' },
   sessions: {
     // T7:导入扫描(home = <home>/.pi/agent/sessions)
     scan: scanPi,

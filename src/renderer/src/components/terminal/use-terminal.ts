@@ -3,7 +3,6 @@
 // + 滚轮处理(ADR-0004 修订 + T3.5 评审增量):经 xterm 官方钩子 attachCustomWheelEventHandler
 //   挂单 handler 四分支(Shift 本地滚 / mouse mode 放大重放 / alt buffer 非 mouse 转翻页键 / xterm 默认)
 // + 窗口跟随:每终端 ResizeObserver 观察容器 + RAF 稳定帧收敛
-// + 状态引擎的两路渲染层输入源(T5):标题(onTitleChange 上行)与屏幕快照(节流序列化视口可见行)
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 // Fix-B 右侧空白治理:提案 = 盒子的纯函数(device/dpr cell 尺寸,与当前列数解耦),见 stable-cell-fit-addon.ts
@@ -22,8 +21,6 @@ interface TerminalEntry {
   // 窗口跟随:容器观察者与稳定帧循环的待决 RAF id(closeTerminal 时显式撤销)
   fitResizeObserver: ResizeObserver | null
   pendingFitRafId: number | null
-  // 标题源订阅(xterm 事件 emitter);closeTerminal 显式 dispose,不依赖 terminal.dispose 的清理时机
-  titleSubscription: { dispose: () => void }
 }
 
 // Shift+滚轮本地滚动幅度:一格滚轮 3 行(常见终端惯例,可调)
@@ -121,47 +118,6 @@ function detachTerminalFitResizeObserver(entry: TerminalEntry): void {
 
 const terminals = new Map<SessionId, TerminalEntry>()
 
-// —— 屏幕快照(状态引擎的第三源,T5):尾沿节流序列化视口可见行 ——
-// Why 尾沿节流:一帧 TUI 重绘会被切成几十个 pty:data 分片,xterm.write 逐片消费;若每片都序列化,
-// 主进程收到的是一串半成品画面(菜单/横幅可能只画了一半,判 waiting 会抖),IPC 流量也随输出量线性涨。
-// 尾沿 = 一段输出平静 SNAPSHOT_THROTTLE_MS 后取一次终态画面;文本与上次相同则不上行(去重)。
-// Why 去重:相同画面不构成新证据,重复上行会把「无新证据」当证据,安静门槛(→idle)永远触发不了。
-const SNAPSHOT_THROTTLE_MS = 250
-const snapshotTimers = new Map<SessionId, ReturnType<typeof setTimeout>>()
-const lastSnapshotText = new Map<SessionId, string>()
-
-// 视口可见行 = 缓冲尾部 baseY..baseY+rows-1(末屏),translateToString(true) 去行尾空白。
-// Why 取 baseY 而非 viewportY:状态判定要看 agent 最新画出的画面(TUI 在交替屏时两者相同);
-// 用户往回滚动时 viewportY 离开尾部,读它会取到旧画面把状态判错。
-function serializeVisibleLines(terminal: Terminal): string {
-  const buffer = terminal.buffer.active
-  const lines: string[] = []
-  for (let offset = 0; offset < terminal.rows; offset += 1) {
-    const line = buffer.getLine(buffer.baseY + offset)
-    if (!line) {
-      break
-    }
-    lines.push(line.translateToString(true))
-  }
-  return lines.join('\n')
-}
-
-function scheduleSnapshot(sessionId: SessionId): void {
-  if (snapshotTimers.has(sessionId)) {
-    return // 窗口内已有待发快照:合并进那一次(尾沿节流)
-  }
-  const timer = setTimeout(() => {
-    snapshotTimers.delete(sessionId)
-    const entry = terminals.get(sessionId)
-    const text = entry ? serializeVisibleLines(entry.terminal) : ''
-    if (text === '' || text === lastSnapshotText.get(sessionId)) {
-      return // tab 已关 / 画面无内容 / 与上次相同:不上行
-    }
-    lastSnapshotText.set(sessionId, text)
-    void bridge.state.reportSnapshot({ sessionId, text })
-  }, SNAPSHOT_THROTTLE_MS)
-  snapshotTimers.set(sessionId, timer)
-}
 
 // Fix-B:终端首个 fit 收敛后的回调(会话切片注册它,据此带真实 cols/rows 发起 spawn)。
 // Why: 模块级单槽而非组件 prop——终端生命周期常驻于此模块,回调只需一个消费者(store 切片)。
@@ -191,7 +147,6 @@ function ensureDataBus(): void {
     const entry = terminals.get(sessionId)
     if (entry) {
       entry.terminal.write(data)
-      scheduleSnapshot(sessionId)
     } else {
       // 未注册:先到先存,openTerminal 注册时立即 flush
       pendingData.set(sessionId, (pendingData.get(sessionId) ?? '') + data)
@@ -248,10 +203,6 @@ export function openTerminal(
 
     void bridge.pty.resize({ sessionId, cols, rows })
   })
-  // 标题源(T5):agent CLI 自己写 pane 标题(claude/pi 的主状态信号),上行主进程状态引擎
-  const titleSubscription = terminal.onTitleChange((title) => {
-    void bridge.state.reportTitle({ sessionId, title })
-  })
   // 滚轮四分支(T3.5 评审增量;单 handler:xterm 钩子单槽,后挂替换先挂)
   // 分支 1 Shift+滚轮本地滚动(ADR-0004,controller 定夺修订):挂 terminal 实例上
   // 随 dispose 自清,不在容器挂监听。handler 返回 false → xterm 取消该滚轮事件的全部默认处理
@@ -298,8 +249,7 @@ export function openTerminal(
     terminal,
     fitAddon,
     fitResizeObserver: null,
-    pendingFitRafId: null,
-    titleSubscription
+    pendingFitRafId: null
   }
   terminals.set(sessionId, entry)
   // 窗口跟随:observer 观察容器,尺寸变化(含窗口/侧栏/面板引发的)经稳定帧循环收敛 fit
@@ -309,7 +259,6 @@ export function openTerminal(
   if (pending !== undefined) {
     pendingData.delete(sessionId)
     terminal.write(pending)
-    scheduleSnapshot(sessionId)
   }
   // 首帧布局稳定后再 fit(容器刚挂载时尺寸未定);ResizeObserver 初次回调亦会触发收敛,此处兜底
   requestAnimationFrame(() => {
@@ -329,17 +278,10 @@ export function closeTerminal(sessionId: SessionId): void {
   const entry = terminals.get(sessionId)
   if (entry) {
     detachTerminalFitResizeObserver(entry) // observer 与待决 fit 帧不随 dispose 自清,显式撤销
-    entry.titleSubscription.dispose() // 标题上行随 tab 关闭解绑,不留悬挂回调
     entry.terminal.dispose() // 滚轮钩子随 dispose 自清,无需摘除
   }
   terminals.delete(sessionId)
   pendingData.delete(sessionId) // 暂存随 tab 清理,防泄漏/串台到此后新开的终端
-  const snapshotTimer = snapshotTimers.get(sessionId)
-  if (snapshotTimer !== undefined) {
-    clearTimeout(snapshotTimer) // 待发快照随 tab 撤销:关闭后不得再上行
-    snapshotTimers.delete(sessionId)
-  }
-  lastSnapshotText.delete(sessionId) // 去重基线随 tab 作废(重开时画面从头开始)
 }
 
 // tab 切换激活:display 由组件渲染控制;这里在可见后 fit(隐藏期间无尺寸)+ 聚焦

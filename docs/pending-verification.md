@@ -103,3 +103,21 @@
 - 回填轮询:并发第二会话若标签页一直开着不会自动接棒;关闭后重开走全新对话(防串线优先于自动续接)。
 - 空仓库(未提交过):Git 面板分支下拉为空、提交按钮禁用;取消暂存走 `git rm -f --cached`。
 - 应用未签名:安装包无代码签名,Windows SmartScreen 会提示「未知发布者」。
+
+## 四、hook 状态通道(2026-11-24 实现,待实机验证)
+
+特性:docs/plans/2026-11-23-hook-run-state/(ADR-0007)。状态识别改走 agent 官方 hooks,读屏三源退役。本机可测 claude(2.1.220)/pi(1.6.0)。
+
+- [ ] **H1. claude 状态全环**
+      验:新建 claude 会话 → 提交提示 → spinner 转;回答完成 → 消失且后台会话弹「任务已完成」通知(working→idle,2026-11-24 增补);权限对话框 → spinner 变橙(waiting)且后台会话弹「会话在等你输入」通知。
+      边界:首次在项目目录跑 claude 会弹信任对话框(交互模式,接受后生效);未信任前无状态属 claude 侧行为。
+- [ ] **H2. pi 状态全环**
+      验:pi 会话提交 → spinner 转;/quit 回 shell → 消失;扩展对话框 → waiting。首跑弹项目信任(pi 自己的对话框),接受后扩展才被加载——首个会话可能无状态,重开生效。
+- [ ] **H3. 回归双反例(原 Bug 1/2 场景)**
+      验:working 中切到另一标签再切回,spinner 全程正确;无回合时在终端打字,spinner 不亮。
+- [ ] **H4. 注入文件与用户配置共存**
+      验:项目目录出现 .claude/settings.json(或已有文件被合并);含用户自有 hooks 的,注入后保留;项目删除后 managed 条目摘除(pi 扩展文件删除)。
+- [ ] **H5. 显式移除**
+      验:`window.api.hooks.remove()`(控制台直调)后各项目配置摘净;重启应用 reconcile 又写回。
+- [ ] **H6. 未装三家装后复核**
+      验:装 codex/kimi/antigravity 后——注入生效(codex 需 repo trust;antigravity hooks.json 形状;kimi 全局 config.toml marker)、事件映射正确、env 令牌继承(转发脚本 POST 带 sessionId)。

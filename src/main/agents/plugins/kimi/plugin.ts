@@ -1,6 +1,9 @@
 // Kimi Code 插件包:定义对象 = 身份 + 状态规则 + 品牌图标/配色 + 会话扫描/续接挂接
 // (brief 第 5 节固定清单;别名 kimi-code 沿用 Orca catalog)
-// 状态规则初版:降级预案(plan M3/brief 第 5 节)——屏幕识别无公开先例,Orca 亦无其屏幕规则。
+// 状态规则:hook 事件映射(hook-run-state;事件语义经官方 hooks 文档原文核对,2026-11-23,
+// kimi.com/code/docs,见 docs/agent-hooks-capability-survey.md。降级预案退役:官方 hooks
+// 覆盖全部四态,degraded 档随三源引擎一并退役;注入走全局 config.toml——用户明示授权的例外,
+// kimi 官方不提供项目级 hook 配置)。
 import type { AgentDefinition } from '../../../../shared/agents'
 import iconSvg from './icon.svg?raw'
 import { scanKimi } from './scan'
@@ -14,12 +17,30 @@ export const kimiPlugin: AgentDefinition = {
   icon: iconSvg,
   color: '#1783ff',
   state: {
-    // Why: kimi 状态识别走降级——只用「有输出=working、退出=exited」,waiting 并入相邻态(brief 第 5 节降级预案);不设 title/screen/bytes 规则,T5 采样找到可靠信号再升级。
-    degraded: true,
-    // 降级态的唯一时间参数:静默达此门槛即 idle(T5 state-parser 的降级档消费它);
-    // 采到可靠屏幕信号升级为非降级规则后再按样本校准。
-    idleQuietMs: 2000
+    hooks: {
+      working: [
+        // TurnStarted = 「A new turn begins」;UserPromptSubmit = 用户消息;
+        // PermissionResult = 授权完成(回位);PostToolUseFailure = 工具失败后回合继续(回位)
+        'TurnStarted',
+        'UserPromptSubmit',
+        'PermissionResult',
+        'PostToolUseFailure'
+      ],
+      waiting: [
+        // PermissionRequest = 等待用户授权,持有键盘
+        'PermissionRequest'
+      ],
+      idle: [
+        // Stop = 「Turn completes」;Interrupt = 「fires in place of Stop」(Esc 打断)
+        'Stop',
+        'StopFailure',
+        'Interrupt'
+      ]
+    }
   },
+  // 全局注入(~/.kimi-code/config.toml [[hooks]],marker 块;官方不提供项目级——用户明示授权的例外)
+  // ——hook-run-state T3
+  hooks: { kind: 'kimi-toml' },
   sessions: {
     // T7:导入扫描(<home>/.kimi-code 的 state.json + session_index.jsonl 双源)
     scan: scanKimi,

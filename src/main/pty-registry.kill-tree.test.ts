@@ -37,7 +37,7 @@ const benchDef: AgentDefinition = {
   command: 'ping',
   icon: '',
   color: 'bench-only', // 契约必填字段(T1);PTY 链路只读 command,值不参与判定
-  state: {}
+  state: { hooks: { working: [], waiting: [], idle: [] } }
 }
 
 // tasklist /FO CSV /NH:行形如 "PING.EXE","1234",...;PID 与行结构为 ASCII,

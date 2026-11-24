@@ -2,7 +2,7 @@
 // 通道由任务增量补:T1 落 projects 三通道;T2 增补 agents:list;
 // T3 增补 sessions:create、settings:get 与 pty:* 五通道(spawn/write/resize/kill + data/exit 事件);
 // T4 补齐 sessions:* 全域(rename/remove/open/list,会话记录持久化 CRUD);
-// T5 增补 state:* 三通道(上行 state:title / state:snapshot,下行 state:changed 状态广播);
+// state:changed 状态广播(hook-run-state T4:标题/快照上行随三源退役删除,状态证据改经 loopback receiver);
 // T6 增补 sessions:import(按 agent 扫描存储,把属于该项目的历史会话导入应用记录);
 // T9 增补 files:* 三通道(files:tree 文件树 / files:read 只读预览 / files:openInEditor 外部编辑器打开)。
 import type { AgentListItem, ResumeRef } from './agents'
@@ -40,8 +40,8 @@ export const IPC_CHANNELS = {
   ptyResize: 'pty:resize',
   ptyKill: 'pty:kill',
   // T5:三源状态引擎的通道(上行标题/屏幕快照,下行状态广播)
-  stateTitle: 'state:title',
-  stateSnapshot: 'state:snapshot',
+  // hook-run-state T3:显式移除全部 hook 注入(用户主动停用)
+  hooksRemove: 'hooks:remove',
   // T9:文件浏览三通道(树扫描 / 预览读取 / 外部编辑器打开)
   filesTree: 'files:tree',
   filesRead: 'files:read',
@@ -131,17 +131,6 @@ export interface PtyApi {
 
 // T5:状态引擎的三路出入口。上行两条是渲染层独有的输入源(xterm 标题事件、屏幕快照),
 // 字节源在主进程内直取 pty:data,不经桥;下行 state:changed = 去抖后的状态广播。
-export interface StateTitleEvent {
-  sessionId: SessionId
-  title: string
-}
-
-export interface StateSnapshotEvent {
-  sessionId: SessionId
-  // 视口可见行按行拼接的多行文本(渲染层节流序列化,见 use-terminal 的快照节流)
-  text: string
-}
-
 export interface StateChangedEvent {
   sessionId: SessionId
   state: SessionRunState
@@ -153,8 +142,6 @@ export interface NotifyOpenEvent {
 }
 
 export interface StateApi {
-  reportTitle: (p: StateTitleEvent) => Promise<void>
-  reportSnapshot: (p: StateSnapshotEvent) => Promise<void>
   onChanged: (listener: (event: StateChangedEvent) => void) => () => void
   // T11:点了等输入通知 → 聚焦对应会话标签页
   onNotifyOpen: (listener: (event: NotifyOpenEvent) => void) => () => void
@@ -206,6 +193,11 @@ export interface GitApi {
   checkout: (p: { root: string; branch: string }) => Promise<void>
 }
 
+export interface HooksApi {
+  // 显式移除全部 managed 注入(项目级四家 + kimi 全局 marker);用户内容保留
+  remove: () => Promise<void>
+}
+
 export interface AppApi {
   projects: ProjectsApi
   agents: AgentsApi
@@ -213,6 +205,7 @@ export interface AppApi {
   settings: SettingsApi
   pty: PtyApi
   state: StateApi
+  hooks: HooksApi
   files: FilesApi
   git: GitApi
 }

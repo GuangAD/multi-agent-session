@@ -54,15 +54,16 @@ const api: AppApi = {
       subscribe<PtyExitEvent>(IPC_CHANNELS.ptyExit, listener)
   },
   state: {
-    // 上行:标题/屏幕快照(渲染层独有输入源;字节源在主进程内直取 pty:data)
-    reportTitle: (p) => ipcRenderer.invoke(IPC_CHANNELS.stateTitle, p),
-    reportSnapshot: (p) => ipcRenderer.invoke(IPC_CHANNELS.stateSnapshot, p),
-    // 下行:去抖后的状态广播
+    // 下行:hook 事实直落的状态广播(hook-run-state T4:标题/快照上行随三源退役删除)
     onChanged: (listener: (event: StateChangedEvent) => void) =>
       subscribe<StateChangedEvent>(IPC_CHANNELS.stateChanged, listener),
     // 下行:点了等输入通知 → 聚焦对应会话的标签页
     onNotifyOpen: (listener: (event: NotifyOpenEvent) => void) =>
       subscribe<NotifyOpenEvent>(IPC_CHANNELS.notifyOpen, listener)
+  },
+  hooks: {
+    // hook-run-state T3:显式移除全部 managed 注入(用户主动停用;UI 入口为授权项)
+    remove: () => ipcRenderer.invoke(IPC_CHANNELS.hooksRemove)
   },
   // T9:文件浏览(树懒展开 / 只读预览 / 外部编辑器打开);read 错误经载荷 error 字段返回
   files: {

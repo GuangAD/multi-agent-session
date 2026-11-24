@@ -4,13 +4,25 @@
 // agents:list 出站前必须剥离(见 src/main/agents/agent-list.ts 的 buildAgentListItem)。
 import type { AgentId } from './types'
 
+// 状态规则:hook 事件映射(hook-run-state 特性,2026-11-23 门 1)
+// 事件名 = 各 CLI 原生 hook 事件名;引擎按「事件命中槽 → 置该状态」事实直落,
+// 读屏三源(标题/快照/字节)与安静门槛/去抖随 ADR-0001 路线一并退役(ADR-0007)。
 export interface AgentStateRules {
-  title?: { working: RegExp[]; idle: RegExp[] } // 终端标题正则
-  screen?: { working: string[]; waiting: string[] } // 屏幕文字地标(子串)
-  bytes?: { working: string[]; waiting: string[] } // 字节流子串(跨 chunk 拼接后匹配)
-  idleQuietMs?: number // idle 判定要求的安静时长
-  degraded?: boolean // true:只用「有输出=working、退出=exited」
+  hooks: {
+    working: string[] // 事件名 → 置 working
+    waiting: string[] // 事件名 → 置 waiting(空数组 = 该家无等待事件,如 antigravity)
+    idle: string[] // 事件名 → 置 idle
+  }
 }
+
+// hook 注入声明(hook-run-state T3:注入器按 kind 分发配置合并;事件清单由注入器从
+// state.hooks 三槽并集推导,不在此重复)。无声明的插件不注入(向前兼容)。
+export type HookInstallKind =
+  | 'claude-settings'
+  | 'codex-json'
+  | 'antigravity-json'
+  | 'pi-extension'
+  | 'kimi-toml'
 
 // 会话扫描候选(T6/T7 落地扫描器时产出;本任务只定结构)
 export interface ImportCandidate {
@@ -36,6 +48,7 @@ export interface AgentDefinition {
   icon?: string // 完整 SVG 文档字符串;插件包 icon.svg 经 ?raw 构建期内联,可内联覆盖;缺省 undefined(渲染层兜底砖)
   color: string // 品牌色(固定色值,不随主题)
   state: AgentStateRules
+  hooks?: { kind: HookInstallKind } // hook 注入声明;缺省 = 该 agent 不注入
   sessions?: {
     // T6:从 agent 存储扫出会话候选(homeDir 注入供测试与自定义 agent home;缺省 os.homedir())
     scan?: (projectPath: string, ctx?: { homeDir?: string }) => Promise<ImportCandidate[]>

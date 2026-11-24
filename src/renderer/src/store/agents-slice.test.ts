@@ -32,12 +32,12 @@ const payload: AgentListItem[] = [
       command: 'claude',
       icon: '<svg xmlns="http://www.w3.org/2000/svg"><path/></svg>',
       color: '#d97757',
-      state: {}
+      state: { hooks: { working: [], waiting: [], idle: [] } }
     },
     installed: true
   },
   {
-    def: { id: 'kimi', name: 'Kimi Code', command: 'kimi', color: '#1783ff', state: {} },
+    def: { id: 'kimi', name: 'Kimi Code', command: 'kimi', color: '#1783ff', state: { hooks: { working: [], waiting: [], idle: [] } } },
     installed: false
   }
 ]

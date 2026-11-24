@@ -1,5 +1,6 @@
 // Codex CLI 插件包:定义对象 = 身份 + 状态规则 + 品牌图标/配色 + 会话扫描/续接挂接(brief 第 5 节固定清单)
-// 状态规则初版照抄 Orca agent-state-rules/codex.json 的信号要点;规则引擎零改动(agent-state)。
+// 状态规则:hook 事件映射(hook-run-state;事件语义经官方 hooks 文档原文核对,2026-11-23,
+// learn.chatgpt.com/docs/hooks,见 docs/agent-hooks-capability-survey.md)。
 import type { AgentDefinition } from '../../../../shared/agents'
 import iconSvg from './icon.svg?raw'
 import { scanCodex } from './scan'
@@ -12,16 +13,24 @@ export const codexPlugin: AgentDefinition = {
   icon: iconSvg,
   color: '#0284c7',
   state: {
-    screen: {
-      // Why: Orca codex.json 锚点 ready_header——启动头部横幅 `openai codex`(其下含 `model:`/`directory:` 行)是跨版本稳定的就绪画面,横幅整个 turn 都在(header_ready 规则 requiresQuiet)。
-      // Orca 语义为 idle;本结构 screen 只有 working/waiting 槽,初版挂 working 表示「Codex 画面已绘制」:未静止读 working,静止达 idleQuietMs 后 T5 判 idle。
-      working: ['openai codex', 'model:', 'directory:'],
-      // Why: Orca codex.json 锚点 plan_implement_menu——Plan 模式回合结束停在「implement this plan?」菜单,菜单持有键盘,等用户选择 → waiting。
-      waiting: ['implement this plan?']
-    },
-    // idle 安静门槛初值;五家统一 2000,T5 校准。
-    idleQuietMs: 2000
+    hooks: {
+      working: [
+        // UserPromptSubmit = 提示即将发送,回合开始;PostToolUse = 工具完成,回合延续
+        'UserPromptSubmit',
+        'PostToolUse'
+      ],
+      waiting: [
+        // PermissionRequest = 「about to ask for approval」,持有键盘
+        'PermissionRequest'
+      ],
+      idle: [
+        // Stop = 「When a chat turn stops」
+        'Stop'
+      ]
+    }
   },
+  // repo 级注入(.codex/hooks.json,合并写入认领制;需 codex 信任该项目)——hook-run-state T3
+  hooks: { kind: 'codex-json' },
   sessions: {
     // T6:导入扫描(~/.codex/sessions 下的 rollout,含 .zst 变体)
     scan: scanCodex,

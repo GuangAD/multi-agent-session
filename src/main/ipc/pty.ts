@@ -10,6 +10,8 @@ import { ptyRegistry } from '../pty-registry'
 import { agentRegistry } from '../agents/agent-registry'
 import { BackfillCoordinator, filterFreshCandidates } from '../session-store/backfill'
 import { sessionRecords } from '../session-store/session-records'
+import { getReceiverInfo } from '../agent-hooks/receiver'
+import type { Injector } from '../agent-hooks/injector'
 import type { AgentDefinition, ImportCandidate, ResumeRef } from '../../shared/agents'
 import type { AppStore, AgentId, Session, SessionId } from '../../shared/types'
 import type { PtyDataEvent, PtyExitEvent } from '../../shared/ipc-contract'
@@ -93,7 +95,8 @@ function startBackfillIfEligible(
 export function registerPtyIpc(
   store: AppStore,
   scheduleSave: () => void,
-  getWindow: () => BrowserWindow | null
+  getWindow: () => BrowserWindow | null,
+  injector?: Injector
 ): void {
   ipcMain.handle(
     IPC_CHANNELS.ptySpawn,
@@ -118,13 +121,29 @@ export function registerPtyIpc(
       // T8 续接决策(controller 裁决 2):ref 经定义构造参数部分;
       // null / 无 resumeArgv / 无 resume → 原样拉起(不抛错)
       const resumeArgv = p.resume ? (def.sessions?.resumeArgv?.(p.resume) ?? null) : null
+      // hook-run-state T2:PTY env 注入路由令牌(转发脚本沿进程链继承后读 env 回传事件);
+      // 接收器未启动/端口未就绪则不注入(该会话无 hook 上报,spawn 照常)
+      // hook-run-state T3:spawn 前自愈(配置缺失补写;失败不阻塞 spawn,该会话无 hook 上报)
+      if (injector) {
+        try { await injector.ensureProject(p.cwd) } catch (error) { console.error('[agent-hooks] spawn 前注入自愈失败:', error) }
+      }
+      const receiverInfo = getReceiverInfo()
       await ptyRegistry.spawn({
         sessionId: p.sessionId,
         def,
         cwd: p.cwd,
         cols: p.cols,
         rows: p.rows,
-        ...(resumeArgv && resumeArgv.length > 0 ? { launchArgs: resumeArgv } : {})
+        ...(resumeArgv && resumeArgv.length > 0 ? { launchArgs: resumeArgv } : {}),
+        ...(receiverInfo
+          ? {
+              hookEnv: {
+                SOLOPORT_SESSION_ID: p.sessionId,
+                SOLOPORT_HOOK_PORT: String(receiverInfo.port),
+                SOLOPORT_HOOK_TOKEN: receiverInfo.token
+              }
+            }
+          : {})
       })
       // spawn 成功后自动 claim + 轮询(controller 裁决 4);imported / 已有 id 不参与
       const session = sessionRecords.get(store, p.sessionId)

@@ -5,6 +5,7 @@ import { dialog, ipcMain } from 'electron'
 import { IPC_CHANNELS } from './channels'
 import { saveStoreAtomic } from '../session-store/store-persistence'
 import { sessionRecords } from '../session-store/session-records'
+import type { Injector } from '../agent-hooks/injector'
 import type { AppStore, Project, ProjectId, SessionId } from '../../shared/types'
 
 // 归一化:统一分隔符;盘根(X:\)保留尾分隔符,否则会退化为盘相对路径
@@ -21,7 +22,7 @@ function isSameProjectPath(a: string, b: string): boolean {
   return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
 }
 
-export function registerProjectsIpc(store: AppStore, storePath: string): void {
+export function registerProjectsIpc(store: AppStore, storePath: string, injector?: Injector): void {
   ipcMain.handle(IPC_CHANNELS.projectsList, () => store.projects)
 
   ipcMain.handle(IPC_CHANNELS.projectsAdd, async (): Promise<Project | null> => {
@@ -41,6 +42,10 @@ export function registerProjectsIpc(store: AppStore, storePath: string): void {
     const project: Project = { id: randomUUID(), path, name: basename(path) }
     store.projects.push(project)
     await saveStoreAtomic(storePath, store)
+    // hook-run-state T3:运行期项目添加 → 补写该项目注入(失败不阻塞添加,该会话无 hook 上报)
+    if (injector) {
+      try { await injector.ensureProject(path) } catch (error) { console.error('[agent-hooks] 项目添加后注入失败:', error) }
+    }
     return project
   })
 
@@ -50,10 +55,15 @@ export function registerProjectsIpc(store: AppStore, storePath: string): void {
   ipcMain.handle(
     IPC_CHANNELS.projectsRemove,
     async (_event, id: ProjectId): Promise<{ closedTabs: SessionId[] }> => {
+      const removed = store.projects.find((project) => project.id === id)
       const before = store.projects.length
       store.projects = store.projects.filter((project) => project.id !== id)
       if (store.projects.length !== before) {
         const closedTabs = sessionRecords.removeByProject(store, id)
+        // hook-run-state T3:删除项目联动摘除该项目全部注入(失败不阻塞删除,可 reconcile 重写)
+        if (injector && removed) {
+          try { injector.removeProject(removed.path) } catch (error) { console.error('[agent-hooks] 项目删除后摘除注入失败:', error) }
+        }
         await saveStoreAtomic(storePath, store)
         return { closedTabs }
       }

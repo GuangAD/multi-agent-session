@@ -11,7 +11,7 @@ function makeDef(): AgentDefinition {
     name: 'Claude Code',
     command: 'claude',
     color: '#d97757',
-    state: {},
+    state: { hooks: { working: [], waiting: [], idle: [] } },
     sessions: {
       scan: async () => [],
       resumeArgv: (ref) => (ref.id ? ['--resume', ref.id] : null)
