@@ -54,7 +54,7 @@ export function ProjectGroup({
         aria-pressed={selected}
         aria-expanded={expanded}
         className={`group flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 ${
-          selected ? 'bg-zinc-200 dark:bg-zinc-800' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800'
+          selected ? 'bg-hover' : 'hover:bg-hover'
         }`}
         onClick={toggleRow}
         onKeyDown={(event) => {
@@ -69,13 +69,13 @@ export function ProjectGroup({
         }}
       >
         {expanded ? (
-          <ChevronDown className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400" aria-hidden />
+          <ChevronDown className="size-4 shrink-0 text-ink-muted" aria-hidden />
         ) : (
-          <ChevronRight className="size-4 shrink-0 text-zinc-500 dark:text-zinc-400" aria-hidden />
+          <ChevronRight className="size-4 shrink-0 text-ink-muted" aria-hidden />
         )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm">{project.name}</span>
-          <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">
+          <span className="block truncate text-xs text-ink-muted">
             {project.path}
           </span>
         </span>
@@ -141,7 +141,7 @@ export function ProjectGroup({
           {ordered.length > SESSION_LIST_COLLAPSED_LIMIT && (
             <button
               type="button"
-              className="px-1 py-0.5 text-xs text-zinc-500 hover:underline dark:text-zinc-400"
+              className="px-1 py-0.5 text-xs text-ink-muted hover:underline"
               onClick={() => setListExpanded((value) => !value)}
             >
               {listExpanded ? '收起' : `显示更多(${ordered.length - SESSION_LIST_COLLAPSED_LIMIT})`}

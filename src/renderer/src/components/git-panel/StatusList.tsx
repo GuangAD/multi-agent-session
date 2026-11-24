@@ -42,20 +42,20 @@ export function StatusList({
   const unstaged = status.entries.filter((entry) => entry.unstaged.trim() !== '')
 
   if (status.entries.length === 0) {
-    return <p className="px-2 py-2 text-xs text-zinc-500 dark:text-zinc-400">工作区干净,没有变更</p>
+    return <p className="px-2 py-2 text-xs text-ink-muted">工作区干净,没有变更</p>
   }
 
   return (
     <div className="flex flex-col gap-2">
       {staged.length > 0 && (
         <section>
-          <h4 className="px-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">已暂存</h4>
+          <h4 className="px-2 text-xs font-medium text-ink-muted">已暂存</h4>
           <ul>
             {staged.map((entry) => (
               <li
                 key={`staged-${entry.path}`}
                 className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs ${
-                  selectedPath === entry.path ? 'bg-zinc-200 dark:bg-zinc-700' : ''
+                  selectedPath === entry.path ? 'bg-hover' : ''
                 }`}
               >
                 <button
@@ -66,7 +66,7 @@ export function StatusList({
                 >
                   {entry.path}
                 </button>
-                <span className="shrink-0 text-zinc-400">{statusText(entry.staged)}</span>
+                <span className="shrink-0 text-ink-muted">{statusText(entry.staged)}</span>
                 <Button
                   variant="ghost"
                   aria-label={`取消暂存 ${entry.path}`}
@@ -83,7 +83,7 @@ export function StatusList({
 
       {unstaged.length > 0 && (
         <section>
-          <h4 className="px-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          <h4 className="px-2 text-xs font-medium text-ink-muted">
             未暂存的变更
           </h4>
           <ul>
@@ -91,7 +91,7 @@ export function StatusList({
               <li
                 key={`unstaged-${entry.path}`}
                 className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs ${
-                  selectedPath === entry.path ? 'bg-zinc-200 dark:bg-zinc-700' : ''
+                  selectedPath === entry.path ? 'bg-hover' : ''
                 }`}
               >
                 <button
@@ -102,7 +102,7 @@ export function StatusList({
                 >
                   {entry.path}
                 </button>
-                <span className="shrink-0 text-zinc-400">{statusText(entry.unstaged)}</span>
+                <span className="shrink-0 text-ink-muted">{statusText(entry.unstaged)}</span>
                 <Button
                   variant="ghost"
                   aria-label={`暂存 ${entry.path}`}

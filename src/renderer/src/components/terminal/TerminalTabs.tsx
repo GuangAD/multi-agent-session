@@ -62,7 +62,7 @@ export function TerminalTabs(): React.JSX.Element {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {(tabs.length > 0 || previewPath !== null) && (
-        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-zinc-200 px-2 py-1 dark:border-zinc-700">
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line px-2 py-1">
           {tabs.map((tab) => {
             // tab 只挂记录 id:显示名/项目名从持久记录取(重命名后 tab 即时跟随)
             const record = records.find((session) => session.id === tab.sessionId)
@@ -74,8 +74,8 @@ export function TerminalTabs(): React.JSX.Element {
                 key={tab.sessionId}
                 className={`flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-sm ${
                   active
-                    ? 'bg-zinc-200 dark:bg-zinc-700'
-                    : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                    ? 'bg-hover'
+                    : 'text-ink-muted hover:bg-hover'
                 }`}
               >
                 <button
@@ -88,12 +88,12 @@ export function TerminalTabs(): React.JSX.Element {
                 >
                   <span className="max-w-40 truncate">{title}</span>
                   {projectName && (
-                    <span className="max-w-28 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                    <span className="max-w-28 truncate text-xs text-ink-muted">
                       {projectName}
                     </span>
                   )}
                   {runStates[tab.sessionId] === 'exited' && (
-                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                    <span className="text-xs text-ink-muted">
                       {RUN_STATE_DISPLAY.exited.label}
                     </span>
                   )}
@@ -101,7 +101,7 @@ export function TerminalTabs(): React.JSX.Element {
                 <button
                   type="button"
                   aria-label={`关闭会话 ${title}`}
-                  className="rounded p-0.5 text-zinc-400 hover:bg-zinc-300 hover:text-zinc-700 dark:hover:bg-zinc-600 dark:hover:text-zinc-200"
+                  className="rounded p-0.5 text-ink-muted hover:bg-hover hover:text-ink"
                   onClick={() => void closeTab(tab.sessionId)}
                 >
                   <X className="size-3.5" aria-hidden />
@@ -113,8 +113,8 @@ export function TerminalTabs(): React.JSX.Element {
             <div
               className={`flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-sm ${
                 previewActive
-                  ? 'bg-zinc-200 dark:bg-zinc-700'
-                  : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                  ? 'bg-hover'
+                  : 'text-ink-muted hover:bg-hover'
               }`}
             >
               <button
@@ -127,7 +127,7 @@ export function TerminalTabs(): React.JSX.Element {
               <button
                 type="button"
                 aria-label="关闭文件预览"
-                className="rounded p-0.5 text-zinc-400 hover:bg-zinc-300 hover:text-zinc-700 dark:hover:bg-zinc-600 dark:hover:text-zinc-200"
+                className="rounded p-0.5 text-ink-muted hover:bg-hover hover:text-ink"
                 onClick={closePreview}
               >
                 <X className="size-3.5" aria-hidden />

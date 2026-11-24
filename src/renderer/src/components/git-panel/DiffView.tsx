@@ -17,7 +17,7 @@ const LINE_CLASSES: Record<DiffLine['type'], string> = {
   added: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
   removed: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
   context: '',
-  other: 'text-zinc-500 dark:text-zinc-400'
+  other: 'text-ink-muted'
 }
 
 export function DiffView(): React.JSX.Element {
@@ -31,7 +31,7 @@ export function DiffView(): React.JSX.Element {
 
   if (!root || !previewPath) {
     return (
-      <p className="p-4 text-sm text-zinc-500 dark:text-zinc-400">
+      <p className="p-4 text-sm text-ink-muted">
         先在右侧 Git 面板选择一个变更文件
       </p>
     )
@@ -76,16 +76,16 @@ function DiffViewFile({ root, path }: DiffViewFileProps): React.JSX.Element {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-zinc-200 px-3 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+      <div className="shrink-0 border-b border-line px-3 py-1 text-xs text-ink-muted">
         {path}
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {loading ? (
-          <p className="p-4 text-sm text-zinc-500 dark:text-zinc-400">读取差异…</p>
+          <p className="p-4 text-sm text-ink-muted">读取差异…</p>
         ) : error ? (
           <p className="p-4 text-sm text-rose-600 dark:text-rose-400">{error}</p>
         ) : lines.length === 0 ? (
-          <p className="p-4 text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="p-4 text-sm text-ink-muted">
             没有可显示的差异(未跟踪的新文件暂存后可见)
           </p>
         ) : (

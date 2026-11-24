@@ -192,13 +192,13 @@ function App(): React.JSX.Element {
   }, [tabs, activeTabId, setActiveTab, closeTab, openAgentDialog, activeProject])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden text-zinc-900 dark:text-zinc-100">
+    <div className="flex h-screen flex-col overflow-hidden text-ink">
       {/* 窗口标题栏:顶栏即系统标题栏,所有全局开关与面板动作都收敛在这里。
           -webkit-app-region: drag 让空白处可拖窗口;按钮各自 no-drag 才可点。
           右侧留出系统最小化/最大化/关闭的 overlay 区域(env 变量由 Electron 注入,
           取不到时退回 140px 估算宽度)。 */}
       <header
-        className="flex h-9 shrink-0 items-center gap-1 border-b border-zinc-200 bg-white pl-2 dark:border-zinc-700 dark:bg-zinc-900"
+        className="flex h-9 shrink-0 items-center gap-1 border-b border-line bg-base pl-2"
         style={
           {
             WebkitAppRegion: 'drag',
@@ -270,7 +270,7 @@ function App(): React.JSX.Element {
           <Button
             variant="ghost"
             aria-pressed={rightPanel === 'files'}
-            className={`!py-1 ${rightPanel === 'files' ? 'bg-zinc-200 dark:bg-zinc-700' : ''}`}
+            className={`!py-1 ${rightPanel === 'files' ? 'bg-hover' : ''}`}
             onClick={() => togglePanel('files')}
           >
             <Files className="size-4" aria-hidden />
@@ -279,7 +279,7 @@ function App(): React.JSX.Element {
           <Button
             variant="ghost"
             aria-pressed={rightPanel === 'git'}
-            className={`!py-1 ${rightPanel === 'git' ? 'bg-zinc-200 dark:bg-zinc-700' : ''}`}
+            className={`!py-1 ${rightPanel === 'git' ? 'bg-hover' : ''}`}
             onClick={() => togglePanel('git')}
           >
             <GitBranch className="size-4" aria-hidden />
@@ -291,19 +291,19 @@ function App(): React.JSX.Element {
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* 左栏:侧栏(添加目录 / 项目 + 会话树;新建/导入的 agent 选择弹窗也挂在侧栏);开关在标题栏 */}
         {leftOpen && (
-          <aside className="flex min-h-0 w-60 shrink-0 flex-col border-r border-zinc-200 p-2 dark:border-zinc-700">
+          <aside className="flex min-h-0 w-60 shrink-0 flex-col border-r border-line p-2">
             <Sidebar />
           </aside>
         )}
 
         {/* 中间:终端区(标签页 + 常驻 xterm;文件/Git 预览也在这里开标签) */}
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-zinc-50 dark:bg-zinc-900">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-base">
           <TerminalTabs />
         </main>
 
         {/* 右栏:单面板(文件树 或 Git),切换与刷新都在标题栏;默认隐藏 */}
         {rightPanel && (
-          <aside className="flex min-h-0 w-72 shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-700">
+          <aside className="flex min-h-0 w-72 shrink-0 flex-col border-l border-line">
             {rightPanel === 'files' ? (
               <FileTreePanel refreshTick={refreshTick} />
             ) : (

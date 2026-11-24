@@ -24,7 +24,7 @@ export function CommitBox({
   return (
     <div className="flex flex-col gap-1 px-2">
       <textarea
-        className="h-16 w-full resize-none rounded border border-zinc-300 bg-transparent px-2 py-1 text-xs outline-none focus:border-zinc-500 dark:border-zinc-600"
+        className="h-16 w-full resize-none rounded border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-ink-muted"
         placeholder="提交说明(中文或英文均可)"
         value={message}
         onChange={(event) => onMessageChange(event.target.value)}
@@ -33,7 +33,7 @@ export function CommitBox({
         <Button className="flex-1" disabled={!canCommit} onClick={onCommit}>
           {busy ? '提交中…' : '提交'}
         </Button>
-        <span className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+        <span className="shrink-0 text-xs text-ink-muted">
           {branch || '无分支'} · 已暂存 {stagedCount}
         </span>
       </div>

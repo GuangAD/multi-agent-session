@@ -5,8 +5,8 @@ type ButtonVariant = 'default' | 'ghost'
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   default:
-    'bg-zinc-900 text-zinc-50 hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300',
-  ghost: 'text-zinc-600 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-800'
+    'bg-accent text-on-accent hover:bg-accent-hover',
+  ghost: 'text-ink-muted hover:bg-hover'
 }
 
 export function Button({

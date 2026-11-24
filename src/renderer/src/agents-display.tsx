@@ -41,7 +41,7 @@ export function AgentBadge({
     <span
       aria-hidden
       className={`inline-flex shrink-0 items-center justify-center rounded font-semibold ${
-        color ? '' : 'bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400'
+        color ? '' : 'bg-hover text-ink-muted'
       }`}
       style={{
         width: size,

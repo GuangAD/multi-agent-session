@@ -29,7 +29,7 @@ export function MoreMenu({
       <div
         role="menu"
         aria-label={`项目「${project.name}」更多操作`}
-        className="absolute top-full right-0 z-50 mt-1 w-44 rounded-md border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
+        className="absolute top-full right-0 z-50 mt-1 w-44 rounded-md border border-line bg-surface py-1 shadow-lg"
         onClick={(event) => {
           // 面板自身(含 padding 空白)的点击不得冒泡到项目行,否则会连带「选中 + 展开切换」
           event.stopPropagation()
@@ -38,7 +38,7 @@ export function MoreMenu({
         <button
           type="button"
           role="menuitem"
-          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-zinc-200 dark:hover:bg-zinc-700"
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-hover"
           onClick={(event) => {
             event.stopPropagation()
             openAgentDialog({ mode: 'import', projectId: project.id })
@@ -51,7 +51,7 @@ export function MoreMenu({
         <button
           type="button"
           role="menuitem"
-          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-zinc-200 dark:hover:bg-zinc-700"
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-hover"
           onClick={(event) => {
             event.stopPropagation()
             onRemove(project.id)

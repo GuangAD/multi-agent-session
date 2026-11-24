@@ -104,7 +104,7 @@ function AgentPickerPanel({
       onClick={requestClose}
     >
       <div
-        className="w-full max-w-sm rounded-lg bg-white p-4 shadow-lg dark:bg-zinc-800"
+        className="w-full max-w-sm rounded-lg bg-surface p-4 shadow-lg"
         onClick={(event) => event.stopPropagation()}
       >
         <h3 className="text-sm font-semibold">{title}</h3>
@@ -129,7 +129,7 @@ function AgentPickerPanel({
                   className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-left ${
                     disabled
                       ? 'cursor-not-allowed opacity-50'
-                      : 'hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                      : 'hover:bg-hover'
                   }`}
                   onClick={
                     mode === 'new' ? () => startNewSession(agent) : () => void runImport(agent)
@@ -138,14 +138,14 @@ function AgentPickerPanel({
                   <AgentBadge icon={def.icon} color={def.color} name={def.name} />
                   <span className="min-w-0 flex-1 truncate">{def.name}</span>
                   {mode === 'new' && !installed && (
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">未安装</span>
+                    <span className="text-xs text-ink-muted">未安装</span>
                   )}
                 </button>
               </li>
             )
           })}
         </ul>
-        {message && <p className="mt-2 px-1 text-xs text-zinc-500 dark:text-zinc-400">{message}</p>}
+        {message && <p className="mt-2 px-1 text-xs text-ink-muted">{message}</p>}
       </div>
     </div>
   )

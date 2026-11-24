@@ -28,9 +28,9 @@ export function ConfirmDialog({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="w-full max-w-sm rounded-lg bg-white p-4 shadow-lg dark:bg-zinc-800">
+      <div className="w-full max-w-sm rounded-lg bg-surface p-4 shadow-lg">
         <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{message}</p>
+        <p className="mt-2 text-sm text-ink-muted">{message}</p>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={onCancel}>
             {cancelLabel}

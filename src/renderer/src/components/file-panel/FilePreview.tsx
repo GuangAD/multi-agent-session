@@ -56,9 +56,9 @@ export function FilePreview({ path }: { path: string }): React.JSX.Element {
       {result === null ? null : result.error !== undefined ? (
         <p className="px-1 text-xs text-red-500 dark:text-red-400">{result.error}</p>
       ) : result.binary ? (
-        <div className="px-1 text-xs text-zinc-500 dark:text-zinc-400">
+        <div className="px-1 text-xs text-ink-muted">
           <p>二进制文件,不支持预览</p>
-          <p className="mt-1 text-zinc-400 dark:text-zinc-500">用右上角按钮在 VS Code 中打开</p>
+          <p className="mt-1 text-ink-muted">用右上角按钮在 VS Code 中打开</p>
         </div>
       ) : (
         <>
@@ -67,7 +67,7 @@ export function FilePreview({ path }: { path: string }): React.JSX.Element {
               内容过长,已截断显示前 {TRUNCATED_KB} KB
             </p>
           )}
-          <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all rounded bg-zinc-100 p-2 text-xs dark:bg-zinc-800">
+          <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all rounded bg-surface p-2 text-xs">
             {result.content}
           </pre>
         </>

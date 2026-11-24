@@ -1,8 +1,20 @@
 /* Tailwind CSS 4:class 策略(dark: 变体绑在 <html class="dark"> 上,不再走 media 查询)。
-   Why:T11 主题三态(system/light/dark)由 settings.theme 决定,渲染层统一把解析结果写成
-   <html> 的 dark 类——system 时解析为系统当前深浅并随系统变化更新(见 src/renderer/src/theme.ts)。 */
 @import 'tailwindcss';
 @custom-variant dark (&:where(.dark, .dark *));
+/* 语义 utility 映射(T1):bg-base / bg-surface / border-line / text-ink / text-ink-muted /
+   bg-accent / text-on-accent / hover:bg-hover / hover:bg-accent-hover,值取 theme-tokens.css 变量 */
+@theme inline {
+  --color-base: var(--app-base);
+  --color-surface: var(--app-surface);
+  --color-line: var(--app-line);
+  --color-ink: var(--app-ink);
+  --color-ink-muted: var(--app-ink-muted);
+  --color-accent: var(--app-accent);
+  --color-on-accent: var(--app-on-accent);
+  --color-hover: var(--app-hover);
+  --color-accent-hover: var(--app-accent-hover);
+}
 /* Orca 同款引链(main.css:9 / :12):终端布局层 + 全局细滚动条样式(各自文件头注明移植来源) */
 @import './terminal.css';
 @import './scrollbar-sleek.css';
+@import './theme-tokens.css';

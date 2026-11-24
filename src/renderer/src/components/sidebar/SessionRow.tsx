@@ -90,14 +90,14 @@ export function SessionRow({
   return (
     <li
       className={`group flex items-center gap-1 rounded px-1 py-1 ${
-        active ? 'bg-zinc-200 dark:bg-zinc-700' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800'
+        active ? 'bg-hover' : 'hover:bg-hover'
       }`}
     >
       {editing ? (
         <input
           autoFocus
           aria-label={`重命名会话 ${session.title}`}
-          className="my-0.5 min-w-0 flex-1 rounded border border-zinc-300 bg-transparent px-1.5 py-0.5 text-sm outline-none dark:border-zinc-600"
+          className="my-0.5 min-w-0 flex-1 rounded border border-line bg-transparent px-1.5 py-0.5 text-sm outline-none "
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}

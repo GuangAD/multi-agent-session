@@ -1,0 +1,29 @@
+/* 语义 token 层(T1,ADR-0008):界面颜色唯一来源,组件只写语义 utility。
+   Why 变量定义在 CSS 而不是直接写进 @theme:T4 的主题类(T4 起 .theme-<id>)要按主题覆盖
+   同一组变量,utility 只认变量名,值可被主题类整体替换。
+   默认灰(:root 浅 / .dark 深)= 契约基准表 = 迁移前现状观感(近似档归并到主导值)。 */
+:root {
+  --app-base: #ffffff;
+  --app-surface: #ffffff;
+  --app-line: #e4e4e7;
+  --app-ink: #18181b;
+  --app-ink-muted: #52525b;
+  --app-accent: #18181b;
+  --app-on-accent: #fafafa;
+  --app-hover: #e4e4e7;
+  --app-accent-hover: #3f3f46;
+  /* scrollbar-sleek.css 既有引用的兼容别名(T1 前一直走兜底值,现接上真值) */
+  --foreground: var(--app-ink);
+  --muted-foreground: var(--app-ink-muted);
+}
+.dark {
+  --app-base: #18181b;
+  --app-surface: #27272a;
+  --app-line: #3f3f46;
+  --app-ink: #f4f4f5;
+  --app-ink-muted: #d4d4d8;
+  --app-accent: #f4f4f5;
+  --app-on-accent: #18181b;
+  --app-hover: #27272a;
+  --app-accent-hover: #d4d4d8;
+}

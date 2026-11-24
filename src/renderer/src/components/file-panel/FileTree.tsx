@@ -46,7 +46,7 @@ function TreeRow({ node, ...rest }: FileTreeProps & { node: TreeNode }): React.J
         aria-expanded={isDir ? expanded : undefined}
         aria-pressed={isDir ? undefined : selected}
         className={`flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 ${
-          selected ? 'bg-zinc-200 dark:bg-zinc-800' : 'hover:bg-zinc-200 dark:hover:bg-zinc-800'
+          selected ? 'bg-hover' : 'hover:bg-hover'
         }`}
         onClick={() => (isDir ? onToggleDir(node) : onSelectFile(node.path))}
         onKeyDown={(event) => {
@@ -63,9 +63,9 @@ function TreeRow({ node, ...rest }: FileTreeProps & { node: TreeNode }): React.J
         <span className="flex size-4 shrink-0 items-center justify-center">
           {isDir && (children === undefined || children.length > 0) ? (
             expanded ? (
-              <ChevronDown className="size-3.5 text-zinc-500 dark:text-zinc-400" aria-hidden />
+              <ChevronDown className="size-3.5 text-ink-muted" aria-hidden />
             ) : (
-              <ChevronRight className="size-3.5 text-zinc-500 dark:text-zinc-400" aria-hidden />
+              <ChevronRight className="size-3.5 text-ink-muted" aria-hidden />
             )
           ) : null}
         </span>

@@ -149,10 +149,10 @@ function GitPanelProject({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 px-2 pb-1 pt-2">
-        <label className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+        <label className="flex items-center gap-1 text-xs text-ink-muted">
           <span className="shrink-0">分支</span>
           <select
-            className="min-w-0 flex-1 rounded border border-zinc-300 bg-transparent px-1 py-0.5 text-xs dark:border-zinc-600"
+            className="min-w-0 flex-1 rounded border border-line bg-transparent px-1 py-0.5 text-xs "
             value={branches?.current ?? ''}
             disabled={busy || !branches}
             onChange={(event) => {
@@ -187,7 +187,7 @@ function GitPanelProject({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-zinc-200 py-2 dark:border-zinc-700">
+      <div className="shrink-0 border-t border-line py-2">
         <CommitBox
           branch={branches?.current || status?.branch || ''}
           message={message}

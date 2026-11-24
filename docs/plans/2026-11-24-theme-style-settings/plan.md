@@ -60,3 +60,13 @@ brief 第 6 节无欠账,无遗留项。
     1. TERMINAL_THEMES 只有契约 22 套,非 Orca 全量(Dracula/Nord 等 9 套名单外未收录)——T6 下拉直接消费键名,勿假设在册
     2. resolve.test.ts 用例体用动态导入,使整模块缺失的红是逐用例失败而非套件级;后续 themes 测试沿用该结构
     3. selectTerminalTheme 返回 { mode, theme };T5 若需 mode 从它取,TerminalAppearance 不含 mode
+- T1 语义 token 层落地 | 完成 | commit 见「feat(T1)」提交(基线 121cd58f)
+  - 基线:121cd58f(T11 残局清零之后)
+  - 评审:self-review,非独立(纯样式任务按评审分级免派 reviewer,门 3 整特性终审兜底);16 文件 diff 全量审读,映射表整串精确替换
+  - waiver:TDD waiver(契约预登记)——纯样式等价替换无逻辑分支;验证 = 残留扫描 0 处 + typecheck 0 error + 全量 278 passed
+  - 变更登记:无(四层文档未动)
+  - 归并决策(视觉近似收敛,精确观感待用户冒烟):①终端区浅底 zinc-50 归 base 白;②选中态与悬停共用 bg-hover(深 700/800 归 800);③输入框边框 zinc-300/600 归 line;④FilePreview 代码底 zinc-100 归 surface;⑤次文本 500/400 归并 inkMuted 600/300(对比度略升);⑥Tab 关闭钮 hover 300/700、600/200 归 hover/ink
+  - 结论:
+    1. 语义 utility 共 9 个,T4 主题类只需覆盖 --app-* 变量即可整体换色
+    2. scrollbar-sleek 兼容别名 --foreground/--muted-foreground 已接真值(此前一直走兜底)
+    3. 视觉冒烟本机不可达(无视觉),R5 已追加 TODO.md 待用户
