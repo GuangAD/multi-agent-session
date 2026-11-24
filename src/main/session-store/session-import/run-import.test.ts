@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ImportCandidate } from '../../../shared/agents'
 import type { AppStore } from '../../../shared/types'
 import { sessionRecords } from '../session-records'
+import { DEFAULT_STORE } from '../store-persistence'
 import { dedupeKey, runImport } from './index'
 
 // 桩扫描器:runImport 只消费候选,真实扫描行为由插件包内 fixture 回放覆盖
@@ -18,7 +19,7 @@ function emptyStore(): AppStore {
     version: 1,
     projects: [{ id: 'p1', path: PROJECT_PATH, name: 'myapp' }],
     sessions: [],
-    settings: { scrollbackRows: 10000, theme: 'system', shell: 'powershell' }
+    settings: { ...DEFAULT_STORE.settings }
   }
 }
 

@@ -33,7 +33,8 @@ const THEMES: ReadonlyArray<Settings['theme']> = ['system', 'light', 'dark']
 const SHELLS: ReadonlyArray<Settings['shell']> = ['cmd', 'powershell', 'pwsh']
 const SCROLLBACK_MAX = 50_000
 
-function applyPatch(settings: Settings, patch: Partial<Settings>): void {
+// T2 起导出供单测(模块行为接缝);仍然原地修改 settings,不抛出,坏值忽略或夹紧
+export function applyPatch(settings: Settings, patch: Partial<Settings>): void {
   if (patch.theme !== undefined && THEMES.includes(patch.theme)) {
     settings.theme = patch.theme
   }
@@ -48,6 +49,47 @@ function applyPatch(settings: Settings, patch: Partial<Settings>): void {
   }
   if (patch.defaultAgentId !== undefined) {
     settings.defaultAgentId = patch.defaultAgentId
+  }
+  // —— 主题样式设置(T2)新增字段 ——
+  // 主题槽与字体族:只验类型,内容合法性交给渲染层解析兜底(坏 id 落默认主题)
+  if (typeof patch.appThemeDark === 'string' && patch.appThemeDark !== '') {
+    settings.appThemeDark = patch.appThemeDark
+  }
+  if (typeof patch.appThemeLight === 'string' && patch.appThemeLight !== '') {
+    settings.appThemeLight = patch.appThemeLight
+  }
+  if (typeof patch.terminalThemeDark === 'string' && patch.terminalThemeDark !== '') {
+    settings.terminalThemeDark = patch.terminalThemeDark
+  }
+  if (typeof patch.terminalThemeLight === 'string' && patch.terminalThemeLight !== '') {
+    settings.terminalThemeLight = patch.terminalThemeLight
+  }
+  if (typeof patch.terminalFontFamily === 'string') {
+    settings.terminalFontFamily = patch.terminalFontFamily
+  }
+  if (typeof patch.terminalFontSize === 'number' && Number.isFinite(patch.terminalFontSize)) {
+    settings.terminalFontSize = Math.min(32, Math.max(8, Math.trunc(patch.terminalFontSize)))
+  }
+  if (
+    patch.terminalFontWeight === 300 ||
+    patch.terminalFontWeight === 400 ||
+    patch.terminalFontWeight === 500
+  ) {
+    settings.terminalFontWeight = patch.terminalFontWeight
+  }
+  if (typeof patch.terminalLineHeight === 'number' && Number.isFinite(patch.terminalLineHeight)) {
+    settings.terminalLineHeight =
+      Math.round(Math.min(2, Math.max(1, patch.terminalLineHeight)) * 10) / 10
+  }
+  if (
+    patch.terminalCursorStyle === 'block' ||
+    patch.terminalCursorStyle === 'bar' ||
+    patch.terminalCursorStyle === 'underline'
+  ) {
+    settings.terminalCursorStyle = patch.terminalCursorStyle
+  }
+  if (typeof patch.terminalCursorBlink === 'boolean') {
+    settings.terminalCursorBlink = patch.terminalCursorBlink
   }
 }
 

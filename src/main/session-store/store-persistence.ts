@@ -4,12 +4,27 @@ import { promises as fs } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import type { AppStore } from '../../shared/types'
 
-// 非接缝,只读常量:store 默认值(settings 默认出自 plan:scrollback 10000、theme 跟随系统)
+// 非接缝,只读常量:store 默认值(settings 默认出自 plan:scrollback 10000、theme 跟随系统;
+// 主题样式 T2 起含界面/终端主题双槽与终端外观六项,新字段默认值出自 spec 数据结构节,
+// terminalFontFamily 可选缺省 = 默认回退链,故不列默认值)——loadStore 的「缺字段补默认」以它为唯一依据
 export const DEFAULT_STORE: AppStore = {
   version: 1,
   projects: [],
   sessions: [],
-  settings: { scrollbackRows: 10000, theme: 'system', shell: 'powershell' }
+  settings: {
+    scrollbackRows: 10000,
+    theme: 'system',
+    shell: 'powershell',
+    appThemeDark: 'default',
+    appThemeLight: 'default',
+    terminalThemeDark: 'Ghostty Default Style Dark',
+    terminalThemeLight: 'Builtin Tango Light',
+    terminalFontSize: 14,
+    terminalFontWeight: 300,
+    terminalLineHeight: 1.0,
+    terminalCursorStyle: 'block',
+    terminalCursorBlink: false
+  }
 }
 
 // Why: DEFAULT_STORE 是只读常量,兜底路径返回深拷贝,避免调用方(入口持有的内存 store)污染模块级默认值

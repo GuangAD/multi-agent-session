@@ -24,8 +24,40 @@ const FILLED_STORE: AppStore = {
   version: 1,
   projects: [{ id: 'p-1', path: 'D:\\demo', name: 'demo' }],
   sessions: [],
-  settings: { defaultAgentId: 'claude', scrollbackRows: 25000, theme: 'dark', shell: 'cmd' }
+  settings: {
+    defaultAgentId: 'claude',
+    scrollbackRows: 25000,
+    theme: 'dark',
+    shell: 'cmd',
+    appThemeDark: 'warm',
+    appThemeLight: 'rose',
+    terminalThemeDark: 'Builtin Tango Light',
+    terminalThemeLight: 'Ghostty Default Style Dark',
+    terminalFontFamily: 'JetBrains Mono',
+    terminalFontSize: 20,
+    terminalFontWeight: 400,
+    terminalLineHeight: 1.5,
+    terminalCursorStyle: 'bar',
+    terminalCursorBlink: true
+  }
 }
+
+// 主题样式 T2 默认值字面量(照抄 spec 数据结构节):供「缺字段补默认」断言使用,
+// 独立于 DEFAULT_STORE 的字面量,防同源比较掩盖默认值本身写错
+const DEFAULT_SETTINGS_WITH_NEW_FIELDS = {
+  scrollbackRows: 10000,
+  theme: 'system',
+  shell: 'powershell',
+  appThemeDark: 'default',
+  appThemeLight: 'default',
+  terminalThemeDark: 'Ghostty Default Style Dark',
+  terminalThemeLight: 'Builtin Tango Light',
+  terminalFontSize: 14,
+  terminalFontWeight: 300,
+  terminalLineHeight: 1.0,
+  terminalCursorStyle: 'block',
+  terminalCursorBlink: false
+} as const
 
 it('写入再读取,字段与值完全一致', async () => {
   await saveStoreAtomic(file, FILLED_STORE)
@@ -55,8 +87,8 @@ it('合法 JSON 缺 settings 字段:settings 补默认,projects 保留', async (
     'utf8'
   )
   const loaded = await loadStore(file)
-  // 手算默认值:scrollbackRows 10000、theme system(spec 默认)
-  expect(loaded.settings).toEqual({ scrollbackRows: 10000, theme: 'system', shell: 'powershell' })
+  // 手算默认值:scrollbackRows 10000、theme system(spec 默认);T2 起含主题/终端外观新字段全默认
+  expect(loaded.settings).toEqual(DEFAULT_SETTINGS_WITH_NEW_FIELDS)
   expect(loaded.projects).toEqual([{ id: 'p-keep', path: 'D:\\keep', name: 'keep' }])
   // 未走损坏兜底:原文件仍在
   await expect(access(file)).resolves.toBeUndefined()
@@ -87,4 +119,112 @@ it('并发保存:8 写者各 3 轮并发,最终为其中一次写入的完整内
   expect(contents).toContainEqual(loaded)
   // 全部 rename 消费各自的 tmp、失败路径 best-effort 清理:目录只剩目标文件
   expect(await readdir(dir)).toEqual(['store.json'])
+})
+
+// ============ 主题样式设置 T2:Settings 新字段 loadStore 兼容(spec 接缝三矩阵)============
+it('T2 用例 1:旧文件(仅 scrollback/theme/shell)读入,新字段全部补默认值,旧值原样保留', async () => {
+  await writeFile(
+    file,
+    JSON.stringify({
+      version: 1,
+      projects: [],
+      sessions: [],
+      settings: { scrollbackRows: 5000, theme: 'light', shell: 'cmd' }
+    }),
+    'utf8'
+  )
+  const loaded = await loadStore(file)
+  // 独立字面量而非 DEFAULT_STORE 同源比较,防默认值本身写错被掩盖
+  expect(loaded.settings).toEqual({
+    ...DEFAULT_SETTINGS_WITH_NEW_FIELDS,
+    scrollbackRows: 5000,
+    theme: 'light',
+    shell: 'cmd'
+  })
+  // 未走损坏兜底:原文件仍在
+  await expect(access(file)).resolves.toBeUndefined()
+})
+
+it('T2 用例 2:全字段新文件读入,原值保留不清洗(越界值也不在 load 层夹紧)', async () => {
+  const fileSettings = {
+    defaultAgentId: 'claude',
+    scrollbackRows: 25000,
+    theme: 'dark',
+    shell: 'cmd',
+    appThemeDark: 'warm',
+    appThemeLight: 'rose',
+    terminalThemeDark: 'Builtin Tango Light',
+    terminalThemeLight: 'Ghostty Default Style Dark',
+    terminalFontFamily: 'JetBrains Mono',
+    terminalFontSize: 99,
+    terminalFontWeight: 500,
+    terminalLineHeight: 3,
+    terminalCursorStyle: 'underline',
+    terminalCursorBlink: true
+  }
+  await writeFile(
+    file,
+    JSON.stringify({ version: 1, projects: [], sessions: [], settings: fileSettings }),
+    'utf8'
+  )
+  await expect(loadStore(file)).resolves.toEqual({
+    version: 1,
+    projects: [],
+    sessions: [],
+    settings: fileSettings
+  })
+})
+
+it('T2 用例 3:仅缺 terminalFontSize 与 appThemeLight,缺的补默认,有的保留', async () => {
+  await writeFile(
+    file,
+    JSON.stringify({
+      version: 1,
+      projects: [],
+      sessions: [],
+      settings: {
+        scrollbackRows: 10000,
+        theme: 'system',
+        shell: 'powershell',
+        appThemeDark: 'forest',
+        terminalThemeDark: 'warm',
+        terminalThemeLight: 'cool',
+        terminalFontFamily: 'Consolas',
+        terminalFontWeight: 500,
+        terminalLineHeight: 1.2,
+        terminalCursorStyle: 'bar',
+        terminalCursorBlink: true
+      }
+    }),
+    'utf8'
+  )
+  const loaded = await loadStore(file)
+  expect(loaded.settings).toEqual({
+    scrollbackRows: 10000,
+    theme: 'system',
+    shell: 'powershell',
+    appThemeDark: 'forest',
+    appThemeLight: 'default', // 缺 → 补默认
+    terminalThemeDark: 'warm',
+    terminalThemeLight: 'cool',
+    terminalFontFamily: 'Consolas',
+    terminalFontSize: 14, // 缺 → 补默认
+    terminalFontWeight: 500,
+    terminalLineHeight: 1.2,
+    terminalCursorStyle: 'bar',
+    terminalCursorBlink: true
+  })
+})
+
+it('T2 用例 4:settings 为字符串,走既有兜底路径返回全默认,不抛出且不隔离原文件', async () => {
+  await writeFile(
+    file,
+    JSON.stringify({ version: 1, projects: [], sessions: [], settings: 'broken' }),
+    'utf8'
+  )
+  const loaded = await loadStore(file)
+  // 期望值用独立字面量:兜底给出的必须是含新字段的全默认,而非旧三字段
+  expect(loaded.settings).toEqual(DEFAULT_SETTINGS_WITH_NEW_FIELDS)
+  // settings 是字符串但整文件仍是合法 JSON 对象:不触发 .corrupt-* 隔离
+  await expect(access(file)).resolves.toBeUndefined()
 })

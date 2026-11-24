@@ -2,6 +2,7 @@
 // 期望值来源:手算字面量 + brief 第 5 节删除/重命名语义;直接操作内存 store,不经 IPC、不碰 fs。
 import { afterEach, expect, it, vi } from 'vitest'
 import { sessionRecords } from './session-records'
+import { DEFAULT_STORE } from './store-persistence'
 import type { AgentId, AppStore, Session } from '../../shared/types'
 
 // 手算骨架:本接缝只动 sessions 段,其余段取 spec 默认值
@@ -10,7 +11,7 @@ function emptyStore(): AppStore {
     version: 1,
     projects: [],
     sessions: [],
-    settings: { scrollbackRows: 10000, theme: 'system', shell: 'powershell' }
+    settings: { ...DEFAULT_STORE.settings }
   }
 }
 

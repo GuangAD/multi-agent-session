@@ -41,6 +41,16 @@ export interface Settings {
   scrollbackRows: number // 默认 10000,上限 50000
   theme: 'system' | 'light' | 'dark'
   shell: ShellKind // 会话终端里常驻的 shell(agent 退出后你回到的那个提示符)
+  appThemeDark: string // 界面主题深槽 id,默认 'default'
+  appThemeLight: string // 界面主题浅槽 id,默认 'default'
+  terminalThemeDark: string // 终端主题深槽 id(Orca 原名),默认 'Ghostty Default Style Dark'
+  terminalThemeLight: string // 终端主题浅槽 id,默认 'Builtin Tango Light'
+  terminalFontFamily?: string // 缺省 = 默认回退链
+  terminalFontSize: number // 默认 14,范围 [8, 32]
+  terminalFontWeight: number // 默认 300,档位 300/400/500
+  terminalLineHeight: number // 默认 1.0,范围 [1.0, 2.0]
+  terminalCursorStyle: 'block' | 'bar' | 'underline' // 默认 'block'
+  terminalCursorBlink: boolean // 默认 false
 }
 
 export interface AppStore {
