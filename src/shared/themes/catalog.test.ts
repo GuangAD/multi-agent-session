@@ -73,3 +73,19 @@ describe('TERMINAL_THEMES 目录完整性', () => {
     }
   })
 })
+
+// T6 增补:深浅归属表必须恰好划分目录(无遗漏、无重名、无目录外名字)
+describe('终端主题深浅归属', () => {
+  it('DARK/LIGHT 两表恰好划分全部 22 套,且各自首位为默认主题', async () => {
+    const { DARK_TERMINAL_THEME_NAMES, LIGHT_TERMINAL_THEME_NAMES, TERMINAL_THEMES } = await import(
+      './catalog'
+    )
+    const catalogNames = Object.keys(TERMINAL_THEMES).sort()
+    const grouped = [...DARK_TERMINAL_THEME_NAMES, ...LIGHT_TERMINAL_THEME_NAMES].sort()
+
+    expect(grouped, '深浅两表并集应恰好等于目录').toEqual(catalogNames)
+    expect(new Set(grouped).size, '两表不得有重名').toBe(grouped.length)
+    expect(DARK_TERMINAL_THEME_NAMES[0]).toBe('Ghostty Default Style Dark')
+    expect(LIGHT_TERMINAL_THEME_NAMES[0]).toBe('Builtin Tango Light')
+  })
+})

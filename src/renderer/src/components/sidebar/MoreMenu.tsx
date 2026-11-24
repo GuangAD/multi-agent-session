@@ -1,7 +1,7 @@
 // 「更多」行内小菜单(spec:components/sidebar/MoreMenu):项目行「…」弹出的两项动作面板——
 // 「导入历史会话」开 agent 选择弹窗(import 模式),「移除项目」走既有 removeProject(无确认,行为不变)。
 // 开合态归 ProjectGroup 组件本地,关闭即复位;面板外垫透明遮罩,点外部即关闭。
-import { Download, Trash2 } from 'lucide-react'
+import { Download, Settings, Trash2 } from 'lucide-react'
 import { useAppStore } from '../../store/app-store'
 import type { Project } from '../../../../shared/types'
 
@@ -15,6 +15,7 @@ export function MoreMenu({
   onRemove: (id: string) => void
 }): React.JSX.Element {
   const openAgentDialog = useAppStore((state) => state.openAgentDialog)
+  const openSettingsDialog = useAppStore((state) => state.openSettingsDialog)
 
   return (
     <>
@@ -47,6 +48,19 @@ export function MoreMenu({
         >
           <Download className="size-3.5" aria-hidden />
           导入历史会话
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-hover"
+          onClick={(event) => {
+            event.stopPropagation()
+            openSettingsDialog()
+            onClose()
+          }}
+        >
+          <Settings className="size-3.5" aria-hidden />
+          设置
         </button>
         <button
           type="button"

@@ -19,10 +19,10 @@
 - [ ] **T5 终端即时生效接线**
       交付:已开终端消费终端外观解析结果,设置变更即时 refit/重建并同步 PTY 网格;无右侧空白带回归
       挡谁:T6
-- [ ] **T6 设置对话框**
+- [x] **T6 设置对话框**
       交付:MoreMenu 入口打开设置对话框,外观 + 通用两区全部控件可用,改动即时生效并即时落盘
       挡谁:T7
-- [ ] **T7 终端样式预览块**
+- [x] **T7 终端样式预览块**
       交付:外观区顶部迷你终端预览,如实反映主题与字体改动,深/浅切换钮只切预览
       挡谁:无
 
@@ -96,3 +96,18 @@ brief 第 6 节无欠账,无遗留项。
     2. 度量变更的 PTY 同步无需额外接线:fit 改 cols/rows 后既有 onResize → pty.resize 自动生效
     3. T6/T7 若要预览实例,不要加入 use-terminal 的 terminals 注册表(否则 applyToAll 会误改预览)
 - T1 缺陷修复(Critical,自审发现) | fix(T1) 提交 | 症状:pnpm build 产物 CSS 仅 8.7KB,terminal.css / scrollbar-sleek.css / theme-tokens.css 全部未进产物(xterm-container=0、data-scrollbars=0、--app-base 缺失),即 T1 起语义色变量运行时全部未定义、界面色回退透明/默认;根因:T1 改 main.css 时删掉了文件头注释的闭合 `*/`,导致后续 `@import 'tailwindcss'` 与 @custom-variant 被吞进注释,且三个 CSS @import 排在规则之后按 CSS 规范被丢弃;修复:重写 main.css 为规范顺序(注释闭合 + @import 'tailwindcss' 与三个本地 CSS 全部前置,@custom-variant/@theme 在后),产物 36KB,xterm-container×3 / data-scrollbars×13 / theme-warm×2 / --app-base 均已在;教训:纯样式任务标 waiver 后只跑 typecheck 与单测无法发现 CSS 未进产物,渲染层/样式改动必须验 `pnpm build` 产物内容(T1 契约第 10 步只写了冒烟,未写产物校验)
+- T6 设置对话框 + T7 终端样式预览块 | 完成 | commit 见「feat(T6/T7)」提交(基线 d7348d22)
+  - 基线:d7348d22
+  - 评审:self-review,非独立(子代理额度耗尽至 18:44,无法派 reviewer;门 3 终审兜底)
+  - 实施方式:controller 会话内实现(T6/T7 相邻且共用 AppearanceSection,合并一轮交付;两者仍是独立可演示的交付物:对话框壳+控件 vs 预览块)
+  - waiver:TDD waiver(契约预登记,两任务均属 UI 接线/展示)——验证 = typecheck 0 error + 全量 292 passed + `pnpm build` 通过且产物含全部主题类(T6 期间发现的 T1 缺陷即由该检查暴露)+ `pnpm dev` 启动 25s 无渲染层模块错误
+  - 自审发现并就地修复 3 处:
+    1. **功能缺口(重要)**:TerminalTabs 只在挂载时读一次 scrollback → 对话框改行数不会重建终端,验收条目 7 无法达成;改为订阅 settings 切片(变化即触发 TerminalView 既有重建 effect),并清掉随之产生的孤儿导入/常量
+    2. 预览字号截断为 ≤14 会违背「如实反映」验收;改为直通设置值,靠容器滚动容纳
+    3. App 启动把 loadSettings 塞进 Promise.all 会因设置读取失败连坐跳过 loadSessions;改为独立 catch 兜底
+  - 变更登记:tasks/T6.md「实施期补充」第 1 条(外观重放)已按 T4 评审要求在 patchAppearance 中落实;第 2 条(默认值提升到 shared)未做——保留为 Minor(T6 未扩范围)
+  - Minor 遗留:①settings-slice INITIAL_SETTINGS 仍为主进程 DEFAULT_STORE 的手工镜像(建议后续提升到 shared);②CSS↔目录色值一致性无锚定测试;③浅槽坏 id 用例未补
+  - 结论:
+    1. 界面主题改动必须由消费方显式调 applyAppearance(patchAppearance 内已做),store 变更不会自动重绘
+    2. 深浅归属显式化(自审第 4 处修复):初版浅槽下拉只有 1 项,与 brief「双槽各可选」不符;catalog.ts 增 DARK/LIGHT_TERMINAL_THEME_NAMES 两张显式名字表(不按名字猜:Catppuccin Latte / Rose Pine Dawn 不带 Light 后缀),catalog.test.ts 增划分断言钉住「两表恰好划分目录、无重名、首位为默认」,下拉改为消费这两张表
+    3. 预览实例用独立 Terminal,不进 use-terminal 注册表,故 applyToAll 不会误改预览

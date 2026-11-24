@@ -1,18 +1,15 @@
 // 终端区:标签页栏 + 每会话一个常驻 TerminalView(tab 切换仅切可见性)
 // scrollback 取 settings(默认 10000);设置界面属后续任务,本任务只读一次
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useAppStore } from '../../store/app-store'
-import { bridge } from '../../ipc/bridge'
+import { useSettings } from '../../store/settings-slice'
 import { EmptyState } from '../ui/empty-state'
 import { TerminalView } from './TerminalView'
 import { setTerminalReadyHandler } from './use-terminal'
 import { RUN_STATE_DISPLAY } from '../../run-state-display'
 import { FilePreview } from '../file-panel/FilePreview'
 import { DiffView } from '../git-panel/DiffView'
-
-// spec 默认值:xterm scrollback 默认 10000 行(settings 缺读时兜底,与 DEFAULT_STORE 一致)
-const FALLBACK_SCROLLBACK = 10000
 
 export function TerminalTabs(): React.JSX.Element {
   const tabs = useAppStore((state) => state.tabs)
@@ -30,8 +27,9 @@ export function TerminalTabs(): React.JSX.Element {
   const deactivatePreview = useAppStore((state) => state.deactivatePreview)
   const closePreview = useAppStore((state) => state.closePreview)
   const closeTab = useAppStore((state) => state.closeTab)
-  // scrollback 是创建期参数:tab 挂上后即取 store 设置值(只读一次,无设置界面不会变)
-  const [scrollback, setScrollback] = useState(FALLBACK_SCROLLBACK)
+  // scrollback 是创建期参数(T6):订阅 settings 切片而不是挂载时读一次——设置对话框改行数后
+  // 值变化即让 TerminalView 的既有 effect 重建实例(契约「回滚行数按重建语义生效」)
+  const scrollback = useSettings((settings) => settings.scrollbackRows)
 
   // Fix-B:终端首个 fit 收敛即触发 spawn(带真实 cols/rows);消费逻辑在 sessions-slice,
   // 重复回调由 pendingSpawns 一次性消费兜住
@@ -40,23 +38,6 @@ export function TerminalTabs(): React.JSX.Element {
       void useAppStore.getState().spawnOnTerminalReady(sessionId, cols, rows)
     })
     return () => setTerminalReadyHandler(null)
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    bridge.settings
-      .get()
-      .then((settings) => {
-        if (!cancelled) {
-          setScrollback(settings.scrollbackRows)
-        }
-      })
-      .catch((error) => {
-        console.error('读取设置失败,scrollback 用默认值:', error)
-      })
-    return () => {
-      cancelled = true
-    }
   }, [])
 
   return (

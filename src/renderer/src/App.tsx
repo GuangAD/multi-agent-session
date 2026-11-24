@@ -20,7 +20,8 @@ import { FileTreePanel } from './components/file-panel/FileTreePanel'
 import { GitPanel } from './components/git-panel/GitPanel'
 import { TerminalTabs } from './components/terminal/TerminalTabs'
 import { applyTerminalAppearanceToAll } from './components/terminal/use-terminal'
-import { useSettings } from './store/settings-slice'
+import { useSettings, loadSettings } from './store/settings-slice'
+import { SettingsDialog } from './components/settings/SettingsDialog'
 import { systemPrefersDark } from './theme'
 import { bridge } from './ipc/bridge'
 
@@ -70,7 +71,14 @@ function App(): React.JSX.Element {
   // (sessions:list 载荷是单个 projectId);loadAgents 自身失败不抛,只保持空列表
   useEffect(() => {
     void (async () => {
-      await Promise.all([loadProjects(), loadAgents()])
+      // loadSettings 失败只回退初值镜像,不得连坐跳过 loadSessions(与 loadAgents 同款孤立失败)
+      await Promise.all([
+        loadProjects(),
+        loadAgents(),
+        loadSettings().catch((error) => {
+          console.error('加载设置失败,沿用默认值:', error)
+        })
+      ])
       await loadSessions()
     })().catch((error) => {
       console.error('加载项目与会话记录失败:', error)
@@ -331,6 +339,8 @@ function App(): React.JSX.Element {
           </aside>
         )}
       </div>
+
+      <SettingsDialog />
     </div>
   )
 }

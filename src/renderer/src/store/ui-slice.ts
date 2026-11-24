@@ -21,6 +21,11 @@ export interface UiSlice {
   openAgentDialog: (dialog: AgentDialogDescription) => void
   // 关闭弹窗:置 null;未打开时调用保持 null,不抛错(幂等)
   closeAgentDialog: () => void
+  // 设置对话框开合(T6):入口在项目行「更多」菜单,对话框本体挂 App 根部,故经 store 共享
+  settingsDialogOpen: boolean
+  // 打开/关闭设置对话框:幂等写入布尔,无副作用
+  openSettingsDialog: () => void
+  closeSettingsDialog: () => void
 }
 
 export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set) => ({
@@ -30,5 +35,12 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set) => (
   },
   closeAgentDialog: () => {
     set({ agentDialog: null })
+  },
+  settingsDialogOpen: false,
+  openSettingsDialog: () => {
+    set({ settingsDialogOpen: true })
+  },
+  closeSettingsDialog: () => {
+    set({ settingsDialogOpen: false })
   }
 })

@@ -548,3 +548,36 @@ export const TERMINAL_THEMES: Record<string, ITheme> = {
     brightWhite: '#fdf6e3'
   }
 }
+
+// —— 深浅归属(T6 设置对话框的双槽下拉需要) ——
+// Why 显式列名而不是从名字里猜(T6 自审发现):主题名不带「Light」后缀的浅色套确实存在
+// (Catppuccin Latte / Rose Pine Dawn),按字符串猜会漏;深浅归属是目录数据的一部分,
+// 由 catalog.test.ts 的划分断言钉住「两表恰好划分目录,无遗漏无重名」。
+// 默认深/浅两套排在各自首位,与 DEFAULT 主题一致。
+export const DARK_TERMINAL_THEME_NAMES: readonly string[] = [
+  'Ghostty Default Style Dark',
+  'One Dark',
+  'Tokyo Night',
+  'Gruvbox Dark',
+  'Catppuccin Mocha',
+  'Solarized Dark',
+  'Material Dark',
+  'Ayu Dark',
+  'Rose Pine',
+  'Everforest Dark',
+  'Horizon Dark',
+  'Night Owl',
+  'Tango Dark'
+]
+
+export const LIGHT_TERMINAL_THEME_NAMES: readonly string[] = [
+  'Builtin Tango Light',
+  'Solarized Light',
+  'One Light',
+  'Catppuccin Latte',
+  'GitHub Light',
+  'Rose Pine Dawn',
+  'Gruvbox Light',
+  'Tokyo Night Light',
+  'Everforest Light'
+]
