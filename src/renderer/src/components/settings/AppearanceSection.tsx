@@ -47,6 +47,8 @@ function SectionTitle({ children }: { children: React.ReactNode }): React.JSX.El
 
 const controlClass =
   'rounded border border-line bg-transparent px-1.5 py-0.5 text-sm outline-none focus:border-ink-muted'
+// 主题/字体下拉需要容纳最长项(如 "Ghostty Default Style Dark"),否则原生 select 会把名字截断
+const selectClass = `${controlClass} w-60`
 
 export function AppearanceSection(): React.JSX.Element {
   const settings = useSettings((current) => current)
@@ -71,7 +73,7 @@ export function AppearanceSection(): React.JSX.Element {
       <SectionTitle>界面主题</SectionTitle>
       <Row label="深色时" hint="界面处于深色时使用的主题">
         <select
-          className={controlClass}
+          className={selectClass}
           value={settings.appThemeDark}
           onChange={(event) => patchAppearance({ appThemeDark: event.target.value })}
         >
@@ -84,7 +86,7 @@ export function AppearanceSection(): React.JSX.Element {
       </Row>
       <Row label="浅色时" hint="界面处于浅色时使用的主题">
         <select
-          className={controlClass}
+          className={selectClass}
           value={settings.appThemeLight}
           onChange={(event) => patchAppearance({ appThemeLight: event.target.value })}
         >
@@ -99,7 +101,7 @@ export function AppearanceSection(): React.JSX.Element {
       <SectionTitle>终端主题</SectionTitle>
       <Row label="深色时" hint="终端处于深色时使用的配色">
         <select
-          className={controlClass}
+          className={selectClass}
           value={settings.terminalThemeDark}
           onChange={(event) => patch({ terminalThemeDark: event.target.value })}
         >
@@ -112,7 +114,7 @@ export function AppearanceSection(): React.JSX.Element {
       </Row>
       <Row label="浅色时" hint="终端处于浅色时使用的配色">
         <select
-          className={controlClass}
+          className={selectClass}
           value={settings.terminalThemeLight}
           onChange={(event) => patch({ terminalThemeLight: event.target.value })}
         >
@@ -129,7 +131,7 @@ export function AppearanceSection(): React.JSX.Element {
       <SectionTitle>终端外观</SectionTitle>
       <Row label="字体">
         <select
-          className={controlClass}
+          className={selectClass}
           value={settings.terminalFontFamily ?? ''}
           onChange={(event) => patch({ terminalFontFamily: event.target.value })}
         >
@@ -152,7 +154,7 @@ export function AppearanceSection(): React.JSX.Element {
       </Row>
       <Row label="字重">
         <select
-          className={controlClass}
+          className={selectClass}
           value={settings.terminalFontWeight}
           onChange={(event) => patch({ terminalFontWeight: Number(event.target.value) })}
         >
@@ -176,7 +178,7 @@ export function AppearanceSection(): React.JSX.Element {
       </Row>
       <Row label="光标样式">
         <select
-          className={controlClass}
+          className={selectClass}
           value={settings.terminalCursorStyle}
           onChange={(event) =>
             patch({ terminalCursorStyle: event.target.value as Settings['terminalCursorStyle'] })

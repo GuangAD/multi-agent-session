@@ -186,3 +186,25 @@
   --app-hover: #3f2d24;
   --app-accent-hover: #fb923c;
 }
+
+/* 表单控件的原生弹层(select 下拉列表等)由浏览器自己绘制,不吃 Tailwind 类:
+   必须靠 color-scheme + option 元素自身的 background/color 着色,否则深色界面下会弹出
+   白底浅字列表、文字几乎不可读(T6 冒烟反馈)。color-scheme 写在 CSS 而非只靠 JS 内联,
+   让控件在首帧就按正确深浅绘制。 */
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+select,
+option,
+input,
+textarea,
+button {
+  color-scheme: inherit;
+}
+option {
+  background-color: var(--app-surface);
+  color: var(--app-ink);
+}
