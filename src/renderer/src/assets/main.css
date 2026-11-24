@@ -15,6 +15,7 @@
    bg-accent / text-on-accent / hover:bg-hover / hover:bg-accent-hover,值取 theme-tokens.css 变量 */
 @theme inline {
   --color-base: var(--app-base);
+  --color-panel: var(--app-panel);
   --color-surface: var(--app-surface);
   --color-line: var(--app-line);
   --color-ink: var(--app-ink);

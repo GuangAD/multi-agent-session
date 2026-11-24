@@ -7,7 +7,8 @@ export type AppThemeId =
 
 // 界面语义 token 值(与 theme-tokens.css 的 --app-* 变量一一对应),色值一律 #rrggbb
 export type AppTokenValues = {
-  base: string // 窗口底
+  base: string // 窗口底(内容区)
+  panel: string // 侧栏/面板容器底:在 base 上做微妙偏移,与内容区分层(浅色略暗、深色略亮)
   surface: string // 面板/浮层
   line: string // 边框
   ink: string // 主文本
@@ -31,6 +32,7 @@ export const APP_THEMES: AppTheme[] = [
     name: '默认',
     light: {
       base: '#ffffff',
+      panel: '#f4f4f5',
       surface: '#ffffff',
       line: '#e4e4e7',
       ink: '#18181b',
@@ -42,6 +44,7 @@ export const APP_THEMES: AppTheme[] = [
     },
     dark: {
       base: '#18181b',
+      panel: '#1f1f23',
       surface: '#27272a',
       line: '#3f3f46',
       ink: '#f4f4f5',
@@ -57,6 +60,7 @@ export const APP_THEMES: AppTheme[] = [
     name: '暖米',
     light: {
       base: '#faf6f0',
+      panel: '#f2ece3',
       surface: '#ffffff',
       line: '#e7ded2',
       ink: '#44403c',
@@ -68,6 +72,7 @@ export const APP_THEMES: AppTheme[] = [
     },
     dark: {
       base: '#292524',
+      panel: '#322d29',
       surface: '#33302c',
       line: '#44403c',
       ink: '#e7e5e4',
@@ -83,6 +88,7 @@ export const APP_THEMES: AppTheme[] = [
     name: '冷蓝',
     light: {
       base: '#f8fafc',
+      panel: '#eef2f7',
       surface: '#ffffff',
       line: '#dbe3ee',
       ink: '#0f172a',
@@ -94,6 +100,7 @@ export const APP_THEMES: AppTheme[] = [
     },
     dark: {
       base: '#0f172a',
+      panel: '#172033',
       surface: '#1e293b',
       line: '#334155',
       ink: '#e2e8f0',
@@ -109,6 +116,7 @@ export const APP_THEMES: AppTheme[] = [
     name: '森绿',
     light: {
       base: '#f6f8f4',
+      panel: '#edf0ea',
       surface: '#ffffff',
       line: '#dde5da',
       ink: '#1f2a20',
@@ -120,6 +128,7 @@ export const APP_THEMES: AppTheme[] = [
     },
     dark: {
       base: '#1c241b',
+      panel: '#232c21',
       surface: '#26301f',
       line: '#3a4634',
       ink: '#e6eadf',
@@ -135,6 +144,7 @@ export const APP_THEMES: AppTheme[] = [
     name: '紫夜',
     light: {
       base: '#f8f7fc',
+      panel: '#f0eef7',
       surface: '#ffffff',
       line: '#e4e0ee',
       ink: '#231d33',
@@ -146,6 +156,7 @@ export const APP_THEMES: AppTheme[] = [
     },
     dark: {
       base: '#1e1b2e',
+      panel: '#262238',
       surface: '#2a2540',
       line: '#3d3659',
       ink: '#e6e2f5',
@@ -161,6 +172,7 @@ export const APP_THEMES: AppTheme[] = [
     name: '玫瑰',
     light: {
       base: '#faf7f8',
+      panel: '#f3ebee',
       surface: '#ffffff',
       line: '#ecdfe3',
       ink: '#2b2226',
@@ -172,6 +184,7 @@ export const APP_THEMES: AppTheme[] = [
     },
     dark: {
       base: '#261c20',
+      panel: '#2f2226',
       surface: '#322529',
       line: '#46343a',
       ink: '#f2e8ec',
@@ -187,6 +200,7 @@ export const APP_THEMES: AppTheme[] = [
     name: '暮蓝',
     light: {
       base: '#f7f8fb',
+      panel: '#eef0f6',
       surface: '#ffffff',
       line: '#dfe3ef',
       ink: '#171c2e',
@@ -198,6 +212,7 @@ export const APP_THEMES: AppTheme[] = [
     },
     dark: {
       base: '#191d2f',
+      panel: '#212639',
       surface: '#232946',
       line: '#363d63',
       ink: '#e4e7f7',
@@ -213,6 +228,7 @@ export const APP_THEMES: AppTheme[] = [
     name: '暖橙',
     light: {
       base: '#fbf7f4',
+      panel: '#f4ede7',
       surface: '#ffffff',
       line: '#ecdfd6',
       ink: '#2e211b',
@@ -224,6 +240,7 @@ export const APP_THEMES: AppTheme[] = [
     },
     dark: {
       base: '#271d17',
+      panel: '#31241d',
       surface: '#342620',
       line: '#48352b',
       ink: '#f2e8e2',

@@ -11,6 +11,7 @@ const CSS_PATH = 'src/renderer/src/assets/theme-tokens.css'
 // token 名 → CSS 变量名(与 theme-tokens.css 的变量表对齐)
 const TOKEN_VARS: Record<keyof AppTokenValues, string> = {
   base: '--app-base',
+  panel: '--app-panel',
   surface: '--app-surface',
   line: '--app-line',
   ink: '--app-ink',
@@ -44,8 +45,8 @@ describe('界面主题色值:APP_THEMES 与 theme-tokens.css 必须逐值一致'
     const defaultTheme = APP_THEMES.find((theme) => theme.id === 'default')!
     const lightVars = readBlock(css, ':root')
     const darkVars = readBlock(css, '.dark')
-    expect(Object.keys(lightVars).length, ':root 应含全部 9 个 --app-* 变量').toBe(9)
-    expect(Object.keys(darkVars).length, '.dark 应覆盖全部 9 个 --app-* 变量').toBe(9)
+    expect(Object.keys(lightVars).length, ':root 应含全部 10 个 --app-* 变量').toBe(10)
+    expect(Object.keys(darkVars).length, '.dark 应覆盖全部 10 个 --app-* 变量').toBe(10)
 
     for (const [token, cssVar] of Object.entries(TOKEN_VARS) as Array<[keyof AppTokenValues, string]>) {
       expect(lightVars[cssVar], `:root 的 ${cssVar} 应与 default 浅形态一致`).toBe(
@@ -64,8 +65,8 @@ describe('界面主题色值:APP_THEMES 与 theme-tokens.css 必须逐值一致'
       }
       const lightVars = readBlock(css, `.theme-${theme.id}`)
       const darkVars = readBlock(css, `.dark.theme-${theme.id}`)
-      expect(Object.keys(lightVars).length, `.theme-${theme.id} 应含全部 9 个变量`).toBe(9)
-      expect(Object.keys(darkVars).length, `.dark.theme-${theme.id} 应含全部 9 个变量`).toBe(9)
+      expect(Object.keys(lightVars).length, `.theme-${theme.id} 应含全部 10 个变量`).toBe(10)
+      expect(Object.keys(darkVars).length, `.dark.theme-${theme.id} 应含全部 10 个变量`).toBe(10)
 
       for (const [token, cssVar] of Object.entries(TOKEN_VARS) as Array<[keyof AppTokenValues, string]>) {
         expect(lightVars[cssVar], `${theme.id} 浅形态 ${cssVar} 与目录不一致`).toBe(

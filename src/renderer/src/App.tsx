@@ -333,7 +333,7 @@ function App(): React.JSX.Element {
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* 左栏:侧栏(添加目录 / 项目 + 会话树;新建/导入的 agent 选择弹窗也挂在侧栏);开关在标题栏 */}
         {leftOpen && (
-          <aside className="flex min-h-0 w-60 shrink-0 flex-col border-r border-line p-2">
+          <aside className="flex min-h-0 w-60 shrink-0 flex-col border-r border-line bg-panel p-2">
             <Sidebar />
           </aside>
         )}
@@ -345,7 +345,7 @@ function App(): React.JSX.Element {
 
         {/* 右栏:单面板(文件树 或 Git),切换与刷新都在标题栏;默认隐藏 */}
         {rightPanel && (
-          <aside className="flex min-h-0 w-72 shrink-0 flex-col border-l border-line">
+          <aside className="flex min-h-0 w-72 shrink-0 flex-col border-l border-line bg-panel">
             {rightPanel === 'files' ? (
               <FileTreePanel refreshTick={refreshTick} />
             ) : (

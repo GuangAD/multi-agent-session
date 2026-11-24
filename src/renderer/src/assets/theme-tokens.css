@@ -4,6 +4,7 @@
    默认灰(:root 浅 / .dark 深)= 契约基准表 = 迁移前现状观感(近似档归并到主导值)。 */
 :root {
   --app-base: #ffffff;
+  --app-panel: #f4f4f5;
   --app-surface: #ffffff;
   --app-line: #e4e4e7;
   --app-ink: #18181b;
@@ -18,6 +19,7 @@
 }
 .dark {
   --app-base: #18181b;
+  --app-panel: #1f1f23;
   --app-surface: #27272a;
   --app-line: #3f3f46;
   --app-ink: #f4f4f5;
@@ -34,6 +36,7 @@
    置于 .dark 之后:同为单类选择器时后定义胜出,.dark.theme-<id> 双类特异性更高,深形态必中。 */
 .theme-warm {
   --app-base: #faf6f0;
+  --app-panel: #f2ece3;
   --app-surface: #ffffff;
   --app-line: #e7ded2;
   --app-ink: #44403c;
@@ -45,6 +48,7 @@
 }
 .dark.theme-warm {
   --app-base: #292524;
+  --app-panel: #322d29;
   --app-surface: #33302c;
   --app-line: #44403c;
   --app-ink: #e7e5e4;
@@ -56,6 +60,7 @@
 }
 .theme-cool {
   --app-base: #f8fafc;
+  --app-panel: #eef2f7;
   --app-surface: #ffffff;
   --app-line: #dbe3ee;
   --app-ink: #0f172a;
@@ -67,6 +72,7 @@
 }
 .dark.theme-cool {
   --app-base: #0f172a;
+  --app-panel: #172033;
   --app-surface: #1e293b;
   --app-line: #334155;
   --app-ink: #e2e8f0;
@@ -78,6 +84,7 @@
 }
 .theme-forest {
   --app-base: #f6f8f4;
+  --app-panel: #edf0ea;
   --app-surface: #ffffff;
   --app-line: #dde5da;
   --app-ink: #1f2a20;
@@ -89,6 +96,7 @@
 }
 .dark.theme-forest {
   --app-base: #1c241b;
+  --app-panel: #232c21;
   --app-surface: #26301f;
   --app-line: #3a4634;
   --app-ink: #e6eadf;
@@ -100,6 +108,7 @@
 }
 .theme-purple-night {
   --app-base: #f8f7fc;
+  --app-panel: #f0eef7;
   --app-surface: #ffffff;
   --app-line: #e4e0ee;
   --app-ink: #231d33;
@@ -111,6 +120,7 @@
 }
 .dark.theme-purple-night {
   --app-base: #1e1b2e;
+  --app-panel: #262238;
   --app-surface: #2a2540;
   --app-line: #3d3659;
   --app-ink: #e6e2f5;
@@ -122,6 +132,7 @@
 }
 .theme-rose {
   --app-base: #faf7f8;
+  --app-panel: #f3ebee;
   --app-surface: #ffffff;
   --app-line: #ecdfe3;
   --app-ink: #2b2226;
@@ -133,6 +144,7 @@
 }
 .dark.theme-rose {
   --app-base: #261c20;
+  --app-panel: #2f2226;
   --app-surface: #322529;
   --app-line: #46343a;
   --app-ink: #f2e8ec;
@@ -144,6 +156,7 @@
 }
 .theme-dusk {
   --app-base: #f7f8fb;
+  --app-panel: #eef0f6;
   --app-surface: #ffffff;
   --app-line: #dfe3ef;
   --app-ink: #171c2e;
@@ -155,6 +168,7 @@
 }
 .dark.theme-dusk {
   --app-base: #191d2f;
+  --app-panel: #212639;
   --app-surface: #232946;
   --app-line: #363d63;
   --app-ink: #e4e7f7;
@@ -166,6 +180,7 @@
 }
 .theme-ember {
   --app-base: #fbf7f4;
+  --app-panel: #f4ede7;
   --app-surface: #ffffff;
   --app-line: #ecdfd6;
   --app-ink: #2e211b;
@@ -177,6 +192,7 @@
 }
 .dark.theme-ember {
   --app-base: #271d17;
+  --app-panel: #31241d;
   --app-surface: #342620;
   --app-line: #48352b;
   --app-ink: #f2e8e2;
