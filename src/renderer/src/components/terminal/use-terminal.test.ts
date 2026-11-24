@@ -45,6 +45,11 @@ const {
         }
       }
       customWheelHandlers: Array<(event: WheelEvent) => boolean>
+      customKeyHandlers: Array<(event: KeyboardEvent) => boolean>
+      // 选区状态(hasSelection/getSelection/clearSelection 是 xterm 方法,桩用可写字段承载)
+      hasSelectionFlag: boolean
+      selectionText: string
+      clearedSelections: number
       // 网格现值(xterm Terminal.cols/rows 只读投影):稳定帧收敛按它与提案比对
       cols: number
       rows: number
@@ -117,6 +122,11 @@ vi.mock('@xterm/xterm', () => ({
       }
     } = { active: { type: 'normal', baseY: 0, getLine: () => undefined } }
     customWheelHandlers: Array<(event: WheelEvent) => boolean> = []
+    customKeyHandlers: Array<(event: KeyboardEvent) => boolean> = []
+    // 选区状态(hasSelection/getSelection/clearSelection 是 xterm 方法,桩用可写字段承载)
+    hasSelectionFlag = false
+    selectionText = ''
+    clearedSelections = 0
     cols = 80
     rows = 24
     modes: XtermModesStub = { mouseTrackingMode: 'none' }
@@ -137,6 +147,21 @@ vi.mock('@xterm/xterm', () => ({
     // 捕获 attachCustomWheelEventHandler 挂上的 handler,供测试直接调用
     attachCustomWheelEventHandler(handler: (event: WheelEvent) => boolean): void {
       this.customWheelHandlers.push(handler)
+    }
+    // 捕获按键钩子(复制/中断键位),供测试直接调用
+    attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean): void {
+      this.customKeyHandlers.push(handler)
+    }
+    hasSelection(): boolean {
+      return this.hasSelectionFlag
+    }
+    getSelection(): string {
+      return this.selectionText
+    }
+    clearSelection(): void {
+      this.clearedSelections += 1
+      // 对齐真实 xterm 语义:清选区后 getSelection() 返回空
+      this.selectionText = ''
     }
     open(_container: HTMLElement): void {}
     loadAddon(_addon: unknown): void {}
@@ -183,6 +208,7 @@ vi.mock('@xterm/addon-webgl', () => ({
     }
   }
 }))
+
 
 // 容器桩:openTerminal 不在容器挂 wheel 监听(滚轮走 terminal 实例上的官方钩子),
 // 桩内 xterm.open 为空操作,容器仅作 ResizeObserver.observe 的观察对象身份
@@ -268,6 +294,66 @@ function openSettledTerminal(sessionId: string): {
   expect(observer, 'openTerminal 应对 container 挂 ResizeObserver').toBeDefined()
   return { container, fitAddon, observer, terminal: createdTerminals.at(-1)! }
 }
+
+describe('use-terminal 复制/中断键位(Windows Terminal 惯例)', () => {
+  const key = (over: Partial<Record<'key' | 'shiftKey', unknown>> = {}): KeyboardEvent =>
+    ({ type: 'keydown', key: 'c', ctrlKey: true, shiftKey: false, altKey: false, ...over }) as KeyboardEvent
+
+  function stubClipboard(): ReturnType<typeof vi.fn> {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true
+    })
+    return writeText
+  }
+
+  // 每次唯一会话 id:计数类桩字段(clearedSelections 等)跨用例共享终端会累计,须隔离
+  let copySeq = 0
+  function openCopyTerminal(hasSelection: boolean, selectionText?: string) {
+    const id = `s-copy-${++copySeq}`
+    openTerminal(id, 10000, makeContainerStub())
+    const terminal = createdTerminals.at(-1)!
+    terminal.hasSelectionFlag = hasSelection
+    // 状态配对对齐真实 xterm:无选区时 getSelection() 也为空
+    terminal.selectionText = selectionText ?? (hasSelection ? 'picked-text' : '')
+    const handler = terminal.customKeyHandlers.at(-1)!
+    return { terminal, handler }
+  }
+
+  it('有选区 Ctrl+C → 复制并清选区,消费事件(false,不发中断)', () => {
+    const writeText = stubClipboard()
+    const { terminal, handler } = openCopyTerminal(true)
+    expect(handler(key())).toBe(false)
+    expect(writeText).toHaveBeenCalledWith('picked-text')
+    expect(terminal.clearedSelections).toBe(1)
+  })
+
+  it('无选区 Ctrl+C → 放行(true,照发中断信号),不碰剪贴板', () => {
+    const writeText = stubClipboard()
+    const { handler } = openCopyTerminal(false)
+    expect(handler(key())).toBe(true)
+    expect(writeText).not.toHaveBeenCalled()
+  })
+
+  it('Ctrl+Shift+C → 一律消费;有选区复制,无选区不写', () => {
+    const writeText = stubClipboard()
+    const { terminal, handler } = openCopyTerminal(true)
+    expect(handler(key({ shiftKey: true }))).toBe(false)
+    expect(writeText).toHaveBeenCalledWith('picked-text')
+    expect(terminal.clearedSelections).toBe(1)
+    const bare = openCopyTerminal(false)
+    expect(bare.handler(key({ shiftKey: true }))).toBe(false)
+    expect(writeText).toHaveBeenCalledTimes(1) // 无选区:不写剪贴板
+  })
+
+  it('非目标键放行(Ctrl+X / 非keydown 事件)', () => {
+    stubClipboard()
+    const { handler } = openCopyTerminal(true)
+    expect(handler(key({ key: 'x' }))).toBe(true)
+    expect(handler({ type: 'keyup', key: 'c', ctrlKey: true, shiftKey: false, altKey: false } as KeyboardEvent)).toBe(true)
+  })
+})
 
 describe('use-terminal 数据泵(Fix-2 守卫)', () => {
   it('先到先存、注册即放:未注册 id 的 pty:data 不丢,flush 进写入序列首部,之后正常直灌', () => {

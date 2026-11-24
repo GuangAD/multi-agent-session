@@ -16,6 +16,25 @@ export function buildSpawnArgv(def: AgentDefinition): string[] {
   return [def.command]
 }
 
+// 接缝(纯函数):spawn 环境构造。TERM/COLORTERM/TERM_PROGRAM 移植自 Orca spawn-environment(T3 既有)。
+// PI_IMAGE_PROTOCOL(kitty 能力声明)2026-11-24 曾启用后回退:声明后 pi 会在恢复会话时向终端发
+// kitty 图形分块(APC f=100,q=2,4096 字节分片),@xterm/addon-image 的 kitty 解码挂载后实测把
+// xterm 写管线卡死(用户实机:冻结在图片位置、无法滚动;探针侧旧 conhost 则直接吞 APC 故不触发)。
+// 根因 = Orca 的 kitty 全支持面未移植(DA1 所有权/图片后强制重绘/kitty 文件读取),裸挂 addon 不够。
+// 待移植后再启用声明(届时同步恢复 buildSpawnEnv 用例的 PI_IMAGE_PROTOCOL 断言)。
+export function buildSpawnEnv(hookEnv?: Record<string, string>): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'soloport',
+    TERM_PROGRAM_VERSION: '0.1.0',
+    // hook 路由令牌(hook-run-state T2):转发脚本沿进程链继承后读 env 回传事件;
+    // shell(agent 的父进程)与 hook 脚本(CLI 的子进程)都在这条继承链上
+    ...(hookEnv ?? {})
+  }
+}
+
 // 接缝(纯函数,T3.5 评审期 Fix-A):spawn 初始尺寸解析。
 // Ported from stablyai/orca src/main/ipc/pty/delivery/pty-first-size.ts (MIT)
 // Why: TUI(pi 等)在 Windows ConPTY 下收不到 resize 通知(nodejs/node#13197 缺陷域),
@@ -317,16 +336,7 @@ export const ptyRegistry = {
       // 却完全不开鼠标上报(1000/1002/1003/1006 全无),应用内滚轮失效即此因。值取 Orca 同款
       // (spawn-environment.ts:183-186),TERM_PROGRAM 改本应用名;默认继承 process.env,仅追加覆盖。
       // TERM_PROGRAM_VERSION 不读 package.json(避免 fs 读取),硬编码,与 package.json 同步维护。
-      env: {
-        ...process.env,
-        TERM: 'xterm-256color',
-        COLORTERM: 'truecolor',
-        TERM_PROGRAM: 'soloport',
-        TERM_PROGRAM_VERSION: '0.1.0',
-        // hook 路由令牌(hook-run-state T2):转发脚本沿进程链继承后读 env 回传事件;
-        // shell(agent 的父进程)与 hook 脚本(CLI 的子进程)都在这条继承链上
-        ...(p.hookEnv ?? {})
-      },
+      env: buildSpawnEnv(p.hookEnv),
       // Ported from stablyai/orca src/main/daemon/pty-subprocess/native-pty-spawn.ts (MIT)
       // Why: 我们 spawn 未传 useConptyDll 时走系统 conhost 的旧 ConPTY——它消费鼠标模式
       // DECSET(?1000/?1002/?1006)却不透传,xterm 端 mouseTrackingMode 恒 none,TUI(pi)的

@@ -263,6 +263,30 @@ export function openTerminal(
     }
     return true
   })
+  // 复制/中断键位(2026-11-24,Windows Terminal 同款惯例):终端内 Ctrl+C 的本义是向前台进程发
+  // 中断信号(SIGINT/0x03)——打断命令/agent 回答的核心能力,不能让位给复制;而 xterm 把终端内
+  // 全部按键捕获后直送 PTY,浏览器复制机制收不到,故复制在此钩子内拦截。折中形态:有选区的
+  // Ctrl+C = 复制并清选区(不发 0x03),无选区照发中断;显式 Ctrl+Shift+C = 复制(有选区才写)。
+  // 粘贴无需接线:Ctrl+V/Shift+V 走浏览器原生 paste 事件(xterm CoreBrowserTerminal 已挂),直进 PTY。
+  // handler 返回 false = 事件已消费、不再编码发往 PTY。与 App.tsx 全局快捷键不冲突(其对终端
+  // 区域只放行 Ctrl+Tab)。剪贴板写入失败静默(权限/失焦),消费语义不变。
+  terminal.attachCustomKeyEventHandler((event) => {
+    if (event.type !== 'keydown' || !event.ctrlKey || event.altKey) {
+      return true
+    }
+    if (event.key !== 'c' && event.key !== 'C') {
+      return true
+    }
+    if (!event.shiftKey && !terminal.hasSelection()) {
+      return true // 无选区的 Ctrl+C:放行 = 照发中断信号
+    }
+    const selection = terminal.getSelection()
+    if (selection) {
+      void navigator.clipboard.writeText(selection).catch(() => {})
+      terminal.clearSelection()
+    }
+    return false
+  })
   const entry: TerminalEntry = {
     terminal,
     fitAddon,

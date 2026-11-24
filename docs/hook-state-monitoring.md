@@ -97,6 +97,7 @@
   - `ui_prompt_start/end` 只报「阻塞屏开/关」不报后续走向——**`ui_prompt_end` 不得挂 working**(启动欢迎屏关闭即误触发,冒烟已修);「回 working」由 turn_start/turn_end/agent_settled 自然覆盖
   - `project_trust` 仅在未保存信任的首次发出,且先于项目扩展加载——项目级扩展实际收不到,映射保留为防御
 - 已修缺陷(冒烟①):启动欢迎屏关闭发 `ui_prompt_end` 曾误置 working,spinner 卡到首回合结束——已摘除并加 `startup-splash` 回归用例
+  - **图片内嵌暂不可用(2026-11-24)**:曾声明 `PI_IMAGE_PROTOCOL=kitty`(pi 文档化覆写)后,恢复会话时 pi 向终端发 kitty 图形分块(APC f=100,4096 字节分片),addon 的 kitty 异步解码把 xterm 写管线卡死(实机:冻结在图片位置、无法滚动)。已回退声明并**整体移除 addon**(2026-11-24 用户决策,依赖/挂载/选项接缝全清);根因 = Orca 的 kitty 全支持面未移植(DA1 所有权/图片后强制重绘/kitty 文件读取),裸挂 addon 不够。技术实现与重加指引存档于 docs/terminal-image-rendering.md
 
 ### antigravity(本机未装,装后复核)
 
@@ -133,6 +134,33 @@
 4. **claude `Notification` 语义待校准**:可能比 PermissionRequest 宽(含 idle 提醒),过宽则从 waiting 槽收窄。
 5. **userData 路径含空白**:裸命令形态不成立,注入整体跳过并记日志(会话本身不受影响,只是无状态)。
 6. **claude `PostToolUseFailure`**:旧版本可能不发该事件(引擎对未声明事件自动忽略,声明无害)。
+7. **pi 图片内嵌(kitty)已移除**:曾声明 `PI_IMAGE_PROTOCOL=kitty` 后终端冻结(见第四节 pi 节),2026-11-24 整体移除图片渲染功能;重加指引见 docs/terminal-image-rendering.md(含 pi 集成坑位与前置条件)。
+
+## 候选增强:OSC 7501 状态协议(未立项,2026-11-24 记录)
+
+**是什么**:程序状态标准协议——agent 把实时状态以结构化转义序列(OSC 7501)写进终端输出流,宿主从字节流解析。**不是读屏**(机器可读状态帧,非文本刮取),与 hook 同性质的「agent 自己说」,只是通道为带内(混在终端字节流)而非带外(独立进程 POST)。
+
+**pi 的五态上报与映射**:
+
+| pi 上报 | 触发时机(1.6.0 文档原文) | 映射到本项目 |
+|---|---|---|
+| working | agent run 或压缩进行中(消息 = 会话名) | working |
+| blocked | 扩展对话框或登录等待(消息 = 对话框标题) | waiting(通知文案可更准) |
+| done | 一次 run 完成(消息 = 会话名) | idle |
+| error | run 出错且未重试(消息 = 错误首行) | idle |
+| idle | pi 启动,或用户取消 run | idle |
+
+**握手机制**:pi 先发协议探测(`?` 查询),**终端应答后才开始发**;`PI_PROGRAM_STATUS=1` 强制直接发(env 注入一行,与 COLORTERM 同位);`=0` 关闭。tmux/screen 不转发(与本项目无关)。
+
+**对本项目的价值**:
+
+- pi 状态可整体简化:免项目级扩展注入(免信任门槛、免事件清单维护),主进程在 pty:data 字节流上解析 OSC 7501 帧即可(字节流本就全量经过主进程)
+- 多家覆盖前景(Orca 支持矩阵实测口径):claude 2.1.302+(五态全有、信息最富)、kimi 2.6.3(三态)、codex 0.163+(仅状态)——统一第二通道的候选
+- pi 另有 `blocked` 消息 = 对话框标题,waiting 通知文案可更准
+
+**实现要点(立项时展开)**:①探测应答器——拦截 pty:data 中的探测序列并经 pty.write 回写应答(与终端应答 DA1 同形态),或直接 PI_PROGRAM_STATUS=1;②解析器须健壮(帧被 ConPTY 分块截断/不完整帧);③与现有 pi 扩展(hook)通道二选一或并存——OSC 7501 覆盖 pi 全部四态且零注入,可能整体替代 pi 扩展;④注意:应答探测会改变 agent 行为(Orca 记录:claude 被应答后不再往窗口标题写状态字符,本项目标题已退役无影响);⑤状态来源事实化后仍守「无信号 = 无显示」纪律。
+
+**来源**:pi 1.6.0 包内 docs/terminal-setup.md「Program status」节;Orca agent-hooks/README.md OSC 7501 支持矩阵(2026-11-23 核对)。
 
 ## 八、代码地图
 

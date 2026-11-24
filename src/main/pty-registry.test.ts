@@ -13,6 +13,7 @@ import { claudePlugin as claudeAgent } from './agents/plugins/claude/plugin'
 import {
   buildAgentLaunchLine,
   buildPowerShellLaunchScript,
+  buildSpawnEnv,
   buildShellInjectLine,
   buildShellLaunchLine,
   buildShellSpawnArgs,
@@ -399,5 +400,21 @@ describe('shell 分支(T11:settings.shell = cmd | powershell | pwsh)', () => {
     expect(resolveShellExecutable('cmd')).toBe(process.env.ComSpec ?? 'cmd.exe')
     expect(resolveShellExecutable('powershell', 'C:/W/powershell.exe')).toBe('C:/W/powershell.exe')
     expect(resolveShellExecutable('pwsh', null)).toBe('pwsh.exe')
+  })
+})
+
+describe('buildSpawnEnv(spawn 环境构造,hook-run-state 后增补图片能力声明)', () => {
+  it('TERM/COLORTERM/TERM_PROGRAM 齐备;PI_IMAGE_PROTOCOL 不声明(kitty 支持面未移植,声明会卡死终端)', () => {
+    const env = buildSpawnEnv()
+    expect(env.TERM).toBe('xterm-256color')
+    expect(env.COLORTERM).toBe('truecolor')
+    expect(env.TERM_PROGRAM).toBe('soloport')
+    expect(env.PI_IMAGE_PROTOCOL).toBeUndefined()
+  })
+
+  it('hookEnv 展开在默认段之后(令牌不被吞),同键以 hookEnv 为准', () => {
+    const env = buildSpawnEnv({ SOLOPORT_SESSION_ID: 's-1', TERM: 'override' })
+    expect(env.SOLOPORT_SESSION_ID).toBe('s-1')
+    expect(env.TERM).toBe('override')
   })
 })
