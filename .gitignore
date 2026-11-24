@@ -6,3 +6,5 @@ dist/
 .eslintcache
 *.log*
 .DS_Store
+# Gradle 运行时缓存:IDE/构建工具会写进 .reference 只读快照里的 android 工程
+.reference/**/.gradle/
