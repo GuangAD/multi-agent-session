@@ -10,7 +10,8 @@ import {
   GitBranch,
   PanelLeftClose,
   PanelLeftOpen,
-  RefreshCw
+  RefreshCw,
+  Settings
 } from 'lucide-react'
 import { useAppStore } from './store/app-store'
 import { Button } from './components/ui/button'
@@ -41,6 +42,7 @@ function App(): React.JSX.Element {
   const applyExternalUpdate = useAppStore((state) => state.applyExternalUpdate)
   const closeTab = useAppStore((state) => state.closeTab)
   const openAgentDialog = useAppStore((state) => state.openAgentDialog)
+  const openSettingsDialog = useAppStore((state) => state.openSettingsDialog)
   const [leftOpen, setLeftOpen] = useState(true)
   const [rightPanel, setRightPanel] = useState<RightPanel>(null)
   // 刷新计数:标题栏的刷新按钮把计数 +1,面板以 `${projectId}:${tick}` 作 key 重挂取新数据
@@ -257,6 +259,17 @@ function App(): React.JSX.Element {
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           <ThemeToggle />
+          {/* 设置入口:应用级功能,必须不依赖「有没有项目」——此前只挂在项目行「…」菜单里,
+              零项目时无从进入(用户实测反馈)。项目行菜单里的同名项保留,两处都能进 */}
+          <Button
+            variant="ghost"
+            aria-label="设置"
+            title="设置"
+            className="!px-1.5 !py-1"
+            onClick={openSettingsDialog}
+          >
+            <Settings className="size-4" aria-hidden />
+          </Button>
           {/* 面板动作:只在对应面板展开时出现(面板内部不再有自己的标题行) */}
           {rightPanel === 'files' && (
             <>

@@ -123,3 +123,4 @@ brief 第 6 节无欠账,无遗留项。
   - P2-4 已修:TerminalTabs 头注释与订阅行为对齐;预览切换钮 aria-label 随当前态变化;预览示例提示符产品名 Orca → soloport(文件头登记该偏离)
   - Minor③ 已修:补浅槽坏 id 用例(浅槽兜底走另一常量,深槽用例测不到);**mutation check:浅色态改用深默认 → 用例 5b 精确转红(1 failed / 16 passed)**
   - 最终验证:typecheck 0 error;`pnpm test` 44 文件 303 passed;`pnpm build` 产物 CSS 35.97KB,--app-base×17 / data-scrollbars×13 / theme-warm×2 / xterm-container×3(与终审给出的期望值逐项吻合)
+- 门 3 冒烟反馈修复 | 用户实测「没有看到打开设置的按钮」 | 原因:门 1 接受 Q3 建议把入口放在项目行「更多」菜单,而 MoreMenu 是**项目级**菜单——零项目时该菜单不存在,有项目时也要先想到点「…」,应用级设置因此不可发现。处置:标题栏在主题按钮右侧加齿轮按钮(aria-label「设置」),不依赖任何项目;项目行菜单里的同名项保留。属对 brief 第 5 节入口形态的补充,不是推翻(方向仍是「对话框 + 即改即存」),门 3 报告已明示
