@@ -120,3 +120,15 @@ it('applyPatch 用例 6:合法 patch 新字段一次全写入,原地修改内存
   // 同一内存对象上全字段写入:patch 值覆盖默认,其余字段不动
   expect(settings).toEqual({ ...DEFAULT_STORE.settings, ...patch })
 })
+
+// T2 补充守卫(reviewer Minor 转办):fontFamily「含空串写入」这条细则将来若被误改成拒绝空串,
+// 终端字体的「清空=回退默认链」交互就坏了;此用例钉住它(mutation check 见 plan.md T2 块)
+it('T2 守卫:fontFamily 空串合法写入(空 = 默认回退链语义),非字符串忽略', () => {
+  const empty = freshSettings()
+  applyPatch(empty, { terminalFontFamily: '' })
+  expect(empty.terminalFontFamily).toBe('')
+
+  const notString = freshSettings()
+  applyPatch(notString, { terminalFontFamily: 123 as unknown as string })
+  expect(notString.terminalFontFamily).toBeUndefined()
+})

@@ -50,3 +50,4 @@ brief 第 6 节无欠账,无遗留项。
   - 结论:
     1. 测 main IPC 域(settings.ts 等)必须用字符串路径 vi.mock 且必须 mock ../app-window——app-window 的 icon.png?asset 资源导入在 Node 测试环境加载不到,import() 形式的 mock 还会触发类型强校验
     2. 实施方式:implementer 子代理 30 分钟超时,controller 会话内 fallback 续完;半成品(types/DEFAULT_STORE/loadStore 测试/settings.test 用例)经逐文件核对后采用,applyPatch 扩展由 controller 亲写(红 6 failed → 绿 6 passed)
+- T2 守卫用例补充 | 评审 Minor(fontFamily 空串细则防误改)按接缝归属规矩补进 tasks/T2.md 用例表与 settings.test.ts | mutation check:改坏 fontFamily 校验(拒绝空串)后该用例恰转红(1 failed / 6 passed),还原后 7 passed 全绿 | 随下一条 fix 提交
