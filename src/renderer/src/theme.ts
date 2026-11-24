@@ -21,16 +21,31 @@ export function resolveDark(theme: Theme, systemDark: boolean): boolean {
 // 界面主题类的类名前缀(与 theme-tokens.css 的 .theme-<id> 对应)
 const THEME_CLASS_PREFIX = 'theme-'
 
+// 外观写入目标:真实调用用 document.documentElement,测试传入最小桩(渲染层测试环境是 node,无 DOM)。
+// 只要求 classList 的 toggle/add/remove 与 style.colorScheme,不绑定 HTMLElement 以便直测。
+export interface AppearanceRoot {
+  classList: {
+    toggle: (token: string, force?: boolean) => boolean
+    add: (token: string) => void
+    remove: (token: string) => void
+  }
+  style: { colorScheme: string }
+}
+
 // 写入 <html>:dark 类(Tailwind dark: 变体按 .dark 命中)+ 主题类(.theme-<id>;default 与目录外 id
 // 都不挂主题类,即 :root/.dark 默认观感)。任意时机重复调用,全量重写这两类;无失败路径。
 // 同时同步 color-scheme,让浏览器原生控件(滚动条、表单控件、文本选区)跟着变深浅。
-export function applyAppearance(dark: boolean, appThemeId: string): void {
-  const root = document.documentElement
+// Why 第三参注入:这是「谁写 html 类」的唯一写手,类切换的取舍(default 不挂、切换时清旧类、
+// 目录外 id 兜底)最容易改错,必须能直测;测试环境无 DOM,故不硬绑 document。
+export function applyAppearance(
+  dark: boolean,
+  appThemeId: string,
+  root: AppearanceRoot = document.documentElement as unknown as AppearanceRoot
+): void {
   root.classList.toggle('dark', dark)
-  for (const className of Array.from(root.classList)) {
-    if (className.startsWith(THEME_CLASS_PREFIX)) {
-      root.classList.remove(className)
-    }
+  // 逐个已知主题 id 移除,再按需挂当前主题:不枚举 classList(桩不必实现迭代,行为也更确定)
+  for (const theme of APP_THEMES) {
+    root.classList.remove(`${THEME_CLASS_PREFIX}${theme.id}`)
   }
   if (appThemeId !== 'default' && APP_THEMES.some((theme) => theme.id === appThemeId)) {
     root.classList.add(`${THEME_CLASS_PREFIX}${appThemeId}`)
