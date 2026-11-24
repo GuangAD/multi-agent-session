@@ -112,3 +112,4 @@ brief 第 6 节无欠账,无遗留项。
     2. 深浅归属显式化(自审第 4 处修复):初版浅槽下拉只有 1 项,与 brief「双槽各可选」不符;catalog.ts 增 DARK/LIGHT_TERMINAL_THEME_NAMES 两张显式名字表(不按名字猜:Catppuccin Latte / Rose Pine Dawn 不带 Light 后缀),catalog.test.ts 增划分断言钉住「两表恰好划分目录、无重名、首位为默认」,下拉改为消费这两张表
     3. 预览实例用独立 Terminal,不进 use-terminal 注册表,故 applyToAll 不会误改预览
 - 整特性收尾补测(自查第 3/4 条) | applyAppearance 在 spec 接口面清单标为「接缝」却无用例(自查发现的缺口) | 处置:theme.ts 的 applyAppearance 增加可注入 root 参数(默认 document.documentElement,不新增依赖、不引 jsdom),新增 theme.test.ts 6 条用例覆盖:dark+非默认主题、default 不挂类、切换清旧类幂等、目录外 id 兜底、全部目录 id 对齐、三态解析衔接;mutation check:去掉 default 判断后「default 不挂主题类」与「目录内每个 id」两条精确转红(2 failed / 4 passed),还原后 6 passed | 全量 43 文件 299 passed
+- 挂起 Minor ② 关闭(整特性收尾) | 新增 app-themes-css.test.ts 2 条:直接读 theme-tokens.css,解析 :root/.dark 与 14 个 .theme-<id> 块,与 APP_THEMES 逐值比对(9 token × 16 形态) | mutation check:把 warm 浅形态 accent 末位由 9 改 a 后「其余每套主题」用例精确转红(1 failed/1 passed),还原后 2 passed | 全量 44 文件 301 passed
