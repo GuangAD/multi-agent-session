@@ -19,13 +19,22 @@ type ProposedDimensions = { cols: number; rows: number }
 type XtermModesStub = { mouseTrackingMode: 'none' | 'x10' | 'vt200' | 'drag' | 'any' }
 
 // vi.hoisted:供 mock 工厂捕获泵回调与 xterm 写入序列(工厂先于测试文件体执行,防 TDZ)
-const { onPtyDataHandlers, createdTerminals, createdFitAddons, fitObservers, rafState } =
+const {
+  onPtyDataHandlers,
+  createdTerminals,
+  createdFitAddons,
+  fitObservers,
+  rafState,
+  createdWebglAddons
+} =
   vi.hoisted(() => {
     const onPtyDataHandlers: Array<(event: PumpEvent) => void> = []
     const createdTerminals: Array<{
       writes: string[]
       scrolled: number[]
       options: Record<string, unknown>
+      // 宽度表句柄(xterm proposed API):用例断言其被激活到 '11'
+      unicode: { activeVersion: string }
       buffer: {
         active: {
           type: 'normal' | 'alternate'
@@ -55,9 +64,21 @@ const { onPtyDataHandlers, createdTerminals, createdFitAddons, fitObservers, raf
       disconnectCalls: number
       trigger: () => void
     }> = []
+    // WebGL addon 桩实例登记:用例断言订阅了 onContextLoss,且触发后走 dispose(回退 DOM)
+    const createdWebglAddons: Array<{
+      contextLossHandlers: Array<() => void>
+      disposed: boolean
+    }> = []
     // RAF 手动泵:稳定帧循环逐帧推进,测试按帧 flush
     const rafState = { queue: [] as Array<{ id: number; cb: (time: number) => void }>, seq: 0 }
-    return { onPtyDataHandlers, createdTerminals, createdFitAddons, fitObservers, rafState }
+    return {
+      onPtyDataHandlers,
+      createdTerminals,
+      createdFitAddons,
+      fitObservers,
+      rafState,
+      createdWebglAddons
+    }
   })
 
 // bridge 桩:泵回调捕获进 onPtyDataHandlers;write 是滚轮分支 2.5(翻页键直达)的观察点
@@ -101,6 +122,8 @@ vi.mock('@xterm/xterm', () => ({
     modes: XtermModesStub = { mouseTrackingMode: 'none' }
     element: { dispatchEvent: (event: unknown) => boolean } | null = null
     options: Record<string, unknown>
+    // 宽度表句柄(xterm proposed API):默认停在 Unicode 6,激活 11 后由用例断言
+    unicode: { activeVersion: string } = { activeVersion: '6' }
     constructor(options: Record<string, unknown>) {
       this.options = options
       createdTerminals.push(this)
@@ -139,6 +162,24 @@ vi.mock('./stable-cell-fit-addon', () => ({
     }
     proposeDimensions(): ProposedDimensions | undefined {
       return this.proposed
+    }
+  }
+}))
+
+// WebGL addon 桩:真实 addon 在 context loss 后只 fire 事件、不自 dispose,回退 DOM 靠 dispose;
+// 桩记录订阅者与 dispose 状态,供「context loss 回退」用例断言
+vi.mock('@xterm/addon-webgl', () => ({
+  WebglAddon: class {
+    contextLossHandlers: Array<() => void> = []
+    disposed = false
+    constructor() {
+      createdWebglAddons.push(this)
+    }
+    onContextLoss(handler: () => void): void {
+      this.contextLossHandlers.push(handler)
+    }
+    dispose(): void {
+      this.disposed = true
     }
   }
 }))
@@ -280,6 +321,37 @@ describe('use-terminal 字体度量(Orca 对齐)', () => {
     expect(terminal.options.fontWeightBold, '粗体字重应与 Orca 一致').toBe('500')
 
     closeTerminal('s-font')
+  })
+})
+describe('use-terminal 宽字符宽度表(Unicode 11)', () => {
+  it('开启 allowProposedApi 并激活 unicode 11:emoji 按 2 格排版,与 agent CLI 的 wcwidth 一致', () => {
+    openTerminal('s-unicode', 10000, makeContainerStub())
+    const terminal = createdTerminals.at(-1)!
+
+    // 期望值来源(xterm 探针实测,非按实现推导):xterm 6.1.0-beta.336 内置宽度表只有 '6',
+    // 该表下 U+2705 ✅ / U+274C ❌ 宽度为 1;而 agent CLI 按 Unicode 9+ 排版(emoji = 2 格)。
+    // 不激活 11 时含 emoji 的行少占一格 → 该行整体左移一格、右边框错位。
+    expect(terminal.options.allowProposedApi, 'unicode 是 proposed API,必须开启').toBe(true)
+    expect(terminal.unicode.activeVersion, '应激活 Unicode 11 宽度表').toBe('11')
+
+    closeTerminal('s-unicode')
+  })
+})
+describe('use-terminal WebGL context loss 回退', () => {
+  it('GPU 上下文丢失时 dispose addon:dispose 内部 setRenderer(DOM),终端不白屏冻结', () => {
+    openTerminal('s-webgl', 10000, makeContainerStub())
+    const addon = createdWebglAddons.at(-1)!
+
+    // 期望值来源(@xterm/addon-webgl 0.20.0-beta.329 源码):webglcontextlost 后 3 秒未恢复
+    // 只 fire onContextLoss,不自行 dispose;回退 DOM renderer 发生在 dispose 回调里。
+    // 故必须有人订阅并 dispose,否则终端停在失效渲染器上。
+    expect(addon.contextLossHandlers.length, '应订阅 onContextLoss').toBe(1)
+
+    addon.contextLossHandlers[0]!()
+
+    expect(addon.disposed, 'context loss 后应 dispose 以回退 DOM renderer').toBe(true)
+
+    closeTerminal('s-webgl')
   })
 })
 describe('use-terminal 窗口跟随(ResizeObserver + RAF 稳定帧收敛)', () => {
