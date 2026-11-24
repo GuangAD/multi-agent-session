@@ -16,6 +16,12 @@ interface PumpEvent {
 type CustomWheelHandler = (event: WheelEvent) => boolean
 
 type ProposedDimensions = { cols: number; rows: number }
+// 宽度表 provider 桩形状(xterm proposed API IUnicodeVersionProvider 的必要面)
+type UnicodeProviderStub = {
+  version: string
+  wcwidth: (codepoint: number) => 0 | 1 | 2
+  charProperties: (codepoint: number, preceding: number) => number
+}
 type XtermModesStub = { mouseTrackingMode: 'none' | 'x10' | 'vt200' | 'drag' | 'any' }
 
 // vi.hoisted:供 mock 工厂捕获泵回调与 xterm 写入序列(工厂先于测试文件体执行,防 TDZ)
@@ -34,7 +40,15 @@ const {
       scrolled: number[]
       options: Record<string, unknown>
       // 宽度表句柄(xterm proposed API):用例断言其被激活到 '11'
-      unicode: { activeVersion: string }
+      // 宽度表句柄(xterm proposed API):用例断言自定义 RGI provider 被注册并激活
+      unicode: {
+        activeVersion: string
+        versions: string[]
+        register: (provider: UnicodeProviderStub) => void
+      }
+      registeredUnicodeProviders: UnicodeProviderStub[]
+      // xterm 私有内核投影:provider 激活逻辑从这里取 Unicode11 基表(桩内置一份)
+      _core: { unicodeService?: { _providers?: Record<string, UnicodeProviderStub> } }
       buffer: {
         active: {
           type: 'normal' | 'alternate'
@@ -133,7 +147,30 @@ vi.mock('@xterm/xterm', () => ({
     element: { dispatchEvent: (event: unknown) => boolean } | null = null
     options: Record<string, unknown>
     // 宽度表句柄(xterm proposed API):默认停在 Unicode 6,激活 11 后由用例断言
-    unicode: { activeVersion: string } = { activeVersion: '6' }
+    // 宽度表句柄(xterm proposed API):默认停在 Unicode 6;register 记录 provider 供用例断言
+    registeredUnicodeProviders: UnicodeProviderStub[] = []
+    unicode = {
+      activeVersion: '6',
+      versions: [] as string[],
+      register: (provider: UnicodeProviderStub): void => {
+        this.registeredUnicodeProviders.push(provider)
+        this.unicode.versions.push(provider.version)
+      }
+    }
+    // xterm 私有内核投影:Unicode11Addon 加载后基表注册在 _providers['11'];桩内置最小基表
+    // (wcwidth 恒 1、charProperties 原样透传),足够供激活逻辑取用,宽度行为专测在
+    // terminal-unicode-provider.test.ts
+    _core: { unicodeService?: { _providers?: Record<string, UnicodeProviderStub> } } = {
+      unicodeService: {
+        _providers: {
+          '11': {
+            version: '11',
+            wcwidth: (_codepoint: number): 0 | 1 | 2 => 1,
+            charProperties: (_codepoint: number, preceding: number): number => preceding
+          }
+        }
+      }
+    }
     constructor(options: Record<string, unknown>) {
       this.options = options
       createdTerminals.push(this)
@@ -409,16 +446,21 @@ describe('use-terminal 字体度量(Orca 对齐)', () => {
     closeTerminal('s-font')
   })
 })
-describe('use-terminal 宽字符宽度表(Unicode 11)', () => {
-  it('开启 allowProposedApi 并激活 unicode 11:emoji 按 2 格排版,与 agent CLI 的 wcwidth 一致', () => {
+describe('use-terminal 宽字符宽度表(RGI 对齐)', () => {
+  it('开启 allowProposedApi 并激活 11-rgi provider:VS16/ZWJ emoji 序列按 pi 的 RGI 口径计 2 格', () => {
     openTerminal('s-unicode', 10000, makeContainerStub())
     const terminal = createdTerminals.at(-1)!
 
-    // 期望值来源(xterm 探针实测,非按实现推导):xterm 6.1.0-beta.336 内置宽度表只有 '6',
-    // 该表下 U+2705 ✅ / U+274C ❌ 宽度为 1;而 agent CLI 按 Unicode 9+ 排版(emoji = 2 格)。
-    // 不激活 11 时含 emoji 的行少占一格 → 该行整体左移一格、右边框错位。
+    // 期望值来源(真实 xterm + pi bundle 探针,非按实现推导):xterm 6.1.0-beta.336 内置宽度表
+    // 只有 '6'(✅/❌ 算 1),而 agent CLI 按 Unicode 9+ 排版算 2 → 含 emoji 行少占一格、右边框错位。
+    // '11' 基表补齐 ✅/❌,但 ➡️(U+27A1+FE0F)等「窄基码+VS16」序列基表仍算 1 格、pi 按 RGI
+    // emoji 算 2 → 行内每差一格,pi 行尾自绘滚动条左移一格;故激活 11-rgi 自定义 provider。
     expect(terminal.options.allowProposedApi, 'unicode 是 proposed API,必须开启').toBe(true)
-    expect(terminal.unicode.activeVersion, '应激活 Unicode 11 宽度表').toBe('11')
+    expect(terminal.unicode.activeVersion, '应激活 RGI 对齐宽度表').toBe('11-rgi')
+    expect(
+      terminal.registeredUnicodeProviders.map((provider) => provider.version),
+      '自定义 provider 应注册进 unicode 表'
+    ).toContain('11-rgi')
 
     closeTerminal('s-unicode')
   })

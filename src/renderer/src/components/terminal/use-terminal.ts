@@ -8,6 +8,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 // Fix-B 右侧空白治理:提案 = 盒子的纯函数(device/dpr cell 尺寸,与当前列数解耦),见 stable-cell-fit-addon.ts
 import { StableCellFitAddon } from './stable-cell-fit-addon'
+import { activateRgiUnicodeProvider } from './terminal-unicode-provider'
 import { bridge } from '../../ipc/bridge'
 import {
   createTerminalMouseWheelReplayState,
@@ -207,10 +208,12 @@ export function openTerminal(
   // 宽字符宽度表(2026-11-23,对齐 Orca):xterm 内置宽度表只有 Unicode 6,该表下 emoji
   // (U+2705 ✅ / U+274C ❌ 等)宽度算 1;而 agent CLI 按 Unicode 9+ 排版、emoji 算 2 格,
   // 于是含 emoji 的行少占一格、右边框整体左移一格,视觉上像框线断开(用户实机截图)。
-  // 加载 addon 并激活版本 '11' 后两侧宽度一致;失败只影响宽度表,不回退其他能力。
+  // 加载 Unicode11Addon 提供 '11' 基表后,再激活 RGI 序列对齐 provider:pi 按 RGI emoji 把
+  // 「窄字符+VS16」(➡️ ↗️ 等)与 ZWJ 组合序列计 2 格,'11' 基表仍算 1 格,行内每差一格
+  // 滚动条竖线左移一格;详见 terminal-unicode-provider.ts。失败只影响宽度表,不回退其他能力。
   try {
     terminal.loadAddon(new Unicode11Addon())
-    terminal.unicode.activeVersion = '11'
+    activateRgiUnicodeProvider(terminal)
   } catch {
     // addon 不可用时保持内置 Unicode 6 表,行为不劣于现状(仅 emoji 行可能错位)
   }
