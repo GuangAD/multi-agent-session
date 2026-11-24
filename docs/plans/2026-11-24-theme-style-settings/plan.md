@@ -95,3 +95,4 @@ brief 第 6 节无欠账,无遗留项。
     1. 运行时外观更新用 terminal.options setter;隐藏终端(display:none)跳过 fit,由 activateTerminal 既有 RAF 补齐,切勿在隐藏态 fit(会压成 2×1 最小网格)
     2. 度量变更的 PTY 同步无需额外接线:fit 改 cols/rows 后既有 onResize → pty.resize 自动生效
     3. T6/T7 若要预览实例,不要加入 use-terminal 的 terminals 注册表(否则 applyToAll 会误改预览)
+- T1 缺陷修复(Critical,自审发现) | fix(T1) 提交 | 症状:pnpm build 产物 CSS 仅 8.7KB,terminal.css / scrollbar-sleek.css / theme-tokens.css 全部未进产物(xterm-container=0、data-scrollbars=0、--app-base 缺失),即 T1 起语义色变量运行时全部未定义、界面色回退透明/默认;根因:T1 改 main.css 时删掉了文件头注释的闭合 `*/`,导致后续 `@import 'tailwindcss'` 与 @custom-variant 被吞进注释,且三个 CSS @import 排在规则之后按 CSS 规范被丢弃;修复:重写 main.css 为规范顺序(注释闭合 + @import 'tailwindcss' 与三个本地 CSS 全部前置,@custom-variant/@theme 在后),产物 36KB,xterm-container×3 / data-scrollbars×13 / theme-warm×2 / --app-base 均已在;教训:纯样式任务标 waiver 后只跑 typecheck 与单测无法发现 CSS 未进产物,渲染层/样式改动必须验 `pnpm build` 产物内容(T1 契约第 10 步只写了冒烟,未写产物校验)
