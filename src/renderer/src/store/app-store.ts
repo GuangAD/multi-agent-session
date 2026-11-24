@@ -6,9 +6,15 @@ import { createUiSlice, type UiSlice } from './ui-slice'
 import { createSessionsSlice, type SessionsSlice } from './sessions-slice'
 import { createRunStateSlice, type RunStateSlice } from './run-state-slice'
 import { createAgentsSlice, type AgentsSlice } from './agents-slice'
+import { createSettingsSlice, type SettingsSlice } from './settings-slice'
 
-export type AppState =
-  ProjectsSlice & SessionsSlice & RunStateSlice & FilePreviewSlice & UiSlice & AgentsSlice
+export type AppState = ProjectsSlice &
+  SessionsSlice &
+  RunStateSlice &
+  FilePreviewSlice &
+  UiSlice &
+  AgentsSlice &
+  SettingsSlice
 
 export const useAppStore = create<AppState>()((...args) => ({
   ...createProjectsSlice(...args),
@@ -16,5 +22,6 @@ export const useAppStore = create<AppState>()((...args) => ({
   ...createRunStateSlice(...args),
   ...createFilePreviewSlice(...args),
   ...createUiSlice(...args),
-  ...createAgentsSlice(...args)
+  ...createAgentsSlice(...args),
+  ...createSettingsSlice(...args)
 }))

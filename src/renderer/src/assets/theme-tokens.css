@@ -27,3 +27,162 @@
   --app-hover: #27272a;
   --app-accent-hover: #d4d4d8;
 }
+
+/* 主题覆盖层(T4):7 套非默认界面主题,.theme-<id> 覆盖浅形态、.dark.theme-<id> 覆盖深形态;
+   default 不挂类(:root/.dark 即默认灰)。类挂在 html 上,唯一写手是 theme.ts 的 applyAppearance。
+   色值与 src/shared/themes/app-themes.ts 的 APP_THEMES 同源(契约色值表),两处照抄、目录由单测锚定。
+   置于 .dark 之后:同为单类选择器时后定义胜出,.dark.theme-<id> 双类特异性更高,深形态必中。 */
+.theme-warm {
+  --app-base: #faf6f0;
+  --app-surface: #ffffff;
+  --app-line: #e7ded2;
+  --app-ink: #44403c;
+  --app-ink-muted: #78716c;
+  --app-accent: #b45309;
+  --app-on-accent: #fffbf5;
+  --app-hover: #efe6da;
+  --app-accent-hover: #92400e;
+}
+.dark.theme-warm {
+  --app-base: #292524;
+  --app-surface: #33302c;
+  --app-line: #44403c;
+  --app-ink: #e7e5e4;
+  --app-ink-muted: #a8a29e;
+  --app-accent: #d97706;
+  --app-on-accent: #1c1917;
+  --app-hover: #3f3a36;
+  --app-accent-hover: #f59e0b;
+}
+.theme-cool {
+  --app-base: #f8fafc;
+  --app-surface: #ffffff;
+  --app-line: #dbe3ee;
+  --app-ink: #0f172a;
+  --app-ink-muted: #64748b;
+  --app-accent: #1d4ed8;
+  --app-on-accent: #f8faff;
+  --app-hover: #e2e8f0;
+  --app-accent-hover: #1e40af;
+}
+.dark.theme-cool {
+  --app-base: #0f172a;
+  --app-surface: #1e293b;
+  --app-line: #334155;
+  --app-ink: #e2e8f0;
+  --app-ink-muted: #94a3b8;
+  --app-accent: #3b82f6;
+  --app-on-accent: #0b1120;
+  --app-hover: #26334d;
+  --app-accent-hover: #60a5fa;
+}
+.theme-forest {
+  --app-base: #f6f8f4;
+  --app-surface: #ffffff;
+  --app-line: #dde5da;
+  --app-ink: #1f2a20;
+  --app-ink-muted: #5c6b5e;
+  --app-accent: #3f6212;
+  --app-on-accent: #f8fcf5;
+  --app-hover: #e3eae0;
+  --app-accent-hover: #365314;
+}
+.dark.theme-forest {
+  --app-base: #1c241b;
+  --app-surface: #26301f;
+  --app-line: #3a4634;
+  --app-ink: #e6eadf;
+  --app-ink-muted: #a3b18a;
+  --app-accent: #84cc16;
+  --app-on-accent: #16200f;
+  --app-hover: #31402a;
+  --app-accent-hover: #a3e635;
+}
+.theme-purple-night {
+  --app-base: #f8f7fc;
+  --app-surface: #ffffff;
+  --app-line: #e4e0ee;
+  --app-ink: #231d33;
+  --app-ink-muted: #6b6486;
+  --app-accent: #6d28d9;
+  --app-on-accent: #faf9ff;
+  --app-hover: #e9e5f4;
+  --app-accent-hover: #5b21b6;
+}
+.dark.theme-purple-night {
+  --app-base: #1e1b2e;
+  --app-surface: #2a2540;
+  --app-line: #3d3659;
+  --app-ink: #e6e2f5;
+  --app-ink-muted: #9d94c4;
+  --app-accent: #8b5cf6;
+  --app-on-accent: #141126;
+  --app-hover: #332c4e;
+  --app-accent-hover: #a78bfa;
+}
+.theme-rose {
+  --app-base: #faf7f8;
+  --app-surface: #ffffff;
+  --app-line: #ecdfe3;
+  --app-ink: #2b2226;
+  --app-ink-muted: #7c6b71;
+  --app-accent: #be185d;
+  --app-on-accent: #fdf6f9;
+  --app-hover: #f1e4e9;
+  --app-accent-hover: #9d174d;
+}
+.dark.theme-rose {
+  --app-base: #261c20;
+  --app-surface: #322529;
+  --app-line: #46343a;
+  --app-ink: #f2e8ec;
+  --app-ink-muted: #b39aa3;
+  --app-accent: #ec4899;
+  --app-on-accent: #1b1417;
+  --app-hover: #3d2c32;
+  --app-accent-hover: #f472b6;
+}
+.theme-dusk {
+  --app-base: #f7f8fb;
+  --app-surface: #ffffff;
+  --app-line: #dfe3ef;
+  --app-ink: #171c2e;
+  --app-ink-muted: #5d657e;
+  --app-accent: #4338ca;
+  --app-on-accent: #f8f9ff;
+  --app-hover: #e4e8f4;
+  --app-accent-hover: #3730a3;
+}
+.dark.theme-dusk {
+  --app-base: #191d2f;
+  --app-surface: #232946;
+  --app-line: #363d63;
+  --app-ink: #e4e7f7;
+  --app-ink-muted: #9aa1c4;
+  --app-accent: #6366f1;
+  --app-on-accent: #12152a;
+  --app-hover: #2d3355;
+  --app-accent-hover: #818cf8;
+}
+.theme-ember {
+  --app-base: #fbf7f4;
+  --app-surface: #ffffff;
+  --app-line: #ecdfd6;
+  --app-ink: #2e211b;
+  --app-ink-muted: #7d6a5f;
+  --app-accent: #c2410c;
+  --app-on-accent: #fffaf6;
+  --app-hover: #f2e5dc;
+  --app-accent-hover: #9a3412;
+}
+.dark.theme-ember {
+  --app-base: #271d17;
+  --app-surface: #342620;
+  --app-line: #48352b;
+  --app-ink: #f2e8e2;
+  --app-ink-muted: #b39d90;
+  --app-accent: #ea580c;
+  --app-on-accent: #1c130e;
+  --app-hover: #3f2d24;
+  --app-accent-hover: #fb923c;
+}

@@ -71,3 +71,13 @@ brief 第 6 节无欠账,无遗留项。
     2. scrollbar-sleek 兼容别名 --foreground/--muted-foreground 已接真值(此前一直走兜底)
     3. 视觉冒烟本机不可达(无视觉),R5 已追加 TODO.md 待用户
 - T4 契约缺口处置 | implementer 发现 applyDarkClass 第二调用点(main.tsx 首帧防闪,T11 评审 Minor-6 引入,契约未列) | 批准两行连带改动(import + 调用改 applyAppearance(…,'default'),行为等价);已补进 tasks/T4.md「补充落点」节 | 随 T4 提交
+- T4 界面主题数据与选择应用 | 完成 | commit 见「feat(T4)」提交(基线 7a34d5eb 之上,代码与本记账同 commit)
+  - 基线:7a34d5eb
+  - 评审:独立 reviewer(子代理)裁决「规格符合、可提交」;色值三处逐格核对零偏差(契约表 ↔ 目录 ↔ CSS);resolveMode 抽取逐字等价;applyAppearance 唯一写手全域 grep 证实;main.tsx 两行严格在批准范围。Important-1(循环 import 的 TDZ 顺序偶然,测试测不出的启动白屏地雷)已随本提交加固:createSettingsSlice 改 hoisted function 声明 + 注释改为结构保证论证;该缺陷无法用测试钉住(求值顺序问题),以结构加固 + 评审复核关闭,不做 mutation check(无新守卫用例可钉)
+  - waiver:无
+  - 变更登记:tasks/T4.md「补充落点」节(main.tsx 契约缺口,commit 7a34d5eb);tasks/T6.md「实施期补充」节(Minor-4 外观重放归消费方 + Minor-2 默认值提升建议)
+  - Minor 遗留:②默认值三处手工镜像(T6 可选加固);③CSS↔目录色值一致性无锚定测试(后续加固,144 值核对脚本一次性);④浅槽坏 id 用例可选加固——均记录在案,门 3 汇总
+  - 结论:
+    1. selectAppTheme 返回整套 AppTheme(含深浅两形态),T6/T7 按 mode 取形态
+    2. applyAppearance 对目录外 id 兜底为不挂主题类 = 默认观感,调用方传 id 前无需校验
+    3. T6 必须显式重放外观(tasks/T6.md 实施期补充第 1 条),勿假设 updateSettings 自动生效

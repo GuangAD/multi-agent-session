@@ -2,6 +2,7 @@
 // 出错约定:不抛出;槽 id 不在目录落默认主题,越界值夹紧,坏枚举落默认值。
 import type { ITheme } from '@xterm/xterm'
 import { TERMINAL_THEMES } from './catalog'
+import { APP_THEMES, type AppTheme } from './app-themes'
 import { DEFAULT_FONT_FALLBACK_CHAIN } from './fonts'
 import type { Settings } from '../types'
 
@@ -9,19 +10,39 @@ import type { Settings } from '../types'
 const DEFAULT_DARK_THEME_ID = 'Ghostty Default Style Dark'
 const DEFAULT_LIGHT_THEME_ID = 'Builtin Tango Light'
 
+// 三态 + 系统深浅 → 当前深浅形态(dark/light 直取,system 随系统);selectTerminalTheme / selectAppTheme 同口径
+function resolveMode(theme: Settings['theme'], systemDark: boolean): 'dark' | 'light' {
+  if (theme === 'dark') {
+    return 'dark'
+  }
+  if (theme === 'light' || (theme === 'system' && !systemDark)) {
+    return 'light'
+  }
+  return 'dark'
+}
+
 // 三态 + 系统深浅 + 双槽 → 当前应套用的终端主题;theme 字段永远可用
 export function selectTerminalTheme(
   settings: Pick<Settings, 'theme' | 'terminalThemeDark' | 'terminalThemeLight'>,
   systemDark: boolean
 ): { mode: 'dark' | 'light'; theme: ITheme } {
-  const mode: 'dark' | 'light' =
-    settings.theme === 'dark'
-      ? 'dark'
-      : settings.theme === 'light' || (settings.theme === 'system' && !systemDark)
-        ? 'light'
-        : 'dark'
+  const mode = resolveMode(settings.theme, systemDark)
   const requestedId = mode === 'dark' ? settings.terminalThemeDark : settings.terminalThemeLight
   const theme = TERMINAL_THEMES[requestedId] ?? TERMINAL_THEMES[mode === 'dark' ? DEFAULT_DARK_THEME_ID : DEFAULT_LIGHT_THEME_ID]
+  return { mode, theme }
+}
+
+// 坏 id 兜底的唯一落点:APP_THEMES 中 id='default' 的套(T4 契约)
+const DEFAULT_APP_THEME = APP_THEMES.find((theme) => theme.id === 'default')!
+
+// 界面侧主题选择,口径与 selectTerminalTheme 一致;theme 是整套 AppTheme(含深浅两形态),mode 指示当前形态
+export function selectAppTheme(
+  settings: Pick<Settings, 'theme' | 'appThemeDark' | 'appThemeLight'>,
+  systemDark: boolean
+): { mode: 'dark' | 'light'; theme: AppTheme } {
+  const mode = resolveMode(settings.theme, systemDark)
+  const requestedId = mode === 'dark' ? settings.appThemeDark : settings.appThemeLight
+  const theme = APP_THEMES.find((candidate) => candidate.id === requestedId) ?? DEFAULT_APP_THEME
   return { mode, theme }
 }
 
