@@ -5,7 +5,11 @@
 // 调用记录上(环境桩不碰被测逻辑)
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { bridge } from '../../ipc/bridge'
-import { closeTerminal, openTerminal } from './use-terminal'
+import { applyTerminalAppearanceToAll, closeTerminal, openTerminal } from './use-terminal'
+import { resolveTerminalAppearance } from '../../../../shared/themes/resolve'
+import { TERMINAL_THEMES } from '../../../../shared/themes/catalog'
+import { DEFAULT_FONT_FALLBACK_CHAIN } from '../../../../shared/themes/fonts'
+import type { Settings } from '../../../../shared/types'
 
 interface PumpEvent {
   sessionId: string
@@ -39,6 +43,8 @@ const {
       writes: string[]
       scrolled: number[]
       options: Record<string, unknown>
+      // 运行时整包应用记录(真实 xterm = options setter 部分合并);构造期不走 setter 不进此表
+      appliedOptions: Array<Record<string, unknown>>
       // 宽度表句柄(xterm proposed API):用例断言其被激活到 '11'
       // 宽度表句柄(xterm proposed API):用例断言自定义 RGI provider 被注册并激活
       unicode: {
@@ -145,7 +151,18 @@ vi.mock('@xterm/xterm', () => ({
     rows = 24
     modes: XtermModesStub = { mouseTrackingMode: 'none' }
     element: { dispatchEvent: (event: unknown) => boolean } | null = null
-    options: Record<string, unknown>
+    // options 对齐真实 xterm 语义:v6 无 applyOptions 方法,运行时更新 = options setter
+    // (部分对象逐键合并、对象值按引用比较)。setter 记录每次运行时应用供用例断言;
+    // 构造期直赋 _options,不进 appliedOptions
+    private _options: Record<string, unknown> = {}
+    appliedOptions: Array<Record<string, unknown>> = []
+    get options(): Record<string, unknown> {
+      return this._options
+    }
+    set options(next: Record<string, unknown>) {
+      this.appliedOptions.push(next)
+      Object.assign(this._options, next)
+    }
     // 宽度表句柄(xterm proposed API):默认停在 Unicode 6,激活 11 后由用例断言
     // 宽度表句柄(xterm proposed API):默认停在 Unicode 6;register 记录 provider 供用例断言
     registeredUnicodeProviders: UnicodeProviderStub[] = []
@@ -172,7 +189,7 @@ vi.mock('@xterm/xterm', () => ({
       }
     }
     constructor(options: Record<string, unknown>) {
-      this.options = options
+      this._options = options
       createdTerminals.push(this)
     }
     write(data: string): void {
@@ -248,9 +265,30 @@ vi.mock('@xterm/addon-webgl', () => ({
 
 
 // 容器桩:openTerminal 不在容器挂 wheel 监听(滚轮走 terminal 实例上的官方钩子),
-// 桩内 xterm.open 为空操作,容器仅作 ResizeObserver.observe 的观察对象身份
-function makeContainerStub(): HTMLElement {
-  return {} as unknown as HTMLElement
+// 桩内 xterm.open 为空操作,容器仅作 ResizeObserver.observe 的观察对象身份;
+// style 桩供 applyTerminalAppearanceToAll 读 inline display 判定可见性(隐藏终端跳过 fit)
+function makeContainerStub(display?: string): HTMLElement {
+  return { style: { display: display ?? '' } } as unknown as HTMLElement
+}
+
+// 全量设置桩:与 settings-slice INITIAL_SETTINGS / 主进程 DEFAULT_STORE.settings 默认值同值
+// (spec 数据结构节),单用例只覆盖关注字段
+function makeSettings(over: Partial<Settings> = {}): Settings {
+  return {
+    scrollbackRows: 10000,
+    theme: 'system',
+    shell: 'powershell',
+    appThemeDark: 'default',
+    appThemeLight: 'default',
+    terminalThemeDark: 'Ghostty Default Style Dark',
+    terminalThemeLight: 'Builtin Tango Light',
+    terminalFontSize: 14,
+    terminalFontWeight: 300,
+    terminalLineHeight: 1.0,
+    terminalCursorStyle: 'block',
+    terminalCursorBlink: false,
+    ...over
+  }
 }
 
 // ResizeObserver 桩:登记 observe/disconnect 调用与回调;trigger 手动模拟容器尺寸变化回调
@@ -323,7 +361,7 @@ function openSettledTerminal(sessionId: string): {
   terminal: (typeof createdTerminals)[number]
 } {
   const container = makeContainerStub()
-  openTerminal(sessionId, 10000, container)
+  openTerminal(sessionId, 10000, makeSettings(), false, container)
   flushAnimationFrame()
   const fitAddon = createdFitAddons.at(-1)!
   fitAddon.fitCalls = 0
@@ -349,7 +387,7 @@ describe('use-terminal 复制/中断键位(Windows Terminal 惯例)', () => {
   let copySeq = 0
   function openCopyTerminal(hasSelection: boolean, selectionText?: string) {
     const id = `s-copy-${++copySeq}`
-    openTerminal(id, 10000, makeContainerStub())
+    openTerminal(id, 10000, makeSettings(), false, makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     terminal.hasSelectionFlag = hasSelection
     // 状态配对对齐真实 xterm:无选区时 getSelection() 也为空
@@ -395,7 +433,7 @@ describe('use-terminal 复制/中断键位(Windows Terminal 惯例)', () => {
 describe('use-terminal 数据泵(Fix-2 守卫)', () => {
   it('先到先存、注册即放:未注册 id 的 pty:data 不丢,flush 进写入序列首部,之后正常直灌', () => {
     // 先开再关一个引导终端:确保数据泵已挂(dataBusBound 幂等),拿到泵回调
-    openTerminal('s-boot', 10000, makeContainerStub())
+    openTerminal('s-boot', 10000, makeSettings(), false, makeContainerStub())
     closeTerminal('s-boot')
     const pump = onPtyDataHandlers[0]
     expect(pump, '数据泵应随首次 openTerminal 挂上').toBeDefined()
@@ -404,7 +442,7 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
     pump!({ sessionId: 's-early', data: 'BANNER-1' })
     pump!({ sessionId: 's-early', data: 'BANNER-2' })
 
-    openTerminal('s-early', 10000, makeContainerStub())
+    openTerminal('s-early', 10000, makeSettings(), false, makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     // flush 内容完整出现在写入序列首部
     expect(terminal.writes.join('')).toBe('BANNER-1BANNER-2')
@@ -419,14 +457,14 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
   it('tab 关闭清理 pending:关闭前暂存的未注册数据不得串到此后新开的终端', () => {
     // 引导终端:数据泵随首次 openTerminal 挂一次(幂等)。自带引导,不依赖上一用例先跑过——
     // Why: 用例顺序独立才可靠,否则 shuffle/单用例过滤时 onPtyDataHandlers 为空(pump 是 undefined)
-    openTerminal('s-boot', 10000, makeContainerStub())
+    openTerminal('s-boot', 10000, makeSettings(), false, makeContainerStub())
     closeTerminal('s-boot')
     const pump = onPtyDataHandlers[0]!
     expect(pump, '数据泵应随首次 openTerminal 挂上').toBeDefined()
     pump({ sessionId: 's-stale', data: 'STALE-OUT' })
     closeTerminal('s-stale') // 未注册过的 id 也走清理路径
 
-    openTerminal('s-stale', 10000, makeContainerStub())
+    openTerminal('s-stale', 10000, makeSettings(), false, makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     expect(terminal.writes.join('')).toBe('')
     closeTerminal('s-stale')
@@ -435,20 +473,90 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
 
 describe('use-terminal 字体度量(Orca 对齐)', () => {
   it('Terminal 选项使用 Orca 字体族/字号/字重,避免 canvas 测量与 DOM 渲染度量不一致', () => {
-    openTerminal('s-font', 10000, makeContainerStub())
+    openTerminal('s-font', 10000, makeSettings(), false, makeContainerStub())
     const terminal = createdTerminals.at(-1)!
 
     expect(terminal.options.fontFamily, '应显式指定 Orca 字体族').toContain('Cascadia Mono')
     expect(terminal.options.fontSize, '字号应与 Orca 一致').toBe(14)
-    expect(terminal.options.fontWeight, '常规字重应与 Orca 一致').toBe('300')
-    expect(terminal.options.fontWeightBold, '粗体字重应与 Orca 一致').toBe('500')
+    // 字重来源改为解析输出(T3/T5):数值 300/500,与迁移前字符串 '300'/'500' 语义等价
+    // (xterm FontWeight = 'normal' | 'bold' | number);字体族与度量的单一来源是 shared/themes
+    expect(terminal.options.fontWeight, '常规字重应与 Orca 一致').toBe(300)
+    expect(terminal.options.fontWeightBold, '粗体字重应与 Orca 一致').toBe(500)
 
     closeTerminal('s-font')
   })
 })
+describe('use-terminal 终端外观接线(T5:applyTerminalAppearanceToAll)', () => {
+  it('两个已开终端:options 运行时应用均被调且值来自解析输出,fit 路径经既有收敛循环触发', () => {
+    openSettledTerminal('s-apply-a')
+    openSettledTerminal('s-apply-b')
+    const terminalA = createdTerminals.at(-2)!
+    const terminalB = createdTerminals.at(-1)!
+    const fitA = createdFitAddons.at(-2)!
+    const fitB = createdFitAddons.at(-1)!
+
+    // 字体选具体项:解析输出 = 该字体插链首(链内容本身 T3 函数级已穷尽,此处只断接线来源)
+    const settings = makeSettings({ terminalFontSize: 20, terminalFontFamily: 'JetBrains Mono' })
+    applyTerminalAppearanceToAll(settings, true)
+    const expected = resolveTerminalAppearance(settings, true)
+
+    // 期望值来源(spec 接缝五):两实例均被调,值 = 解析函数输出,不是任何本地常量
+    expect(terminalA.appliedOptions.length, '终端 A 应收到一次运行时应用').toBe(1)
+    expect(terminalB.appliedOptions.length, '终端 B 应收到一次运行时应用').toBe(1)
+    for (const applied of [...terminalA.appliedOptions, ...terminalB.appliedOptions]) {
+      expect(applied.fontFamily, '字体链来自解析输出').toBe(expected.fontFamily)
+      expect(applied.fontFamily).toContain('JetBrains Mono')
+      expect(applied.fontSize, '字号来自解析输出').toBe(20)
+    }
+
+    // fit 路径触发:度量变更 → 既有 RAF 稳定帧收敛循环,提案未定 → 首帧收敛 fit 恰一次
+    flushAnimationFrame()
+    expect(fitA.fitCalls).toBe(1)
+    expect(fitB.fitCalls).toBe(1)
+    expect(rafState.queue.length).toBe(0)
+
+    closeTerminal('s-apply-a')
+    closeTerminal('s-apply-b')
+  })
+})
+
+describe('use-terminal 外观应用随系统深浅换槽(T5 用例 3)', () => {
+  it('applyToAll 的 systemDark 参数决定换到深槽还是浅槽主题', () => {
+    openSettledTerminal('s-slot-a')
+    const terminal = createdTerminals.at(-1)!
+    // 双槽各挂不同主题:深槽 Ghostty Default Style Dark(默认)、浅槽 Builtin Tango Light(默认)
+    const settings = makeSettings()
+
+    applyTerminalAppearanceToAll(settings, true)
+    expect(terminal.appliedOptions.at(-1)?.theme, 'systemDark=true 应取深槽主题').toBe(
+      TERMINAL_THEMES['Ghostty Default Style Dark']
+    )
+
+    applyTerminalAppearanceToAll(settings, false)
+    expect(terminal.appliedOptions.at(-1)?.theme, 'systemDark=false 应取浅槽主题').toBe(
+      TERMINAL_THEMES['Builtin Tango Light']
+    )
+
+    closeTerminal('s-slot-a')
+  })
+})
+
+describe('use-terminal 创建期外观来自设置(T5 用例 2)', () => {
+  it('openTerminal 传入 fontSize=20 的设置:新实例 options 取解析输出而非本地常量', () => {
+    openTerminal('s-from-settings', 10000, makeSettings({ terminalFontSize: 20 }), false, makeContainerStub())
+    const terminal = createdTerminals.at(-1)!
+
+    // 期望值来源(手算 + spec 接缝五):字号直通设置值;字体链为解析链(含默认回退链首项)
+    expect(terminal.options.fontSize).toBe(20)
+    expect(terminal.options.fontFamily).toBe(DEFAULT_FONT_FALLBACK_CHAIN)
+
+    closeTerminal('s-from-settings')
+  })
+})
+
 describe('use-terminal 宽字符宽度表(RGI 对齐)', () => {
   it('开启 allowProposedApi 并激活 11-rgi provider:VS16/ZWJ emoji 序列按 pi 的 RGI 口径计 2 格', () => {
-    openTerminal('s-unicode', 10000, makeContainerStub())
+    openTerminal('s-unicode', 10000, makeSettings(), false, makeContainerStub())
     const terminal = createdTerminals.at(-1)!
 
     // 期望值来源(真实 xterm + pi bundle 探针,非按实现推导):xterm 6.1.0-beta.336 内置宽度表
@@ -467,7 +575,7 @@ describe('use-terminal 宽字符宽度表(RGI 对齐)', () => {
 })
 describe('use-terminal WebGL context loss 回退', () => {
   it('GPU 上下文丢失时 dispose addon:dispose 内部 setRenderer(DOM),终端不白屏冻结', () => {
-    openTerminal('s-webgl', 10000, makeContainerStub())
+    openTerminal('s-webgl', 10000, makeSettings(), false, makeContainerStub())
     const addon = createdWebglAddons.at(-1)!
 
     // 期望值来源(@xterm/addon-webgl 0.20.0-beta.329 源码):webglcontextlost 后 3 秒未恢复
@@ -561,7 +669,7 @@ describe('use-terminal Shift+滚轮本地滚动(ADR-0004:attachCustomWheelEventH
     terminal: (typeof createdTerminals)[number]
     handleWheel: CustomWheelHandler
   } {
-    openTerminal(sessionId, 10000, makeContainerStub())
+    openTerminal(sessionId, 10000, makeSettings(), false, makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     const handleWheel = terminal.customWheelHandlers.at(-1)!
     expect(handleWheel, 'openTerminal 应经 attachCustomWheelEventHandler 挂上钩子').toBeDefined()
@@ -600,7 +708,7 @@ describe('use-terminal 滚轮四分支(T3.5:Shift 本地滚 / mouse mode 放大�
     handleWheel: CustomWheelHandler
     dispatched: Array<WheelEvent & { deltaY: number; deltaMode: number }>
   } {
-    openTerminal(sessionId, 10000, makeContainerStub())
+    openTerminal(sessionId, 10000, makeSettings(), false, makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     const handleWheel = terminal.customWheelHandlers.at(-1)!
     expect(handleWheel, 'openTerminal 应经 attachCustomWheelEventHandler 挂上钩子').toBeDefined()

@@ -81,3 +81,17 @@ brief 第 6 节无欠账,无遗留项。
     1. selectAppTheme 返回整套 AppTheme(含深浅两形态),T6/T7 按 mode 取形态
     2. applyAppearance 对目录外 id 兜底为不挂主题类 = 默认观感,调用方传 id 前无需校验
     3. T6 必须显式重放外观(tasks/T6.md 实施期补充第 1 条),勿假设 updateSettings 自动生效
+- T5 终端即时生效接线 | 完成 | commit 见「feat(T5)」提交(基线 1ecc9989)
+  - 基线:1ecc9989
+  - 评审:self-review,非独立(子代理额度耗尽,无法派 reviewer;按 code-review fallback 做冷却自审 + mutation check,门 3 整特性终审兜底)
+  - 实施方式:implementer 子代理中途失败(供应商 429 额度上限,非代码问题)且 heredoc 损坏一行(console.error 的模板字面量被 bash 展开吃掉,已修复),controller 会话内续完并自补用例 2/3
+  - mutation check(补足用例 2/3 未亲历红的鉴别力):①创建期 fontSize 改死 14 → 用例 2 精确转红(1 failed/27 passed);②运行时 theme 固定深槽 → 用例 3 精确转红(1 failed/27 passed);均还原后 28 passed 全绿
+  - 契约更正(记账,需在 spec/契约侧理解口径):xterm 6.1.0-beta.336 无 applyOptions 方法(已核 typings),运行时全量更新唯一入口是 `terminal.options = {...}` setter(逐键部分合并、对象值按引用比较);契约「applyOptions」措辞按此执行,行为等价
+  - 契约更正 2:openTerminal 签名定为 (sessionId, scrollback, settings, systemDark, container);TerminalView 挂载时命令式读 store(useAppStore.getState().settings)而非订阅,理由:设置变化由 App 层统一 apply,不应触发实例重建
+  - waiver:无
+  - 变更登记:tasks/T5.md 未改(措辞更正记在本行);use-terminal.test.ts 既有字体度量用例的字重断言由 '300'/'500' 字符串改为 300/500 数值(T3 评审已确认语义等价)
+  - Minor 遗留:TerminalTabs 仍自持 scrollback 的 bridge.settings.get() 读取(T6 可改为读 slice,消除第二处设置读取路径)
+  - 结论:
+    1. 运行时外观更新用 terminal.options setter;隐藏终端(display:none)跳过 fit,由 activateTerminal 既有 RAF 补齐,切勿在隐藏态 fit(会压成 2×1 最小网格)
+    2. 度量变更的 PTY 同步无需额外接线:fit 改 cols/rows 后既有 onResize → pty.resize 自动生效
+    3. T6/T7 若要预览实例,不要加入 use-terminal 的 terminals 注册表(否则 applyToAll 会误改预览)

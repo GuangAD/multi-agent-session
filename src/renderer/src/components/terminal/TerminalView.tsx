@@ -1,6 +1,10 @@
 // 常驻终端视图:每会话一个 xterm 实例;tab 切换仅切可见性(display),不销毁
+// 设置来源(T5):settings-slice 的 settings 与系统深浅;创建期取当时值,运行时更新由 App 层
+// applyTerminalAppearanceToAll 统一应用——本组件不重建实例(重建即丢画面)。
 import { useEffect, useRef } from 'react'
+import { useAppStore } from '../../store/app-store'
 import { activateTerminal, closeTerminal, openTerminal } from './use-terminal'
+import { systemPrefersDark } from '../../theme'
 import type { SessionId } from '../../../../shared/types'
 
 export function TerminalView({
@@ -13,14 +17,21 @@ export function TerminalView({
   scrollback: number
 }): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
-
+  // Why 挂载时命令式读一次 store 而不是订阅:settings 变化由 App 层
+  // applyTerminalAppearanceToAll 统一应用(不重建实例),本组件无需因设置变化重渲染
   // 创建/销毁只随 tab 开关(sessionId 变化);scrollback 是创建期参数,变化时重建
   useEffect(() => {
     const container = containerRef.current
     if (!container) {
       return
     }
-    openTerminal(sessionId, scrollback, container)
+    openTerminal(
+      sessionId,
+      scrollback,
+      useAppStore.getState().settings,
+      systemPrefersDark(),
+      container
+    )
     return () => closeTerminal(sessionId)
   }, [sessionId, scrollback])
 

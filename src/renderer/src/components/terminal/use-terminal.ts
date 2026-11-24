@@ -9,17 +9,20 @@ import { Terminal } from '@xterm/xterm'
 // Fix-B 右侧空白治理:提案 = 盒子的纯函数(device/dpr cell 尺寸,与当前列数解耦),见 stable-cell-fit-addon.ts
 import { StableCellFitAddon } from './stable-cell-fit-addon'
 import { activateRgiUnicodeProvider } from './terminal-unicode-provider'
+import { resolveTerminalAppearance } from '../../../../shared/themes/resolve'
 import { bridge } from '../../ipc/bridge'
 import {
   createTerminalMouseWheelReplayState,
   replayTerminalMouseWheel,
   shouldReplayTerminalMouseWheel
 } from './mouse-wheel-replay'
-import type { SessionId } from '../../../../shared/types'
+import type { SessionId, Settings } from '../../../../shared/types'
 
 interface TerminalEntry {
   terminal: Terminal
   fitAddon: StableCellFitAddon
+  // open 目标容器(TerminalView 渲染的 div):外观应用以 container.style.display 判定可见性
+  container: HTMLElement
   // 窗口跟随:容器观察者与稳定帧循环的待决 RAF id(closeTerminal 时显式撤销)
   fitResizeObserver: ResizeObserver | null
   pendingFitRafId: number | null
@@ -27,13 +30,8 @@ interface TerminalEntry {
 
 // Shift+滚轮本地滚动幅度:一格滚轮 3 行(常见终端惯例,可调)
 const SHIFT_WHEEL_SCROLL_LINES = 3
-// 字体度量必须与 Orca 对齐:canvas 测量和 DOM 渲染对通用 monospace 的回退字体
-// 可能不一致,出现网格按 8px/格计算但文本实际 7px/格推进,右侧固定留白。
-const TERMINAL_FONT_FAMILY =
-  '"SF Mono", "Menlo", "Monaco", "Cascadia Mono", "Consolas", "DejaVu Sans Mono", "Liberation Mono", "Symbols Nerd Font Mono", "MesloLGS Nerd Font", "JetBrainsMono Nerd Font", "Hack Nerd Font", monospace'
-const TERMINAL_FONT_SIZE = 14
-const TERMINAL_FONT_WEIGHT = '300'
-const TERMINAL_FONT_WEIGHT_BOLD = '500'
+// 字体度量与回退链的单一来源是 shared/themes(T3:fonts.ts 常量 + resolveTerminalAppearance),
+// 本模块不再持有字体常量——canvas 测量与 DOM 渲染用的是同一份解析输出(T5)
 
 // —— 窗口跟随:ResizeObserver + RAF 稳定帧收敛 ——
 // Ported from stablyai/orca src/renderer/src/lib/pane-manager/terminal-fit/pane-fit-resize-observer.ts (MIT)
@@ -157,6 +155,8 @@ function ensureDataBus(): void {
 export function openTerminal(
   sessionId: SessionId,
   scrollback: number,
+  settings: Settings,
+  systemDark: boolean,
   container: HTMLElement
 ): void {
   ensureDataBus()
@@ -169,12 +169,19 @@ export function openTerminal(
   // 细滚动条 7px(启用 xterm 概览标尺,代价约一列宽的沟槽——网格侧由 StableCellFitAddon
   // 经 terminal.options.scrollbar 同步预留该宽度);滚动灵敏度取 Orca DEFAULT_* 常量值;
   // scrollOnUserInput 与 xterm 默认一致,按 Orca 显式落定。
+  // 外观全量来自 resolveTerminalAppearance(单一来源):字体链、度量、光标、配色一次解析,
+  // 与 applyTerminalAppearanceToAll 的运行时更新用同一个函数,不存在第二处字体来源。
+  const appearance = resolveTerminalAppearance(settings, systemDark)
   const terminal = new Terminal({
     scrollback,
-    fontFamily: TERMINAL_FONT_FAMILY,
-    fontSize: TERMINAL_FONT_SIZE,
-    fontWeight: TERMINAL_FONT_WEIGHT,
-    fontWeightBold: TERMINAL_FONT_WEIGHT_BOLD,
+    fontFamily: appearance.fontFamily,
+    fontSize: appearance.fontSize,
+    fontWeight: appearance.fontWeight,
+    fontWeightBold: appearance.fontWeightBold,
+    lineHeight: appearance.lineHeight,
+    cursorStyle: appearance.cursorStyle,
+    cursorBlink: appearance.cursorBlink,
+    theme: appearance.theme,
     scrollbar: { width: 7 },
     // unicode 是 proposed API(宽度表 provider 注册与 activeVersion 都在其下);
     // 不开这一项,loadAddon(Unicode11Addon) 会直接抛错
@@ -293,6 +300,7 @@ export function openTerminal(
   const entry: TerminalEntry = {
     terminal,
     fitAddon,
+    container,
     fitResizeObserver: null,
     pendingFitRafId: null
   }
@@ -327,6 +335,39 @@ export function closeTerminal(sessionId: SessionId): void {
   }
   terminals.delete(sessionId)
   pendingData.delete(sessionId) // 暂存随 tab 清理,防泄漏/串台到此后新开的终端
+}
+
+// —— 设置接线(T5):设置/系统深浅变化 → 全部已开终端即时应用解析结果 ——
+// 可重复调用、幂等(值来自纯函数解析输出);注册表为空时遍历空集,无副作用。
+// 出错:单终端失败不阻断其余终端,console.error 记录该终端。
+export function applyTerminalAppearanceToAll(settings: Settings, systemDark: boolean): void {
+  const appearance = resolveTerminalAppearance(settings, systemDark)
+  for (const [sessionId, entry] of terminals) {
+    try {
+      // xterm v6 无 applyOptions 方法,运行时更新唯一入口是 options setter(部分对象逐键合并,
+      // 对象值按引用比较——theme 每次传解析新产物,槽未变时同引用天然 no-op)。scrollback 不在
+      // 运行时应用:创建期参数,沿用「变化即重建实例」语义(TerminalView 既有 effect)。
+      entry.terminal.options = {
+        fontFamily: appearance.fontFamily,
+        fontSize: appearance.fontSize,
+        fontWeight: appearance.fontWeight,
+        fontWeightBold: appearance.fontWeightBold,
+        lineHeight: appearance.lineHeight,
+        cursorStyle: appearance.cursorStyle,
+        cursorBlink: appearance.cursorBlink,
+        theme: appearance.theme
+      }
+      // 度量类变更 refit:走既有 RAF 稳定帧收敛循环(与 ResizeObserver 同一条 fit 路径);
+      // fit 改变 cols/rows 由既有 onResize → pty.resize 链路同步 PTY 网格,此处不再接线。
+      // 隐藏终端跳过 fit:display:none 容器的盒子是 0 尺寸,提案会落到 2×1 最小网格,fit
+      // 会压扁网格;切回显示时 activateTerminal 的既有 RAF fit 补齐。
+      if (entry.container.style.display !== 'none') {
+        requestStableFit(entry)
+      }
+    } catch (error) {
+      console.error(`终端外观应用失败(${sessionId}):`, error)
+    }
+  }
 }
 
 // tab 切换激活:display 由组件渲染控制;这里在可见后 fit(隐藏期间无尺寸)+ 聚焦

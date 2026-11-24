@@ -19,6 +19,9 @@ import { Sidebar } from './components/sidebar/Sidebar'
 import { FileTreePanel } from './components/file-panel/FileTreePanel'
 import { GitPanel } from './components/git-panel/GitPanel'
 import { TerminalTabs } from './components/terminal/TerminalTabs'
+import { applyTerminalAppearanceToAll } from './components/terminal/use-terminal'
+import { useSettings } from './store/settings-slice'
+import { systemPrefersDark } from './theme'
 import { bridge } from './ipc/bridge'
 
 // 右栏可显示的面板:'files' 文件树 / 'git' Git 面板 / null 收起(默认隐藏)
@@ -43,6 +46,22 @@ function App(): React.JSX.Element {
   // Why 用重挂而不是把刷新函数塞进 store:面板的取数与展开态都是组件内部状态,
   // key 变化即天然回到「首次加载」形态,不必在组件之间传回调(与 T9/T10 既有模式一致)
   const [refreshTick, setRefreshTick] = useState(0)
+  // 终端外观(T5):设置或系统深浅任一变化 → 全部已开终端即时应用解析结果。
+  // Why 在 App 层而不在终端组件:终端实例是常驻注册表,应用是跨实例动作;
+  // 度量类变更后 refit 并走既有 onResize → pty.resize 同步 PTY 网格,本层不重复接网格。
+  const settings = useSettings((current) => current)
+  const [systemDark, setSystemDark] = useState(() => systemPrefersDark())
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (): void => setSystemDark(media.matches)
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+
+  useEffect(() => {
+    applyTerminalAppearanceToAll(settings, systemDark)
+  }, [settings, systemDark])
 
   const activeProject = projects.find((item) => item.id === selectedProjectId) ?? null
 
