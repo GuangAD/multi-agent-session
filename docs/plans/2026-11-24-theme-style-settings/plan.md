@@ -70,3 +70,4 @@ brief 第 6 节无欠账,无遗留项。
     1. 语义 utility 共 9 个,T4 主题类只需覆盖 --app-* 变量即可整体换色
     2. scrollbar-sleek 兼容别名 --foreground/--muted-foreground 已接真值(此前一直走兜底)
     3. 视觉冒烟本机不可达(无视觉),R5 已追加 TODO.md 待用户
+- T4 契约缺口处置 | implementer 发现 applyDarkClass 第二调用点(main.tsx 首帧防闪,T11 评审 Minor-6 引入,契约未列) | 批准两行连带改动(import + 调用改 applyAppearance(…,'default'),行为等价);已补进 tasks/T4.md「补充落点」节 | 随 T4 提交
