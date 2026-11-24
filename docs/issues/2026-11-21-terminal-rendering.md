@@ -82,4 +82,5 @@ pi(TUI agent)在应用内运行时:
 - **度量类配置要 refit**:字体、字号、字重、滚动条宽度变化会改变 cell 宽高或 cols/rows；更新 option 后必须对所有终端 `fitAddon.fit()`，并让现有 `onResize → pty.resize` 链路同步 PTY 网格。
 - **继续复用 `StableCellFitAddon`**:它用 device/dpr cell 尺寸让提案成为盒子的纯函数；不要退回裸用 `FitAddon.proposeDimensions()`。
 - **scrollback 保持创建期参数**:当前 `TerminalView` 在 `scrollback` 变化时重建实例，语义简单，可保留；字体、颜色、滚动条宽度适合运行时更新，不必重建 terminal。
+- **隐藏容器一律不 fit(2026-11-24 补,主题设置特性终审 P1-2)**:`display:none` 的容器盒子是 0 尺寸,`terminal-grid-size-for-box` 会把它夹成 `2×1` 最小网格,而 `StableCellFitAddon` 照盒子提案 → `fit()` 把 2×1 当真实尺寸 → `onResize → pty.resize(2,1)` 打到后台 agent。**xterm 原生 FitAddon 对隐藏容器返回 undefined 才会自动跳过,本项目替换成按盒子提案后这条保护不存在**——每个 fit 调用点都必须显式判 `container.style.display === 'none'`。设置驱动重建(如改回滚行数)会让隐藏标签也走创建路径,故该守卫在设置界面出现后才是必需的。
 - **建议结构**:抽 `resolveTerminalAppearance(settings)` 统一产出字体、字号、字重、颜色、scrollbar 配置；构造 `Terminal` 和设置变更都走它，仅在度量类配置变化后触发 refit。若要更稳，可再参考 Orca 的 metric deferral，等字体和布局可测量后再应用几何变化。
