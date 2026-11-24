@@ -10,7 +10,7 @@ import {
 } from '../../../../shared/themes/catalog'
 import { TERMINAL_FONT_OPTIONS } from '../../../../shared/themes/fonts'
 import { selectAppTheme } from '../../../../shared/themes/resolve'
-import { applyAppearance, resolveDark, systemPrefersDark } from '../../theme'
+import { applyAppearance, resolveDark, systemPrefersDark, type Theme } from '../../theme'
 import { updateSettings, useSettings } from '../../store/settings-slice'
 import type { Settings } from '../../../../shared/types'
 import { TerminalPreview } from './TerminalPreview'
@@ -21,6 +21,13 @@ const FONT_WEIGHTS: Array<{ value: number; label: string }> = [
   { value: 300, label: '细(300)' },
   { value: 400, label: '常规(400)' },
   { value: 500, label: '中粗(500)' }
+]
+
+// 主题模式三段(冒烟反馈:对话框是模态的,设置里必须能切深浅,否则每次都要关弹窗去点标题栏按钮)
+const THEME_MODES: Array<{ value: Theme; label: string }> = [
+  { value: 'system', label: '跟随系统' },
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' }
 ]
 
 const CURSOR_STYLES: Array<{ value: Settings['terminalCursorStyle']; label: string }> = [
@@ -70,6 +77,25 @@ export function AppearanceSection(): React.JSX.Element {
 
   return (
     <section aria-label="外观">
+      <SectionTitle>主题模式</SectionTitle>
+      <Row label="深浅" hint="与标题栏主题按钮同一设置,改这里按钮同步">
+        <span className="inline-flex overflow-hidden rounded border border-line" role="group" aria-label="主题模式">
+          {THEME_MODES.map((mode) => (
+            <button
+              key={mode.value}
+              type="button"
+              aria-pressed={settings.theme === mode.value}
+              className={`px-2 py-0.5 text-sm ${
+                settings.theme === mode.value ? 'bg-hover text-ink' : 'text-ink-muted hover:bg-hover'
+              }`}
+              onClick={() => patchAppearance({ theme: mode.value })}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </span>
+      </Row>
+
       <SectionTitle>界面主题</SectionTitle>
       <Row label="深色时" hint="界面处于深色时使用的主题">
         <select
