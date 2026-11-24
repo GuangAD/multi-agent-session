@@ -4,14 +4,14 @@
 import { ipcMain, nativeTheme, type BrowserWindow } from 'electron'
 import { IPC_CHANNELS } from './channels'
 import { saveStoreAtomic } from '../session-store/store-persistence'
-import { TITLE_BAR_OVERLAY_HEIGHT, titleBarOverlayColors } from '../app-window'
+import { TITLE_BAR_OVERLAY_HEIGHT, titleBarOverlayColorsForSettings } from '../app-window'
 import type { AppStore, Settings } from '../../shared/types'
 
 // 标题栏 overlay 配色:与渲染层顶栏同色(取 app-window 的单一来源)。
 // Why 在这里同步:overlay 是 Electron 自己绘制在窗口上的系统按钮,不随页面 CSS 变;
 // T10 用 nativeTheme 初值,手动切主题后必须显式改,否则深色主题下按钮仍是深色(看不见)。
 // 仅 win32/darwin 配置了 overlay(app-window 同判断),其余平台调用是无对应物件的空路径。
-function syncTitleBarOverlay(getWindow: () => BrowserWindow | null): void {
+function syncTitleBarOverlay(store: AppStore, getWindow: () => BrowserWindow | null): void {
   if (process.platform !== 'win32' && process.platform !== 'darwin') {
     return
   }
@@ -20,7 +20,7 @@ function syncTitleBarOverlay(getWindow: () => BrowserWindow | null): void {
     return
   }
   window.setTitleBarOverlay({
-    ...titleBarOverlayColors(nativeTheme.shouldUseDarkColors),
+    ...titleBarOverlayColorsForSettings(store.settings, nativeTheme.shouldUseDarkColors),
     height: TITLE_BAR_OVERLAY_HEIGHT
   })
 }
@@ -108,13 +108,14 @@ export function registerSettingsIpc(
       // nativeTheme.themeSource 同时决定 shouldUseDarkColors:'system' 跟随系统,
       // 'dark'/'light' 强制——这正是渲染层需要的解析结果来源,一套语义两处使用
       nativeTheme.themeSource = store.settings.theme
-      syncTitleBarOverlay(getWindow)
+      syncTitleBarOverlay(store, getWindow)
       await saveStoreAtomic(storePath, store)
       return store.settings
     }
   )
 
-  // 启动即同步一次(上次退出时可能是强制主题)
+  // 启动即同步一次(上次退出时可能是强制主题),标题栏 overlay 同期按界面主题着色
   nativeTheme.themeSource = store.settings.theme
-  nativeTheme.on('updated', () => syncTitleBarOverlay(getWindow))
+  syncTitleBarOverlay(store, getWindow)
+  nativeTheme.on('updated', () => syncTitleBarOverlay(store, getWindow))
 }

@@ -3,6 +3,8 @@ import { BrowserWindow, nativeTheme, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { selectAppTheme } from '../shared/themes/resolve'
+import type { Settings } from '../shared/types'
 
 // 标题栏 overlay 配色与高度(单一来源):窗口创建与运行期切换主题都用这一份,
 // 避免 app-window 与 ipc/settings 各写一套色值而漂移(T11 评审 Minor-5)
@@ -14,6 +16,18 @@ export function titleBarOverlayColors(dark: boolean): { color: string; symbolCol
     color: dark ? '#18181b' : '#ffffff',
     symbolColor: dark ? '#e4e4e7' : '#3f3f46'
   }
+}
+
+// 标题栏 overlay 跟随**界面主题**(而不只是明暗):overlay 是 Electron 自己绘制在窗口上的系统
+// 按钮区,不随页面 CSS 变;只按 nativeTheme 算的话,换暖米/森绿等主题后右上角仍是中性深色,
+// 与页面顶栏脱节(冒烟反馈)。主题色值在 shared/themes(主进程可直接 import),用同一份解析。
+export function titleBarOverlayColorsForSettings(
+  settings: Settings,
+  systemDark: boolean
+): { color: string; symbolColor: string } {
+  const { mode, theme } = selectAppTheme(settings, systemDark)
+  const values = theme[mode]
+  return { color: values.base, symbolColor: values.ink }
 }
 
 export function createAppWindow(): BrowserWindow {

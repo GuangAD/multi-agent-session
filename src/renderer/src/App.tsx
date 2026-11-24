@@ -221,7 +221,9 @@ function App(): React.JSX.Element {
   }, [tabs, activeTabId, setActiveTab, closeTab, openAgentDialog, activeProject])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden text-ink">
+    // 根容器给主题底色:左右侧栏与面板容器本身不写背景,显示的就是这里的 base
+    // (此前它们显示页面 canvas 默认色,只随明暗变、不跟主题色走——冒烟反馈「左右栏没变化」)
+    <div className="flex h-screen flex-col overflow-hidden bg-base text-ink">
       {/* 窗口标题栏:顶栏即系统标题栏,所有全局开关与面板动作都收敛在这里。
           -webkit-app-region: drag 让空白处可拖窗口;按钮各自 no-drag 才可点。
           右侧留出系统最小化/最大化/关闭的 overlay 区域(env 变量由 Electron 注入,
