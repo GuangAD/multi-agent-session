@@ -10,7 +10,7 @@
 - [x] **T2 设置结构扩展与兼容**
       交付:设置新增界面主题双槽、终端主题双槽与终端外观六项;旧数据文件读入自动补默认值,fixture 回放绿
       挡谁:T3、T4、T5、T6、T7
-- [ ] **T3 终端主题数据与外观解析**
+- [x] **T3 终端主题数据与外观解析**
       交付:Orca 22 套终端主题全量移植 + 字体族预置清单 + 终端外观解析纯函数(设置 → 终端配置与配色),用例绿
       挡谁:T5、T6、T7
 - [ ] **T4 界面主题数据与选择应用**
@@ -50,4 +50,13 @@ brief 第 6 节无欠账,无遗留项。
   - 结论:
     1. 测 main IPC 域(settings.ts 等)必须用字符串路径 vi.mock 且必须 mock ../app-window——app-window 的 icon.png?asset 资源导入在 Node 测试环境加载不到,import() 形式的 mock 还会触发类型强校验
     2. 实施方式:implementer 子代理 30 分钟超时,controller 会话内 fallback 续完;半成品(types/DEFAULT_STORE/loadStore 测试/settings.test 用例)经逐文件核对后采用,applyPatch 扩展由 controller 亲写(红 6 failed → 绿 6 passed)
-- T2 守卫用例补充 | 评审 Minor(fontFamily 空串细则防误改)按接缝归属规矩补进 tasks/T2.md 用例表与 settings.test.ts | mutation check:改坏 fontFamily 校验(拒绝空串)后该用例恰转红(1 failed / 6 passed),还原后 7 passed 全绿 | 随下一条 fix 提交
+- T2 守卫用例补充提交 | bf5a45a2 | 评审 Minor(fontFamily 空串细则防误改)按接缝归属规矩补进 tasks/T2.md 用例表与 settings.test.ts;mutation check:改坏校验(拒绝空串)后该用例恰转红(1 failed / 6 passed),还原后 7 passed 全绿
+- T3 终端主题数据与外观解析 | 完成 | commit 见「feat(T3)」提交(基线 bf5a45a2 之上,代码与本记账同 commit)
+  - 基线:bf5a45a2
+  - 评审:独立 reviewer(子代理)裁决「规格符合、可提交、无必须修复项」;超额验证:22 套 × 22 键程序化 diff 与 .reference 源零偏差、回退链与 use-terminal 现状字节级一致、TerminalAppearance 9 字段与 xterm typings 逐一核对(T5 可直接展开);Minor 4 条:契约抄写源数字勘误已修(extended 实含 10 套取 6)、fontFamily 引号/空白防护与 fontWeight 直通无兜底为 T5 接线知悉项(经 UI 链路不可达,T2 已守门)、浅槽坏 id 用例为可选加固(记录,不扩范围)
+  - waiver:无
+  - 变更登记:tasks/T3.md 抄写源数字勘误一行(评审发现,本 commit 内)
+  - 结论:
+    1. TERMINAL_THEMES 只有契约 22 套,非 Orca 全量(Dracula/Nord 等 9 套名单外未收录)——T6 下拉直接消费键名,勿假设在册
+    2. resolve.test.ts 用例体用动态导入,使整模块缺失的红是逐用例失败而非套件级;后续 themes 测试沿用该结构
+    3. selectTerminalTheme 返回 { mode, theme };T5 若需 mode 从它取,TerminalAppearance 不含 mode
