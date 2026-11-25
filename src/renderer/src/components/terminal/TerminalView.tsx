@@ -1,10 +1,9 @@
 // 常驻终端视图:每会话一个 xterm 实例;tab 切换仅切可见性(display),不销毁
-// 设置来源(T5):settings-slice 的 settings 与系统深浅;创建期取当时值,运行时更新由 App 层
+// 设置来源(T5/T-R5):settings-slice 的 settings(单槽,无系统深浅维度);创建期取当时值,运行时更新由 App 层
 // applyTerminalAppearanceToAll 统一应用——本组件不重建实例(重建即丢画面)。
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '../../store/app-store'
 import { activateTerminal, closeTerminal, openTerminal } from './use-terminal'
-import { systemPrefersDark } from '../../theme'
 import type { SessionId } from '../../../../shared/types'
 
 export function TerminalView({
@@ -29,7 +28,6 @@ export function TerminalView({
       sessionId,
       scrollback,
       useAppStore.getState().settings,
-      systemPrefersDark(),
       container
     )
     return () => closeTerminal(sessionId)

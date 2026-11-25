@@ -4,7 +4,7 @@
 
 ## 任务
 
-- [ ] **T1 语义 token 层落地(不改行为)**
+- [x] **T1 语义 token 层落地(不改行为)**
       交付:界面颜色全部收敛为语义 token(浅/深两套默认值 = 现状观感),滚动条 CSS 引用的变量获得真实定义;全应用观感与迁移前一致
       挡谁:T4
 - [x] **T2 设置结构扩展与兼容**
@@ -13,10 +13,10 @@
 - [x] **T3 终端主题数据与外观解析**
       交付:Orca 22 套终端主题全量移植 + 字体族预置清单 + 终端外观解析纯函数(设置 → 终端配置与配色),用例绿
       挡谁:T5、T6、T7
-- [ ] **T4 界面主题数据与选择应用**
+- [x] **T4 界面主题数据与选择应用**
       交付:8 套界面主题(各含深浅两形态)+ 主题选择解析 + 套用接线;手改数据文件重启界面即换色,三态切换正确换槽
       挡谁:T6、T7
-- [ ] **T5 终端即时生效接线**
+- [x] **T5 终端即时生效接线**
       交付:已开终端消费终端外观解析结果,设置变更即时 refit/重建并同步 PTY 网格;无右侧空白带回归
       挡谁:T6
 - [x] **T6 设置对话框**
@@ -138,12 +138,48 @@ brief 第 6 节无欠账,无遗留项。
 决策依据:ADR-0009(取代 ADR-0008 的槽结构部分)、台账 J-005、brief 第二版第 2/5/7 节。
 第一版已完成的 T1(语义 token 层)与 T3(22 套终端主题 + 解析)保留,T2/T4/T5/T6/T7 按下列任务改造。
 
-- [ ] **T-R1 数据结构与迁移** —— Settings 换 appTheme/terminalTheme 单槽,DEFAULT_STORE 与 settings-slice 初值同步,applyPatch 校验改单槽,loadStore 做旧字段迁移(旧三态/双槽 → 新字段,旧主题 id 落默认);测试:迁移 4 例 + 校验 4 例 —— 挡 T-R2 之后全部
-- [ ] **T-R2 界面主题数据 12 套** —— app-themes.ts 改单 token + isDark(值取 theme-selection-tokens.json),theme-tokens.css 出 12 个 .theme-<id> 块,:root 留兜底;app-themes.test 与 app-themes-css.test 改口径(12 套 × 10 token) —— 挡 T-R3
-- [ ] **T-R3 解析与唯一写手** —— resolve.ts:selectAppTheme→getAppTheme(settings)、selectTerminalTheme→getTerminalTheme(settings)、resolveTerminalAppearance 去掉 systemDark;theme.ts:applyAppearance(theme) 按 isDark 写 .dark 与 color-scheme;删 resolveDark/systemPrefersDark;测试改为新签名 —— 挡 T-R4/T-R5
-- [ ] **T-R4 设置对话框** —— 删「主题模式」三段;界面主题单下拉(12,按深浅分组显示)、终端主题单下拉(22,按 DARK/LIGHT 名表分组);预览删深浅钮;patchAppearance 走 getAppTheme —— 挡无
-- [ ] **T-R5 终端接线** —— openTerminal(sessionId, scrollback, settings, container)、applyTerminalAppearanceToAll(settings)、TerminalView 只读 store、App 去掉 matchMedia 与 systemDark —— 挡无
-- [ ] **T-R6 main 进程** —— settings.ts 校验去三态;nativeTheme.themeSource 与标题栏 overlay 颜色按所选主题 isDark/token 计算(不再读系统深浅) —— 挡无
-- [ ] **T-R7 标题栏清理** —— 删 ThemeToggle 组件与 App 里的使用(保留齿轮设置入口) —— 挡无
-- [ ] **T-R8 收尾** —— typecheck + 全量 test + build 产物校验(CSS 含 12 个 theme 类)+ 冒烟清单更新(TODO.md) —— 挡门 3
-- 第二版准备 | 新增 gen-theme-data.py:从 theme-selection-tokens.json 生成 app-themes.ts(12 套 × 单 token + isDark + DEFAULT_APP_THEME_ID)与 theme-tokens.css 的 12 个 .theme-<id> 块(标记后整段重写,避免手抄 120 个色值);**尚未执行**——执行会改变数据结构,必须与 T-R3(解析/写手)同一片做,否则编译不过 | 当前代码仍为第一版(三态 + 双槽),构建与测试全绿,无半成品状态
+- [x] **T-R1 数据结构与迁移** —— Settings 换 appTheme/terminalTheme 单槽,DEFAULT_STORE 与 settings-slice 初值同步,applyPatch 校验改单槽,loadStore 做旧字段迁移(旧三态/双槽 → 新字段,旧主题 id 落默认);测试:迁移 4 例 + 校验 4 例 —— 挡 T-R2 之后全部
+- [x] **T-R2 界面主题数据 12 套** —— app-themes.ts 改单 token + isDark(值取 theme-selection-tokens.json),theme-tokens.css 出 12 个 .theme-<id> 块,:root 留兜底;app-themes.test 与 app-themes-css.test 改口径(12 套 × 10 token) —— 挡 T-R3
+- [x] **T-R3 解析与唯一写手** —— resolve.ts:selectAppTheme→getAppTheme(settings)、selectTerminalTheme→getTerminalTheme(settings)、resolveTerminalAppearance 去掉 systemDark;theme.ts:applyAppearance(theme) 按 isDark 写 .dark 与 color-scheme;删 resolveDark/systemPrefersDark;测试改为新签名 —— 挡 T-R4/T-R5
+- [x] **T-R4 设置对话框** —— 删「主题模式」三段;界面主题单下拉(12,按深浅分组显示)、终端主题单下拉(22,按 DARK/LIGHT 名表分组);预览删深浅钮;patchAppearance 走 getAppTheme —— 挡无
+- [x] **T-R5 终端接线** —— openTerminal(sessionId, scrollback, settings, container)、applyTerminalAppearanceToAll(settings)、TerminalView 只读 store、App 去掉 matchMedia 与 systemDark —— 挡无
+- [x] **T-R6 main 进程** —— settings.ts 校验去三态;nativeTheme.themeSource 与标题栏 overlay 颜色按所选主题 isDark/token 计算(不再读系统深浅) —— 挡无
+- [x] **T-R7 标题栏清理** —— 删 ThemeToggle 组件与 App 里的使用(保留齿轮设置入口) —— 挡无
+- [x] **T-R8 收尾** —— typecheck + 全量 test + build 产物校验(CSS 含 12 个 theme 类)+ 冒烟清单更新(TODO.md) —— 挡门 3
+- 第二版准备 | 新增 gen-theme-data.py:从 theme-selection-tokens.json 生成 app-themes.ts(12 套 × 单 token + isDark + DEFAULT_APP_THEME_ID)与 theme-tokens.css 的 12 个 .theme-<id> 块(标记后整段重写,避免手抄 120 个色值) | 已随 T-R2 执行(评审 M2:此前「尚未执行」一句已过期);第二版落地后的代码状态见本节末尾记账
+- 恢复修正(dev-resume 第二步反向核对) | T1/T4/T5 三个任务此前未勾选,但开发记录完整且 `d8596ff2 feat(T1)`、`1ecc9989 feat(T4)`、`a9f7f26b feat(T5)` 均在历史中——属「提交后、落盘前」窗口;已补勾选,不重做
+- 第二版契约 | 已按第二版口径写齐 `tasks/T-R1.md` ~ `T-R8.md`;第一版 T2/T4/T5/T6/T7 契约的实现口径被取代(T1/T3 契约保留,已完成,不重写)
+- 执行单元调整(回退协议登记,2026-11-24) | T-R1~T-R7 **编译互锁,无法分片提交**:`Settings.theme` 与四个槽字段一删,`resolve.ts`(selectAppTheme 读旧槽)、`theme.ts`(resolveDark)、`App.tsx`(systemPrefersDark/matchMedia)、`use-terminal.ts`(第二参 systemDark)、`TerminalView.tsx`(调用点)、`settings.ts`(nativeTheme.themeSource = settings.theme)、`app-window.ts`(overlay 两参)、`AppearanceSection.tsx`(读双槽)、`ThemeToggle.tsx`(resolveDark)同时报错。任一中间态 typecheck 必红,按「任务收尾 typecheck 0」纪律不能拆。故 T-R1~T-R7 作为**一个原子片、一个 commit** 交付,记账仍按任务逐条列出(同一 commit 哈希),T-R8 单独执行验证。这不是跳过任务,是承认一次结构迁移的原子性
+- 实现形态 | L1(controller 会话内实现):片内含数据结构、跨模块接口与 9 个消费点,派 L2 会在半成品态反复中断(历史 T2/T5 均有 implementer 中途失败);评审按 code-review 分级派独立 reviewer(动数据结构与跨模块接口,必须派)
+- 原子片交付 | T-R1~T-R7 一片完成,commit 见「feat(T-R1~T-R7)」提交(基线 d64a1423,代码与本记账同 commit);形态 L1(controller 会话内实现,理由见上一条)
+  - T-R1 数据结构与迁移 | 完成:types 单槽、DEFAULT_STORE 用 shared 常量、`normalizeSettings`(补默认 → 迁移 → 删旧键)、`applyPatch` 单槽、`INITIAL_SETTINGS` 改 shared 常量(复审 M4)
+    - 测试:store-persistence.test.ts 13 条(既有 6 + 迁移 7)、settings.test.ts 10 条(既有 7 + 单槽 2 + 旧字段忽略 1)、settings-slice.test.ts 4 条
+    - mutation check ①:`pickAppTheme` 去掉目录校验 → 用例 1/2 转红(2 failed/10 passed),还原绿
+    - mutation check ②(评审 I1 修复的鉴别力):`firstMatching` 去掉 `accept` 校验 → 用例 1/2/7 转红(3 failed/10 passed),还原 13 passed
+  - T-R2 界面主题数据 12 套 | 完成:生成器产出 12 套 + 12 个 `.theme-<id>` 块;CSS 重排(color-scheme/表单规则前置,否则被生成器整段重写丢弃);生成器补 `.lower()`(Flexoki Light 的 JSON 原值为大写 HEX)
+    - 测试:app-themes.test.ts 2 条、app-themes-css.test.ts 2 条(逐值比对 + 块数 + 无 `.dark.theme-` + 源序双断言)
+    - mutation check:CSS 里 carbonfox `--app-base` 末位改 → 用例 3 转红(1 failed/1 passed),还原绿
+  - T-R3 解析与唯一写手 | 完成:`getAppTheme` / `getTerminalTheme` / `applyAppearance(theme)`;删 `resolveMode` / `selectAppTheme` / `selectTerminalTheme` / `resolveDark` / `systemPrefersDark`;main.tsx 首帧按默认主题落类
+    - 测试:resolve.test.ts 11 条、theme.test.ts 6 条
+    - mutation check:`applyAppearance` 的 `toggle('dark', theme.isDark)` 改 `true` → 用例 2/4 转红(2 failed/4 passed),还原绿
+  - T-R4 设置对话框 | 完成:三段控件与 `THEME_MODES` 删除;界面主题单下拉(12 套按 isDark 分组)、终端主题单下拉(22 套按 DARK/LIGHT 名表分组);预览删深浅钮;`patchAppearance` 删除,外观重放收敛到 App 层 effect
+  - T-R5 终端接线 | 完成:`openTerminal(sessionId, scrollback, settings, container)`、`applyTerminalAppearanceToAll(settings)`;App 删 matchMedia/`systemDark`;use-terminal.test.ts 29 条(删 systemDark 用例,补 terminalTheme 换色用例),隐藏终端 fit 守卫未回退
+  - T-R6 main 进程 | 完成:`syncNativeChrome`(themeSource 按 isDark + overlay 单参)、删 `nativeTheme.on('updated')`;`createAppWindow(settings)` 首帧着色(C1 修复);settings.test.ts 10 条
+  - T-R7 标题栏清理 | 完成:ThemeToggle 组件与使用删除、齿轮入口保留;残留扫描按豁免判据(旧键名仅允许留在迁移逻辑与用例)
+  - T-R8 收尾 | 完成:typecheck 0 error;`pnpm test` 44 文件 304 passed;`pnpm build` exit 0,产物 CSS 36,090 字节 —— 12 个 `.theme-<id>` 逐 id 命中 12/12、`.dark.theme-` 0 处、`--app-base` 15、`xterm-container` 3、`data-scrollbars` 13;冒烟清单 R18~R28 写入 `TODO.md`
+- T-R1~T-R7 评审(独立 reviewer,子代理) | 初审裁决:规格符合 ❌(1 项 Critical)、代码质量「需修复」;复审裁决:C1 与 I1 闭合、规格符合 ✅、代码质量通过(OK with notes)
+  - **C1(Critical,已修)**:`registerSettingsIpc` 在 `src/main/index.ts` 里早于 `createAppWindow()`,注册时 `getWindow()` 为 null,启动那次 overlay 同步是**空操作**;建窗又用硬编码默认深色 → 浅色主题用户每次冷启动都看到深色系统按钮区(第一版靠 `themeSource` 初值没这个问题,属本片引入的回归)。修法:`createAppWindow(settings)` 接收真实设置、两处调用传 `store.settings`(含 macOS activate 重建),并在复审后把建窗的色值改为复用 `titleBarOverlayColorsForSettings`(单源化)。T-R6 契约已补「实施期更正」
+  - **I1(Important,已修)**:旧槽迁移未按契约「依次试」——先取第一个非空再判一次目录,首个旧键不在目录时不退到第二个(`terminalThemeDark` 写错字时不会退到浅槽)。修法:`firstMatching(source, keys, accept)` 逐个校验;补 store-persistence 用例 7 + mutation check(见 T-R1)
+  - **I2(Important,已登记)**:T-R7「残留扫描 0 行」与 T-R1「迁移必须引用旧键」互斥。处置:T-R7 契约两处口径统一为「除迁移逻辑与其用例之外 0 处」(复审 P2-1 补第二处)
+  - M1 已处置:`DECISIONS.md` J-004 字面表述改为「调用点必须显式且唯一」并登记第二版落点(App 层 effect)
+  - M2 已改了;M3 已改(brief 第 5 节补「10 套 → 12 套」取代标注);M4 已改(`INITIAL_SETTINGS` 用 shared 常量);M6 已改(T-R3 契约 13 → 11 passed、`Tango Light` → `Builtin Tango Light`);P2-3 已改(T-R1 第 2/3/5 步 Expected 按实测数字订正,测试规格补第 7 行)
+  - M5 记录:`app-window.ts` 的 `{ color, symbolColor }` 两行映射在 node 环境不可加载该模块 → 无直接断言;已通过单源化(建窗复用同一函数)降低暴露面,实际观感由门 3 冒烟 R21 承担
+  - M7 记录:App effect 依赖整个 `settings`,无关项(如 shell)变更也会让每个已开终端走一遍 options/fit/`pty.resize` —— 第一版 `[settings, systemDark]` 同款,非本片回归
+  - P2-5 已改:迁移的终端名判定改 `Object.prototype.hasOwnProperty.call`(防手改 store.json 写进 `constructor` 之类原型键)
+  - P2-6 已改:CSS 测试补「主题块必须排在 `color-scheme: light` 之后」断言
+- 第二版结论(留给后续会话的软依赖)
+  1. 主题应用落点只有一个:`App.tsx` 的 `[settings]` effect(`applyAppearance(getAppTheme(settings))` + `applyTerminalAppearanceToAll(settings)`)。新增外观设置项只需改设置 + 消费方解析,不要在各控件里再调写手;J-004 的表述已同步
+  2. `theme-tokens.css` 的结构顺序是硬约束(`:root` → `.dark` → color-scheme/表单规则 → 生成标记 + 12 块),生成器只重写标记之后;动它之前先看文件头与两条 CSS 测试
+  3. 主题色值只改 `theme-selection-tokens.json` 后重跑 `gen-theme-data.py`,TS 与 CSS 两边由生成器同源产出;生成器会做 `.lower()` 规范化
+  4. 迁移的两个入口:旧槽值必须**逐个**过目录校验(`firstMatching`),不要退回「取第一个非空再判一次」——那会让写错字的深槽值把可用的浅槽值一起拖成默认
+  5. 主进程原生控件(`themeSource` / overlay)与渲染层同一个 `getAppTheme`;建窗路径必须拿到真实设置(冷启动时 `registerSettingsIpc` 的 overlay 同步是空操作)

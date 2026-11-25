@@ -1,49 +1,25 @@
-// 终端主题与外观解析:纯函数,构造与运行时更新共用这一个来源(T3 契约)。
-// 出错约定:不抛出;槽 id 不在目录落默认主题,越界值夹紧,坏枚举落默认值。
+// 终端主题、界面主题与外观解析:纯函数,构造与运行时更新共用这一个来源(T3;T-R3 起主题单槽)。
+// 出错约定:不抛出;主题 id / 名称不在目录时落默认主题,越界值夹紧,坏枚举落默认值。
 import type { ITheme } from '@xterm/xterm'
 import { TERMINAL_THEMES } from './catalog'
-import { APP_THEMES, type AppTheme } from './app-themes'
+import { APP_THEMES, DEFAULT_APP_THEME_ID, type AppTheme } from './app-themes'
 import { DEFAULT_FONT_FALLBACK_CHAIN } from './fonts'
 import type { Settings } from '../types'
 
-// 深浅默认主题(spec 数据结构节):坏 id 兜底的唯一落点
-const DEFAULT_DARK_THEME_ID = 'Ghostty Default Style Dark'
-const DEFAULT_LIGHT_THEME_ID = 'Builtin Tango Light'
+// 默认终端配色名(spec 数据结构节):坏名兜底与主进程 store 默认值的唯一来源
+export const DEFAULT_TERMINAL_THEME_NAME = 'Ghostty Default Style Dark'
 
-// 三态 + 系统深浅 → 当前深浅形态(dark/light 直取,system 随系统);selectTerminalTheme / selectAppTheme 同口径
-function resolveMode(theme: Settings['theme'], systemDark: boolean): 'dark' | 'light' {
-  if (theme === 'dark') {
-    return 'dark'
-  }
-  if (theme === 'light' || (theme === 'system' && !systemDark)) {
-    return 'light'
-  }
-  return 'dark'
+// 界面侧坏 id 兜底套(T-R3):APP_THEMES 一定含默认 id,故非空断言安全
+const DEFAULT_APP_THEME = APP_THEMES.find((theme) => theme.id === DEFAULT_APP_THEME_ID)!
+
+// 设置 → 界面主题(整套 token + isDark)。坏 id / 空串 / 目录外一律落默认套:兜底唯一落点。
+export function getAppTheme(settings: Pick<Settings, 'appTheme'>): AppTheme {
+  return APP_THEMES.find((theme) => theme.id === settings.appTheme) ?? DEFAULT_APP_THEME
 }
 
-// 三态 + 系统深浅 + 双槽 → 当前应套用的终端主题;theme 字段永远可用
-export function selectTerminalTheme(
-  settings: Pick<Settings, 'theme' | 'terminalThemeDark' | 'terminalThemeLight'>,
-  systemDark: boolean
-): { mode: 'dark' | 'light'; theme: ITheme } {
-  const mode = resolveMode(settings.theme, systemDark)
-  const requestedId = mode === 'dark' ? settings.terminalThemeDark : settings.terminalThemeLight
-  const theme = TERMINAL_THEMES[requestedId] ?? TERMINAL_THEMES[mode === 'dark' ? DEFAULT_DARK_THEME_ID : DEFAULT_LIGHT_THEME_ID]
-  return { mode, theme }
-}
-
-// 坏 id 兜底的唯一落点:APP_THEMES 中 id='default' 的套(T4 契约)
-const DEFAULT_APP_THEME = APP_THEMES.find((theme) => theme.id === 'default')!
-
-// 界面侧主题选择,口径与 selectTerminalTheme 一致;theme 是整套 AppTheme(含深浅两形态),mode 指示当前形态
-export function selectAppTheme(
-  settings: Pick<Settings, 'theme' | 'appThemeDark' | 'appThemeLight'>,
-  systemDark: boolean
-): { mode: 'dark' | 'light'; theme: AppTheme } {
-  const mode = resolveMode(settings.theme, systemDark)
-  const requestedId = mode === 'dark' ? settings.appThemeDark : settings.appThemeLight
-  const theme = APP_THEMES.find((candidate) => candidate.id === requestedId) ?? DEFAULT_APP_THEME
-  return { mode, theme }
+// 设置 → 终端配色;坏名落默认深色主题(与 getAppTheme 同口径)
+export function getTerminalTheme(settings: Pick<Settings, 'terminalTheme'>): ITheme {
+  return TERMINAL_THEMES[settings.terminalTheme] ?? TERMINAL_THEMES[DEFAULT_TERMINAL_THEME_NAME]
 }
 
 // 设置 → xterm 全量外观,输出可直接展开进 Terminal options
@@ -80,7 +56,7 @@ function resolveFontFamily(terminalFontFamily: Settings['terminalFontFamily']): 
 }
 
 // 字段独立映射;加粗字重不出设置,固定 500(use-terminal 现状值)
-export function resolveTerminalAppearance(settings: Settings, systemDark: boolean): TerminalAppearance {
+export function resolveTerminalAppearance(settings: Settings): TerminalAppearance {
   return {
     fontFamily: resolveFontFamily(settings.terminalFontFamily),
     fontSize: clamp(settings.terminalFontSize, FONT_SIZE_MIN, FONT_SIZE_MAX),
@@ -89,7 +65,7 @@ export function resolveTerminalAppearance(settings: Settings, systemDark: boolea
     lineHeight: clamp(settings.terminalLineHeight, LINE_HEIGHT_MIN, LINE_HEIGHT_MAX),
     cursorStyle: CURSOR_STYLES.includes(settings.terminalCursorStyle) ? settings.terminalCursorStyle : 'block',
     cursorBlink: settings.terminalCursorBlink,
-    theme: selectTerminalTheme(settings, systemDark).theme,
+    theme: getTerminalTheme(settings),
     scrollback: settings.scrollbackRows
   }
 }

@@ -159,7 +159,6 @@ export function openTerminal(
   sessionId: SessionId,
   scrollback: number,
   settings: Settings,
-  systemDark: boolean,
   container: HTMLElement
 ): void {
   ensureDataBus()
@@ -174,7 +173,7 @@ export function openTerminal(
   // scrollOnUserInput 与 xterm 默认一致,按 Orca 显式落定。
   // 外观全量来自 resolveTerminalAppearance(单一来源):字体链、度量、光标、配色一次解析,
   // 与 applyTerminalAppearanceToAll 的运行时更新用同一个函数,不存在第二处字体来源。
-  const appearance = resolveTerminalAppearance(settings, systemDark)
+  const appearance = resolveTerminalAppearance(settings)
   const terminal = new Terminal({
     scrollback,
     fontFamily: appearance.fontFamily,
@@ -348,11 +347,11 @@ export function closeTerminal(sessionId: SessionId): void {
   pendingData.delete(sessionId) // 暂存随 tab 清理,防泄漏/串台到此后新开的终端
 }
 
-// —— 设置接线(T5):设置/系统深浅变化 → 全部已开终端即时应用解析结果 ——
+// —— 设置接线(T5;T-R5 收成单一 settings 入参)→ 全部已开终端即时应用解析结果 ——
 // 可重复调用、幂等(值来自纯函数解析输出);注册表为空时遍历空集,无副作用。
 // 出错:单终端失败不阻断其余终端,console.error 记录该终端。
-export function applyTerminalAppearanceToAll(settings: Settings, systemDark: boolean): void {
-  const appearance = resolveTerminalAppearance(settings, systemDark)
+export function applyTerminalAppearanceToAll(settings: Settings): void {
+  const appearance = resolveTerminalAppearance(settings)
   for (const [sessionId, entry] of terminals) {
     try {
       // xterm v6 无 applyOptions 方法,运行时更新唯一入口是 options setter(部分对象逐键合并,

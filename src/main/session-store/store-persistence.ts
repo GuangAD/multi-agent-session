@@ -2,23 +2,24 @@
 // 只认传入的路径参数,模块内不硬编码路径(controller 约定 3;路径由主进程 userData 决定)
 import { promises as fs } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import type { AppStore } from '../../shared/types'
+import type { AppStore, Settings } from '../../shared/types'
+import { APP_THEMES, DEFAULT_APP_THEME_ID } from '../../shared/themes/app-themes'
+import { TERMINAL_THEMES } from '../../shared/themes/catalog'
+import { DEFAULT_TERMINAL_THEME_NAME } from '../../shared/themes/resolve'
 
-// 非接缝,只读常量:store 默认值(settings 默认出自 plan:scrollback 10000、theme 跟随系统;
-// 主题样式 T2 起含界面/终端主题双槽与终端外观六项,新字段默认值出自 spec 数据结构节,
-// terminalFontFamily 可选缺省 = 默认回退链,故不列默认值)——loadStore 的「缺字段补默认」以它为唯一依据
+// 非接缝,只读常量:store 默认值。settings 默认出自 spec 数据结构节——主题单槽(J-005:
+// appTheme / terminalTheme,默认 github-dark 与 Ghostty Default Style Dark)加终端外观六项;
+// terminalFontFamily 可选缺省 = 默认回退链,故不列默认值。
+// loadStore 的「缺字段补默认」以本对象为唯一依据,旧字段迁移的兜底值也从这里取
 export const DEFAULT_STORE: AppStore = {
   version: 1,
   projects: [],
   sessions: [],
   settings: {
     scrollbackRows: 10000,
-    theme: 'system',
+    appTheme: DEFAULT_APP_THEME_ID,
+    terminalTheme: DEFAULT_TERMINAL_THEME_NAME,
     shell: 'powershell',
-    appThemeDark: 'default',
-    appThemeLight: 'default',
-    terminalThemeDark: 'Ghostty Default Style Dark',
-    terminalThemeLight: 'Builtin Tango Light',
     terminalFontSize: 14,
     terminalFontWeight: 300,
     terminalLineHeight: 1.0,
@@ -43,6 +44,78 @@ async function quarantineCorruptStore(file: string): Promise<AppStore> {
 }
 
 // 读文件 → JSON.parse → 缺字段补默认 → 解析失败走损坏兜底;任何解析失败都不抛出
+// —— 主题单槽迁移(T-R1,ADR-0009):第一版的三态 + 深浅双槽字段 → appTheme / terminalTheme ——
+// 旧键必须真删:整文件写回会把残留旧字段永久带着走,迁移逻辑以后改也清不掉。
+const LEGACY_SETTINGS_KEYS = [
+  'theme',
+  'appThemeDark',
+  'appThemeLight',
+  'terminalThemeDark',
+  'terminalThemeLight'
+] as const
+
+// 按顺序取第一个「非空且通过校验」的旧字段值(旧双槽字段共用)。
+// Why 必须逐个校验而不是「先取第一个非空再判一次」(评审 I1):旧深槽值可能是带错字的坏 id
+// (第一版 applyPatch 对槽字段只验非空字符串),此时应继续试浅槽,而不是直接落默认。
+function firstMatching(
+  source: Record<string, unknown>,
+  keys: readonly string[],
+  accept: (value: string) => boolean
+): string | undefined {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' && value !== '' && accept(value)) {
+      return value
+    }
+  }
+  return undefined
+}
+
+// appTheme:新字段优先(内容合法性交给渲染层 getAppTheme 兜底);旧槽值依次试,取第一个仍在新目录内的
+function pickAppTheme(source: Record<string, unknown>): string {
+  const current = source.appTheme
+  if (typeof current === 'string' && current !== '') {
+    return current
+  }
+  return (
+    firstMatching(source, ['appThemeDark', 'appThemeLight'], (value) =>
+      APP_THEMES.some((theme) => theme.id === value)
+    ) ?? DEFAULT_STORE.settings.appTheme
+  )
+}
+
+// terminalTheme 同款:旧终端主题名仅当仍在 22 套目录内才沿用(否则并入默认深色主题)
+function pickTerminalTheme(source: Record<string, unknown>): string {
+  const current = source.terminalTheme
+  if (typeof current === 'string' && current !== '') {
+    return current
+  }
+  return (
+    firstMatching(
+      source,
+      ['terminalThemeDark', 'terminalThemeLight'],
+      // 用 hasOwnProperty 而不是 `TERMINAL_THEMES[value] !== undefined`:后者会让手改 store.json 写进
+      // 'constructor'/'toString' 这类原型键也通过校验(复审 P2-5)
+      (value) => Object.prototype.hasOwnProperty.call(TERMINAL_THEMES, value)
+    ) ?? DEFAULT_STORE.settings.terminalTheme
+  )
+}
+
+// settings 归一化:补默认 → 迁移两主题字段 → 删旧键。返回全新对象,不改入参
+function normalizeSettings(raw: unknown): Settings {
+  const source = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
+  const settings = {
+    ...DEFAULT_STORE.settings,
+    ...(source as Partial<Settings>)
+  } as Settings & Record<string, unknown>
+  settings.appTheme = pickAppTheme(source)
+  settings.terminalTheme = pickTerminalTheme(source)
+  for (const key of LEGACY_SETTINGS_KEYS) {
+    delete settings[key]
+  }
+  return settings
+}
+
 export async function loadStore(file: string): Promise<AppStore> {
   let raw: string
   try {
@@ -69,10 +142,7 @@ export async function loadStore(file: string): Promise<AppStore> {
     version: DEFAULT_STORE.version,
     projects: Array.isArray(partial.projects) ? partial.projects : [],
     sessions: Array.isArray(partial.sessions) ? partial.sessions : [],
-    settings: {
-      ...DEFAULT_STORE.settings,
-      ...(typeof partial.settings === 'object' && partial.settings !== null ? partial.settings : {})
-    }
+    settings: normalizeSettings(partial.settings)
     // 旧版 store.json 若残留 ignoreList 字段,这里不读它:下次整文件写入时自然丢弃(2026-11-21 决策)
   }
 }

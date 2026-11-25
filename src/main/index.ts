@@ -71,12 +71,13 @@ app.whenReady().then(async () => {
   registerFilesIpc()
   registerGitIpc()
 
-  createAppWindow()
+  // 窗口必须按已保存的设置建:overlay 首帧色取自界面主题(评审 C1——注册 setIPC 时窗口还不存在)
+  createAppWindow(store.settings)
 
   // On macOS it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createAppWindow()
+    if (BrowserWindow.getAllWindows().length === 0) createAppWindow(store.settings)
   })
 })
 

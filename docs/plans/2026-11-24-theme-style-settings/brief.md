@@ -78,6 +78,7 @@
 - **界面主题 10 套**(2026-11-24 用户从 65 套候选中选定)[你]:
   - 深色:VS Code Dark Modern、GitHub Dark(主色指定 `#0078d4`)、GitHub Dark High Contrast、Carbonfox、Tango Dark
   - 浅色:VS Code Light+、GitHub Light(主色指定 `#000000`)、Gruvbox Light (hard)、Selenized White、Tango Light
+  - ~~清单到此为止(共 10 套)~~ **已被取代(2026-11-24 追加定选):浅色再加 Flexoki Light 与 Tomorrow,共 12 套** [你]——依据 `plan.md`「第二版改造」节、`theme-selection-tokens.json` 与 commit `1f0f5f88`;评审 M3 指出此前 12 套的取代关系未在 brief 落笔
 - **不跟随系统**:删除主题三态(system/light/dark);首次启动默认 GitHub Dark [你]
 - **标题栏三态循环按钮删除**,主题只在设置对话框里选 [你]
 - 终端外观就六项:字体族、字号、字重、行高、光标样式、光标闪烁 [你]

@@ -276,12 +276,9 @@ function makeContainerStub(display?: string): HTMLElement {
 function makeSettings(over: Partial<Settings> = {}): Settings {
   return {
     scrollbackRows: 10000,
-    theme: 'system',
+    appTheme: 'github-dark',
+    terminalTheme: 'Ghostty Default Style Dark',
     shell: 'powershell',
-    appThemeDark: 'default',
-    appThemeLight: 'default',
-    terminalThemeDark: 'Ghostty Default Style Dark',
-    terminalThemeLight: 'Builtin Tango Light',
     terminalFontSize: 14,
     terminalFontWeight: 300,
     terminalLineHeight: 1.0,
@@ -361,7 +358,7 @@ function openSettledTerminal(sessionId: string): {
   terminal: (typeof createdTerminals)[number]
 } {
   const container = makeContainerStub()
-  openTerminal(sessionId, 10000, makeSettings(), false, container)
+  openTerminal(sessionId, 10000, makeSettings(), container)
   flushAnimationFrame()
   const fitAddon = createdFitAddons.at(-1)!
   fitAddon.fitCalls = 0
@@ -387,7 +384,7 @@ describe('use-terminal 复制/中断键位(Windows Terminal 惯例)', () => {
   let copySeq = 0
   function openCopyTerminal(hasSelection: boolean, selectionText?: string) {
     const id = `s-copy-${++copySeq}`
-    openTerminal(id, 10000, makeSettings(), false, makeContainerStub())
+    openTerminal(id, 10000, makeSettings(), makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     terminal.hasSelectionFlag = hasSelection
     // 状态配对对齐真实 xterm:无选区时 getSelection() 也为空
@@ -433,7 +430,7 @@ describe('use-terminal 复制/中断键位(Windows Terminal 惯例)', () => {
 describe('use-terminal 数据泵(Fix-2 守卫)', () => {
   it('先到先存、注册即放:未注册 id 的 pty:data 不丢,flush 进写入序列首部,之后正常直灌', () => {
     // 先开再关一个引导终端:确保数据泵已挂(dataBusBound 幂等),拿到泵回调
-    openTerminal('s-boot', 10000, makeSettings(), false, makeContainerStub())
+    openTerminal('s-boot', 10000, makeSettings(), makeContainerStub())
     closeTerminal('s-boot')
     const pump = onPtyDataHandlers[0]
     expect(pump, '数据泵应随首次 openTerminal 挂上').toBeDefined()
@@ -442,7 +439,7 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
     pump!({ sessionId: 's-early', data: 'BANNER-1' })
     pump!({ sessionId: 's-early', data: 'BANNER-2' })
 
-    openTerminal('s-early', 10000, makeSettings(), false, makeContainerStub())
+    openTerminal('s-early', 10000, makeSettings(), makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     // flush 内容完整出现在写入序列首部
     expect(terminal.writes.join('')).toBe('BANNER-1BANNER-2')
@@ -457,14 +454,14 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
   it('tab 关闭清理 pending:关闭前暂存的未注册数据不得串到此后新开的终端', () => {
     // 引导终端:数据泵随首次 openTerminal 挂一次(幂等)。自带引导,不依赖上一用例先跑过——
     // Why: 用例顺序独立才可靠,否则 shuffle/单用例过滤时 onPtyDataHandlers 为空(pump 是 undefined)
-    openTerminal('s-boot', 10000, makeSettings(), false, makeContainerStub())
+    openTerminal('s-boot', 10000, makeSettings(), makeContainerStub())
     closeTerminal('s-boot')
     const pump = onPtyDataHandlers[0]!
     expect(pump, '数据泵应随首次 openTerminal 挂上').toBeDefined()
     pump({ sessionId: 's-stale', data: 'STALE-OUT' })
     closeTerminal('s-stale') // 未注册过的 id 也走清理路径
 
-    openTerminal('s-stale', 10000, makeSettings(), false, makeContainerStub())
+    openTerminal('s-stale', 10000, makeSettings(), makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     expect(terminal.writes.join('')).toBe('')
     closeTerminal('s-stale')
@@ -473,7 +470,7 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
 
 describe('use-terminal 字体度量(Orca 对齐)', () => {
   it('Terminal 选项使用 Orca 字体族/字号/字重,避免 canvas 测量与 DOM 渲染度量不一致', () => {
-    openTerminal('s-font', 10000, makeSettings(), false, makeContainerStub())
+    openTerminal('s-font', 10000, makeSettings(), makeContainerStub())
     const terminal = createdTerminals.at(-1)!
 
     expect(terminal.options.fontFamily, '应显式指定 Orca 字体族').toContain('Cascadia Mono')
@@ -497,8 +494,8 @@ describe('use-terminal 终端外观接线(T5:applyTerminalAppearanceToAll)', () 
 
     // 字体选具体项:解析输出 = 该字体插链首(链内容本身 T3 函数级已穷尽,此处只断接线来源)
     const settings = makeSettings({ terminalFontSize: 20, terminalFontFamily: 'JetBrains Mono' })
-    applyTerminalAppearanceToAll(settings, true)
-    const expected = resolveTerminalAppearance(settings, true)
+    applyTerminalAppearanceToAll(settings)
+    const expected = resolveTerminalAppearance(settings)
 
     // 期望值来源(spec 接缝五):两实例均被调,值 = 解析函数输出,不是任何本地常量
     expect(terminalA.appliedOptions.length, '终端 A 应收到一次运行时应用').toBe(1)
@@ -520,21 +517,21 @@ describe('use-terminal 终端外观接线(T5:applyTerminalAppearanceToAll)', () 
   })
 })
 
-describe('use-terminal 外观应用随系统深浅换槽(T5 用例 3)', () => {
-  it('applyToAll 的 systemDark 参数决定换到深槽还是浅槽主题', () => {
+describe('use-terminal 外观应用换主题(T-R5 用例 3:终端主题单槽)', () => {
+  it('设置改 terminalTheme 后 applyToAll 把已开终端的配色换成新主题', () => {
     openSettledTerminal('s-slot-a')
     const terminal = createdTerminals.at(-1)!
-    // 双槽各挂不同主题:深槽 Ghostty Default Style Dark(默认)、浅槽 Builtin Tango Light(默认)
-    const settings = makeSettings()
 
-    applyTerminalAppearanceToAll(settings, true)
-    expect(terminal.appliedOptions.at(-1)?.theme, 'systemDark=true 应取深槽主题').toBe(
+    // 初始默认深色主题:开终端时已按解析输出落一次
+    expect(terminal.options.theme, '开终端时已按解析输出落默认主题').toBe(
       TERMINAL_THEMES['Ghostty Default Style Dark']
     )
 
-    applyTerminalAppearanceToAll(settings, false)
-    expect(terminal.appliedOptions.at(-1)?.theme, 'systemDark=false 应取浅槽主题').toBe(
-      TERMINAL_THEMES['Builtin Tango Light']
+    // 换成另一套仍在 22 套目录内的主题:单槽直选,不再有系统深浅维度
+    const settings = makeSettings({ terminalTheme: 'Tango Dark' })
+    applyTerminalAppearanceToAll(settings)
+    expect(terminal.appliedOptions.at(-1)?.theme, 'applyToAll 应换成新选的终端主题').toBe(
+      TERMINAL_THEMES['Tango Dark']
     )
 
     closeTerminal('s-slot-a')
@@ -545,19 +542,19 @@ describe('隐藏终端的 fit 守卫(终审 P1-2)', () => {
   it('display:none 的容器不 fit、不发 spawn 就绪回调;可见容器照旧 fit', () => {
     // 隐藏容器:首帧 fit 必须被守卫挡掉——否则 0 尺寸盒被 StableCellFitAddon 提案成 2×1,
     // fit 会把 2×1 当真实尺寸并经 onResize → pty.resize 打到后台 agent
-    openTerminal('s-hidden', 10000, makeSettings(), false, makeContainerStub('none'))
+    openTerminal('s-hidden', 10000, makeSettings(), makeContainerStub('none'))
     const hiddenFit = createdFitAddons.at(-1)!
     flushAnimationFrame()
     expect(hiddenFit.fitCalls, '隐藏终端首帧不得 fit').toBe(0)
 
     // 隐藏终端的外观应用同样跳过 fit(与 applyTerminalAppearanceToAll 的既有守卫同口径)
-    applyTerminalAppearanceToAll(makeSettings({ terminalFontSize: 20 }), false)
+    applyTerminalAppearanceToAll(makeSettings({ terminalFontSize: 20 }))
     flushAnimationFrame()
     expect(hiddenFit.fitCalls, '隐藏终端的外观应用也不得 fit').toBe(0)
     closeTerminal('s-hidden')
 
     // 可见容器:守卫不得把正常路径一起挡掉
-    openTerminal('s-visible', 10000, makeSettings(), false, makeContainerStub())
+    openTerminal('s-visible', 10000, makeSettings(), makeContainerStub())
     const visibleFit = createdFitAddons.at(-1)!
     flushAnimationFrame()
     expect(visibleFit.fitCalls, '可见终端首帧应 fit 一次').toBe(1)
@@ -567,7 +564,7 @@ describe('隐藏终端的 fit 守卫(终审 P1-2)', () => {
 
 describe('use-terminal 创建期外观来自设置(T5 用例 2)', () => {
   it('openTerminal 传入 fontSize=20 的设置:新实例 options 取解析输出而非本地常量', () => {
-    openTerminal('s-from-settings', 10000, makeSettings({ terminalFontSize: 20 }), false, makeContainerStub())
+    openTerminal('s-from-settings', 10000, makeSettings({ terminalFontSize: 20 }), makeContainerStub())
     const terminal = createdTerminals.at(-1)!
 
     // 期望值来源(手算 + spec 接缝五):字号直通设置值;字体链为解析链(含默认回退链首项)
@@ -580,7 +577,7 @@ describe('use-terminal 创建期外观来自设置(T5 用例 2)', () => {
 
 describe('use-terminal 宽字符宽度表(RGI 对齐)', () => {
   it('开启 allowProposedApi 并激活 11-rgi provider:VS16/ZWJ emoji 序列按 pi 的 RGI 口径计 2 格', () => {
-    openTerminal('s-unicode', 10000, makeSettings(), false, makeContainerStub())
+    openTerminal('s-unicode', 10000, makeSettings(), makeContainerStub())
     const terminal = createdTerminals.at(-1)!
 
     // 期望值来源(真实 xterm + pi bundle 探针,非按实现推导):xterm 6.1.0-beta.336 内置宽度表
@@ -599,7 +596,7 @@ describe('use-terminal 宽字符宽度表(RGI 对齐)', () => {
 })
 describe('use-terminal WebGL context loss 回退', () => {
   it('GPU 上下文丢失时 dispose addon:dispose 内部 setRenderer(DOM),终端不白屏冻结', () => {
-    openTerminal('s-webgl', 10000, makeSettings(), false, makeContainerStub())
+    openTerminal('s-webgl', 10000, makeSettings(), makeContainerStub())
     const addon = createdWebglAddons.at(-1)!
 
     // 期望值来源(@xterm/addon-webgl 0.20.0-beta.329 源码):webglcontextlost 后 3 秒未恢复
@@ -693,7 +690,7 @@ describe('use-terminal Shift+滚轮本地滚动(ADR-0004:attachCustomWheelEventH
     terminal: (typeof createdTerminals)[number]
     handleWheel: CustomWheelHandler
   } {
-    openTerminal(sessionId, 10000, makeSettings(), false, makeContainerStub())
+    openTerminal(sessionId, 10000, makeSettings(), makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     const handleWheel = terminal.customWheelHandlers.at(-1)!
     expect(handleWheel, 'openTerminal 应经 attachCustomWheelEventHandler 挂上钩子').toBeDefined()
@@ -732,7 +729,7 @@ describe('use-terminal 滚轮四分支(T3.5:Shift 本地滚 / mouse mode 放大�
     handleWheel: CustomWheelHandler
     dispatched: Array<WheelEvent & { deltaY: number; deltaMode: number }>
   } {
-    openTerminal(sessionId, 10000, makeSettings(), false, makeContainerStub())
+    openTerminal(sessionId, 10000, makeSettings(), makeContainerStub())
     const terminal = createdTerminals.at(-1)!
     const handleWheel = terminal.customWheelHandlers.at(-1)!
     expect(handleWheel, 'openTerminal 应经 attachCustomWheelEventHandler 挂上钩子').toBeDefined()

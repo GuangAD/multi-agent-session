@@ -1,8 +1,8 @@
 // 布局:窗口标题栏(左栏开关 + 面板入口/面板动作)| 左栏侧栏 | 中间终端区 | 右侧面板(单面板)
 // (T1 骨架 → T4 侧栏 → T9 文件 → T10 Git → T10 评审期调整:面板入口与面板动作常驻标题栏,
 // 左右栏与面板内部不再各占一行标题,垂直空间全留给内容)
-// 主题策略:Tailwind dark: 变体走 class 策略(<html class="dark">,见 assets/main.css),
-// 三态(系统/浅/深)由 ThemeToggle 写类并持久化(settings:set);本文件不直接碰主题。
+// 主题策略:Tailwind dark: 变体走 class 策略(<html class="dark">,见 assets/main.css);
+// 界面主题与终端外观都由本文件的设置 effect 经唯一写手落地(theme.ts / use-terminal),不跟随系统。
 import { useEffect, useState } from 'react'
 import {
   ExternalLink,
@@ -15,7 +15,6 @@ import {
 } from 'lucide-react'
 import { useAppStore } from './store/app-store'
 import { Button } from './components/ui/button'
-import { ThemeToggle } from './components/ui/ThemeToggle'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { FileTreePanel } from './components/file-panel/FileTreePanel'
 import { GitPanel } from './components/git-panel/GitPanel'
@@ -23,7 +22,8 @@ import { TerminalTabs } from './components/terminal/TerminalTabs'
 import { applyTerminalAppearanceToAll } from './components/terminal/use-terminal'
 import { useSettings, loadSettings } from './store/settings-slice'
 import { SettingsDialog } from './components/settings/SettingsDialog'
-import { systemPrefersDark } from './theme'
+import { applyAppearance } from './theme'
+import { getAppTheme } from '../../shared/themes/resolve'
 import { bridge } from './ipc/bridge'
 
 // 右栏可显示的面板:'files' 文件树 / 'git' Git 面板 / null 收起(默认隐藏)
@@ -49,23 +49,16 @@ function App(): React.JSX.Element {
   // Why 用重挂而不是把刷新函数塞进 store:面板的取数与展开态都是组件内部状态,
   // key 变化即天然回到「首次加载」形态,不必在组件之间传回调(与 T9/T10 既有模式一致)
   const [refreshTick, setRefreshTick] = useState(0)
-  // 终端外观(T5):设置或系统深浅任一变化 → 全部已开终端即时应用解析结果。
-  // Why 在 App 层而不在终端组件:终端实例是常驻注册表,应用是跨实例动作;
+  // 外观落地(T-R3/T-R5):设置变化(含启动初载) → 界面主题写 html 类 + 全部已开终端应用解析结果。
+  // Why 在 App 层:终端实例是常驻注册表,应用是跨实例动作;界面主题在 ThemeToggle 删除后也不再有
+  // 第二个写类落点,收敛到这里即「唯一写手 + 唯一调用点」,控件只发 patch(J-004)。
   // 度量类变更后 refit 并走既有 onResize → pty.resize 同步 PTY 网格,本层不重复接网格。
   const settings = useSettings((current) => current)
-  const [systemDark, setSystemDark] = useState(() => systemPrefersDark())
 
   useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = (): void => setSystemDark(media.matches)
-    media.addEventListener('change', onChange)
-    return () => media.removeEventListener('change', onChange)
-  }, [])
-
-  useEffect(() => {
-    applyTerminalAppearanceToAll(settings, systemDark)
-  }, [settings, systemDark])
-
+    applyAppearance(getAppTheme(settings))
+    applyTerminalAppearanceToAll(settings)
+  }, [settings])
   const activeProject = projects.find((item) => item.id === selectedProjectId) ?? null
 
   // 启动顺序:项目与 agent 载荷并行(agents:list 与项目无关;项目一旦失败不得阻断 agent 装载——
@@ -260,7 +253,6 @@ function App(): React.JSX.Element {
           className="ml-auto flex items-center gap-1"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
-          <ThemeToggle />
           {/* 设置入口:应用级功能,必须不依赖「有没有项目」——此前只挂在项目行「…」菜单里,
               零项目时无从进入(用户实测反馈)。项目行菜单里的同名项保留,两处都能进 */}
           <Button

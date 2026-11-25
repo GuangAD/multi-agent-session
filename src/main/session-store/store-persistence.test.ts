@@ -27,12 +27,9 @@ const FILLED_STORE: AppStore = {
   settings: {
     defaultAgentId: 'claude',
     scrollbackRows: 25000,
-    theme: 'dark',
+    appTheme: 'carbonfox',
+    terminalTheme: 'Tango Dark',
     shell: 'cmd',
-    appThemeDark: 'warm',
-    appThemeLight: 'rose',
-    terminalThemeDark: 'Builtin Tango Light',
-    terminalThemeLight: 'Ghostty Default Style Dark',
     terminalFontFamily: 'JetBrains Mono',
     terminalFontSize: 20,
     terminalFontWeight: 400,
@@ -46,12 +43,9 @@ const FILLED_STORE: AppStore = {
 // 独立于 DEFAULT_STORE 的字面量,防同源比较掩盖默认值本身写错
 const DEFAULT_SETTINGS_WITH_NEW_FIELDS = {
   scrollbackRows: 10000,
-  theme: 'system',
+  appTheme: 'github-dark',
+  terminalTheme: 'Ghostty Default Style Dark',
   shell: 'powershell',
-  appThemeDark: 'default',
-  appThemeLight: 'default',
-  terminalThemeDark: 'Ghostty Default Style Dark',
-  terminalThemeLight: 'Builtin Tango Light',
   terminalFontSize: 14,
   terminalFontWeight: 300,
   terminalLineHeight: 1.0,
@@ -121,40 +115,71 @@ it('并发保存:8 写者各 3 轮并发,最终为其中一次写入的完整内
   expect(await readdir(dir)).toEqual(['store.json'])
 })
 
-// ============ 主题样式设置 T2:Settings 新字段 loadStore 兼容(spec 接缝三矩阵)============
-it('T2 用例 1:旧文件(仅 scrollback/theme/shell)读入,新字段全部补默认值,旧值原样保留', async () => {
+// ============ 主题单槽改造 T-R1:旧字段迁移 + 新字段补默认(spec 接缝三迁移行)============
+it('T-R1 用例 1:第一版文件(三态 + 双槽)读入,旧主题 id 迁到默认,目录内终端主题名保留,旧键不残留', async () => {
   await writeFile(
     file,
     JSON.stringify({
       version: 1,
       projects: [],
       sessions: [],
-      settings: { scrollbackRows: 5000, theme: 'light', shell: 'cmd' }
+      settings: {
+        scrollbackRows: 5000,
+        theme: 'dark',
+        shell: 'cmd',
+        appThemeDark: 'warm',
+        appThemeLight: 'cool',
+        terminalThemeDark: 'Tango Dark',
+        terminalThemeLight: 'Builtin Tango Light'
+      }
     }),
     'utf8'
   )
   const loaded = await loadStore(file)
-  // 独立字面量而非 DEFAULT_STORE 同源比较,防默认值本身写错被掩盖
+  // 独立字面量而非 DEFAULT_STORE 同源比较,防默认值本身写错被掩盖;
+  // toEqual 同时证明五个旧键不进入内存 store(否则整文件写回会把旧字段永久带着走)
   expect(loaded.settings).toEqual({
     ...DEFAULT_SETTINGS_WITH_NEW_FIELDS,
     scrollbackRows: 5000,
-    theme: 'light',
+    appTheme: 'github-dark', // 旧 id 'warm' 不在 12 套目录 → 落默认
+    terminalTheme: 'Tango Dark', // 仍在 22 套目录 → 迁移成功
     shell: 'cmd'
   })
   // 未走损坏兜底:原文件仍在
   await expect(access(file)).resolves.toBeUndefined()
 })
 
-it('T2 用例 2:全字段新文件读入,原值保留不清洗(越界值也不在 load 层夹紧)', async () => {
+it('T-R1 用例 2:第一版文件双槽旧 id 全不在新目录,两字段各自独立兜底', async () => {
+  await writeFile(
+    file,
+    JSON.stringify({
+      version: 1,
+      projects: [],
+      sessions: [],
+      settings: {
+        appThemeDark: 'warm',
+        appThemeLight: 'cool',
+        terminalThemeDark: 'Nope Dark',
+        terminalThemeLight: 'Nope Light'
+      }
+    }),
+    'utf8'
+  )
+  await expect(loadStore(file)).resolves.toEqual({
+    version: 1,
+    projects: [],
+    sessions: [],
+    settings: DEFAULT_SETTINGS_WITH_NEW_FIELDS
+  })
+})
+
+it('T-R1 用例 3:新格式文件全字段读入,原值保留不清洗(越界值也不在 load 层夹紧)', async () => {
   const fileSettings = {
     defaultAgentId: 'claude',
     scrollbackRows: 25000,
-    theme: 'dark',
+    appTheme: 'carbonfox',
+    terminalTheme: 'Tango Light',
     shell: 'cmd',
-    appThemeDark: 'warm',
-    appThemeLight: 'rose',
-    terminalThemeDark: 'Builtin Tango Light',
-    terminalThemeLight: 'Ghostty Default Style Dark',
     terminalFontFamily: 'JetBrains Mono',
     terminalFontSize: 99,
     terminalFontWeight: 500,
@@ -175,7 +200,25 @@ it('T2 用例 2:全字段新文件读入,原值保留不清洗(越界值也不�
   })
 })
 
-it('T2 用例 3:仅缺 terminalFontSize 与 appThemeLight,缺的补默认,有的保留', async () => {
+it('T-R1 用例 4:新格式文件缺 appTheme,缺的补默认,其余保留(迁移只补缺不改有)', async () => {
+  await writeFile(
+    file,
+    JSON.stringify({
+      version: 1,
+      projects: [],
+      sessions: [],
+      settings: { terminalTheme: 'Gruvbox Light' }
+    }),
+    'utf8'
+  )
+  const loaded = await loadStore(file)
+  expect(loaded.settings).toEqual({
+    ...DEFAULT_SETTINGS_WITH_NEW_FIELDS,
+    terminalTheme: 'Gruvbox Light'
+  })
+})
+
+it('T-R1 用例 5:新格式文件缺 terminalFontSize,补默认,其余保留', async () => {
   await writeFile(
     file,
     JSON.stringify({
@@ -183,12 +226,10 @@ it('T2 用例 3:仅缺 terminalFontSize 与 appThemeLight,缺的补默认,有的
       projects: [],
       sessions: [],
       settings: {
-        scrollbackRows: 10000,
-        theme: 'system',
-        shell: 'powershell',
-        appThemeDark: 'forest',
-        terminalThemeDark: 'warm',
-        terminalThemeLight: 'cool',
+        scrollbackRows: 12000,
+        appTheme: 'tomorrow',
+        terminalTheme: 'Builtin Tango Light',
+        shell: 'pwsh',
         terminalFontFamily: 'Consolas',
         terminalFontWeight: 500,
         terminalLineHeight: 1.2,
@@ -200,13 +241,10 @@ it('T2 用例 3:仅缺 terminalFontSize 与 appThemeLight,缺的补默认,有的
   )
   const loaded = await loadStore(file)
   expect(loaded.settings).toEqual({
-    scrollbackRows: 10000,
-    theme: 'system',
-    shell: 'powershell',
-    appThemeDark: 'forest',
-    appThemeLight: 'default', // 缺 → 补默认
-    terminalThemeDark: 'warm',
-    terminalThemeLight: 'cool',
+    scrollbackRows: 12000,
+    appTheme: 'tomorrow',
+    terminalTheme: 'Builtin Tango Light',
+    shell: 'pwsh',
     terminalFontFamily: 'Consolas',
     terminalFontSize: 14, // 缺 → 补默认
     terminalFontWeight: 500,
@@ -216,15 +254,39 @@ it('T2 用例 3:仅缺 terminalFontSize 与 appThemeLight,缺的补默认,有的
   })
 })
 
-it('T2 用例 4:settings 为字符串,走既有兜底路径返回全默认,不抛出且不隔离原文件', async () => {
+it('T-R1 用例 6:settings 为字符串,走既有兜底路径返回全默认,不抛出且不隔离原文件', async () => {
   await writeFile(
     file,
     JSON.stringify({ version: 1, projects: [], sessions: [], settings: 'broken' }),
     'utf8'
   )
   const loaded = await loadStore(file)
-  // 期望值用独立字面量:兜底给出的必须是含新字段的全默认,而非旧三字段
+  // 期望值用独立字面量:兜底给出的必须是含新字段的全默认,而非旧字段
   expect(loaded.settings).toEqual(DEFAULT_SETTINGS_WITH_NEW_FIELDS)
   // settings 是字符串但整文件仍是合法 JSON 对象:不触发 .corrupt-* 隔离
   await expect(access(file)).resolves.toBeUndefined()
+})
+
+it('T-R1 用例 7:首个旧槽值不在目录时继续试第二个(评审 I1)', async () => {
+  await writeFile(
+    file,
+    JSON.stringify({
+      version: 1,
+      projects: [],
+      sessions: [],
+      settings: {
+        appThemeDark: 'warm', // 不在 12 套目录
+        appThemeLight: 'github-light', // 在目录 → 应取它,而不是直接落默认
+        terminalThemeDark: 'Nope Dark', // 不在 22 套目录
+        terminalThemeLight: 'Builtin Tango Light' // 在目录 → 应取它
+      }
+    }),
+    'utf8'
+  )
+  const loaded = await loadStore(file)
+  expect(loaded.settings).toEqual({
+    ...DEFAULT_SETTINGS_WITH_NEW_FIELDS,
+    appTheme: 'github-light',
+    terminalTheme: 'Builtin Tango Light'
+  })
 })

@@ -1,7 +1,6 @@
-// 外观分区(T6):界面主题双槽、终端主题双槽、终端外观六项 + 预览块(T7 挂载点)。
-// 每项 onChange 即时发单字段 patch;界面侧主题改动后必须显式重放外观——
-// updateSettings 只改 store 不触发重绘(ThemeToggle 的系统跟随 effect 在强制浅/深下直接 return,
-// 见 tasks/T6.md「实施期补充」第 1 条)。
+// 外观分区(T6;第二版 T-R4 改单槽):界面主题与终端主题各一个下拉,终端外观六项 + 预览块(T7 挂载点)。
+// 每项 onChange 只发单字段 patch;外观落地由 App 层 effect 显式调用唯一写手(J-004),
+// 控件不再各自重放——第一版的 patchAppearance 已随 ThemeToggle 删除(见 tasks/T-R4.md)。
 import { useMemo } from 'react'
 import { APP_THEMES } from '../../../../shared/themes/app-themes'
 import {
@@ -9,25 +8,15 @@ import {
   LIGHT_TERMINAL_THEME_NAMES
 } from '../../../../shared/themes/catalog'
 import { TERMINAL_FONT_OPTIONS } from '../../../../shared/themes/fonts'
-import { selectAppTheme } from '../../../../shared/themes/resolve'
-import { applyAppearance, resolveDark, systemPrefersDark, type Theme } from '../../theme'
 import { updateSettings, useSettings } from '../../store/settings-slice'
 import type { Settings } from '../../../../shared/types'
 import { TerminalPreview } from './TerminalPreview'
 import { NumberField } from './NumberField'
 
-
 const FONT_WEIGHTS: Array<{ value: number; label: string }> = [
   { value: 300, label: '细(300)' },
   { value: 400, label: '常规(400)' },
   { value: 500, label: '中粗(500)' }
-]
-
-// 主题模式三段(冒烟反馈:对话框是模态的,设置里必须能切深浅,否则每次都要关弹窗去点标题栏按钮)
-const THEME_MODES: Array<{ value: Theme; label: string }> = [
-  { value: 'system', label: '跟随系统' },
-  { value: 'light', label: '浅色' },
-  { value: 'dark', label: '深色' }
 ]
 
 const CURSOR_STYLES: Array<{ value: Settings['terminalCursorStyle']; label: string }> = [
@@ -60,16 +49,9 @@ const selectClass = `${controlClass} w-60`
 export function AppearanceSection(): React.JSX.Element {
   const settings = useSettings((current) => current)
 
-  // 预览块与下拉共用同一份设置快照;主题名与字体名变化才重建预览选项(预览内部自行订阅)
-  const appThemeOptions = useMemo(() => APP_THEMES.map((theme) => ({ id: theme.id, name: theme.name })), [])
-
-  // 界面主题类改动:先落盘,再按解析结果重放外观(唯一写手 applyAppearance)
-  const patchAppearance = (patch: Partial<Settings>): void => {
-    void updateSettings(patch).then((next) => {
-      const systemDark = systemPrefersDark()
-      applyAppearance(resolveDark(next.theme, systemDark), selectAppTheme(next, systemDark).theme.id)
-    })
-  }
+  // 两组分组显示:深色在前浅色在后(APP_THEMES 数组顺序即定选清单顺序,分组不重排)
+  const darkAppThemes = useMemo(() => APP_THEMES.filter((theme) => theme.isDark), [])
+  const lightAppThemes = useMemo(() => APP_THEMES.filter((theme) => !theme.isDark), [])
 
   const patch = (patchValue: Partial<Settings>): void => {
     void updateSettings(patchValue)
@@ -77,82 +59,55 @@ export function AppearanceSection(): React.JSX.Element {
 
   return (
     <section aria-label="外观">
-      <SectionTitle>主题模式</SectionTitle>
-      <Row label="深浅" hint="与标题栏主题按钮同一设置,改这里按钮同步">
-        <span className="inline-flex overflow-hidden rounded border border-line" role="group" aria-label="主题模式">
-          {THEME_MODES.map((mode) => (
-            <button
-              key={mode.value}
-              type="button"
-              aria-pressed={settings.theme === mode.value}
-              className={`px-2 py-0.5 text-sm ${
-                settings.theme === mode.value ? 'bg-hover text-ink' : 'text-ink-muted hover:bg-hover'
-              }`}
-              onClick={() => patchAppearance({ theme: mode.value })}
-            >
-              {mode.label}
-            </button>
-          ))}
-        </span>
-      </Row>
-
       <SectionTitle>界面主题</SectionTitle>
-      <Row label="深色时" hint="界面处于深色时使用的主题">
+      <Row label="主题" hint="12 套单色板,选一套即整界面换色">
         <select
           className={selectClass}
-          value={settings.appThemeDark}
-          onChange={(event) => patchAppearance({ appThemeDark: event.target.value })}
+          value={settings.appTheme}
+          onChange={(event) => patch({ appTheme: event.target.value })}
         >
-          {appThemeOptions.map((theme) => (
-            <option key={theme.id} value={theme.id}>
-              {theme.name}
-            </option>
-          ))}
-        </select>
-      </Row>
-      <Row label="浅色时" hint="界面处于浅色时使用的主题">
-        <select
-          className={selectClass}
-          value={settings.appThemeLight}
-          onChange={(event) => patchAppearance({ appThemeLight: event.target.value })}
-        >
-          {appThemeOptions.map((theme) => (
-            <option key={theme.id} value={theme.id}>
-              {theme.name}
-            </option>
-          ))}
-        </select>
-      </Row>
-
-      <SectionTitle>终端主题</SectionTitle>
-      <Row label="深色时" hint="终端处于深色时使用的配色">
-        <select
-          className={selectClass}
-          value={settings.terminalThemeDark}
-          onChange={(event) => patch({ terminalThemeDark: event.target.value })}
-        >
-          {DARK_TERMINAL_THEME_NAMES.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </Row>
-      <Row label="浅色时" hint="终端处于浅色时使用的配色">
-        <select
-          className={selectClass}
-          value={settings.terminalThemeLight}
-          onChange={(event) => patch({ terminalThemeLight: event.target.value })}
-        >
-          {LIGHT_TERMINAL_THEME_NAMES.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
+          <optgroup label="深色">
+            {darkAppThemes.map((theme) => (
+              <option key={theme.id} value={theme.id}>
+                {theme.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="浅色">
+            {lightAppThemes.map((theme) => (
+              <option key={theme.id} value={theme.id}>
+                {theme.name}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </Row>
 
       <TerminalPreview settings={settings} />
+
+      <SectionTitle>终端主题</SectionTitle>
+      <Row label="配色" hint="22 套 Orca 内置终端主题">
+        <select
+          className={selectClass}
+          value={settings.terminalTheme}
+          onChange={(event) => patch({ terminalTheme: event.target.value })}
+        >
+          <optgroup label="深色">
+            {DARK_TERMINAL_THEME_NAMES.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="浅色">
+            {LIGHT_TERMINAL_THEME_NAMES.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </optgroup>
+        </select>
+      </Row>
 
       <SectionTitle>终端外观</SectionTitle>
       <Row label="字体">

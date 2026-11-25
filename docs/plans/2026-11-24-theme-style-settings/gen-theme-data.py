@@ -52,7 +52,7 @@ def emit_ts(data):
     for name in ORDER:
         tid, label, is_dark = META[name]
         t = data[name]
-        body = '\n'.join(f"      {k}: '{t[k]}'," for k in TOKEN_KEYS)
+        body = '\n'.join(f"      {k}: '{t[k].lower()}'," for k in TOKEN_KEYS)
         parts.append(
             f"  {{\n    id: '{tid}',\n    name: '{label}',\n    isDark: {str(is_dark).lower()},\n"
             f"    tokens: {{\n{body}\n    }}\n  }},")
@@ -97,7 +97,7 @@ def emit_css(data):
     for name in ORDER:
         tid = META[name][0]
         t = data[name]
-        body = '\n'.join(f"  {CSS_VARS[k]}: {t[k]};" for k in TOKEN_KEYS)
+        body = '\n'.join(f"  {CSS_VARS[k]}: {t[k].lower()};" for k in TOKEN_KEYS)
         blocks.append(f'/* {META[name][1]} */\n.theme-{tid} {{\n{body}\n}}')
     return '\n\n'.join(blocks)
 

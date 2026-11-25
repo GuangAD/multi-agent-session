@@ -1,7 +1,7 @@
 // Ported from stablyai/orca src/shared/terminal-themes/ (defaults.ts / classic.ts / popular-dark-core.ts / popular-dark-extended.ts / popular-light.ts, MIT)
 // Why: 终端配色主题 = Orca 原名到 xterm ITheme 的只读目录;只移植本项目契约名单内的 22 套
 // (深 13 + 浅 9),源文件中名单外的套目(Dracula/Nord/Monokai/Homebrew/Snazzy/Nightfox/Kanagawa/
-// Palenight/Slatewave)不收录;查找前不保证键存在,调用方必须走 selectTerminalTheme。
+// Palenight/Slatewave)不收录;查找前不保证键存在,调用方必须走 getTerminalTheme。
 import type { ITheme } from '@xterm/xterm'
 
 export const TERMINAL_THEMES: Record<string, ITheme> = {

@@ -22,8 +22,8 @@
 ## J-004 设置类 store 变更不自动重放外观
 
 - 状态:有效 · 2026-11-24 · 来源:`docs/plans/2026-11-24-theme-style-settings/plan.md` T6/T7 记账
-- 判断:改设置只更新 store,不会自动触发界面/终端重绘;每个改变外观的控件必须在上游(`patchAppearance` 一类)显式调用写手(`applyAppearance` / 终端应用函数)
-- 波及:后续新增任何外观设置项;`docs/plans/2026-11-24-theme-style-settings/tasks/T6.md` 实施期补充第 1 条
+- 判断:改设置只更新 store,不会自动触发界面/终端重绘;写手(`applyAppearance` / `applyTerminalAppearanceToAll`)的调用点必须**显式且唯一**,不得依赖 store setter 内的隐式副作用。2026-11-24 第二版修订:调用点从「每个外观控件的 `patchAppearance`」收敛到 App 层 `settings` 订阅 effect(`App.tsx`)+ 终端构造期取值——控件只发 patch,单一入口负责重放;字面表述已按实现更新(评审 M1)
+- 波及:后续新增任何外观设置项;`docs/plans/2026-11-24-theme-style-settings/tasks/T-R4.md` 第 4 条
 
 ## J-005 界面主题单槽单色板,不跟随系统
 

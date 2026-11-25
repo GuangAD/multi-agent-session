@@ -1,7 +1,11 @@
-/* 语义 token 层(T1,ADR-0008):界面颜色唯一来源,组件只写语义 utility。
-   Why 变量定义在 CSS 而不是直接写进 @theme:T4 的主题类(T4 起 .theme-<id>)要按主题覆盖
-   同一组变量,utility 只认变量名,值可被主题类整体替换。
-   默认灰(:root 浅 / .dark 深)= 契约基准表 = 迁移前现状观感(近似档归并到主导值)。 */
+/* 语义 token 层(T1,ADR-0008;第二版按 ADR-0009 改为单色板):界面颜色唯一来源,组件只写语义 utility。
+   Why 变量定义在 CSS 而不是直接写进 @theme:主题类(.theme-<id>)要按主题覆盖同一组变量,
+   utility 只认变量名,值可被主题类整体替换。
+   本文件结构(顺序有约束):
+     1. :root / .dark 兜底变量——设置加载完成前(main.tsx 首帧)与目录外 id 的观感;
+     2. color-scheme 与表单控件规则——原生弹层(select 下拉列表等)不读 Tailwind 类,只认它们;
+        必须排在主题块之前:主题块由 gen-theme-data.py 生成,生成器会整段重写标记之后的内容。
+     3. 标记行 + 12 个 .theme-<id> 块(生成产物,勿手改) */
 :root {
   --app-base: #ffffff;
   --app-panel: #f4f4f5;
@@ -30,183 +34,10 @@
   --app-accent-hover: #d4d4d8;
 }
 
-/* 主题覆盖层(T4):7 套非默认界面主题,.theme-<id> 覆盖浅形态、.dark.theme-<id> 覆盖深形态;
-   default 不挂类(:root/.dark 即默认灰)。类挂在 html 上,唯一写手是 theme.ts 的 applyAppearance。
-   色值与 src/shared/themes/app-themes.ts 的 APP_THEMES 同源(契约色值表),两处照抄、目录由单测锚定。
-   置于 .dark 之后:同为单类选择器时后定义胜出,.dark.theme-<id> 双类特异性更高,深形态必中。 */
-.theme-warm {
-  --app-base: #faf6f0;
-  --app-panel: #f2ece3;
-  --app-surface: #ffffff;
-  --app-line: #e7ded2;
-  --app-ink: #44403c;
-  --app-ink-muted: #78716c;
-  --app-accent: #b45309;
-  --app-on-accent: #fffbf5;
-  --app-hover: #efe6da;
-  --app-accent-hover: #92400e;
-}
-.dark.theme-warm {
-  --app-base: #292524;
-  --app-panel: #322d29;
-  --app-surface: #33302c;
-  --app-line: #44403c;
-  --app-ink: #e7e5e4;
-  --app-ink-muted: #a8a29e;
-  --app-accent: #d97706;
-  --app-on-accent: #1c1917;
-  --app-hover: #3f3a36;
-  --app-accent-hover: #f59e0b;
-}
-.theme-cool {
-  --app-base: #f8fafc;
-  --app-panel: #eef2f7;
-  --app-surface: #ffffff;
-  --app-line: #dbe3ee;
-  --app-ink: #0f172a;
-  --app-ink-muted: #64748b;
-  --app-accent: #1d4ed8;
-  --app-on-accent: #f8faff;
-  --app-hover: #e2e8f0;
-  --app-accent-hover: #1e40af;
-}
-.dark.theme-cool {
-  --app-base: #0f172a;
-  --app-panel: #172033;
-  --app-surface: #1e293b;
-  --app-line: #334155;
-  --app-ink: #e2e8f0;
-  --app-ink-muted: #94a3b8;
-  --app-accent: #3b82f6;
-  --app-on-accent: #0b1120;
-  --app-hover: #26334d;
-  --app-accent-hover: #60a5fa;
-}
-.theme-forest {
-  --app-base: #f6f8f4;
-  --app-panel: #edf0ea;
-  --app-surface: #ffffff;
-  --app-line: #dde5da;
-  --app-ink: #1f2a20;
-  --app-ink-muted: #5c6b5e;
-  --app-accent: #3f6212;
-  --app-on-accent: #f8fcf5;
-  --app-hover: #e3eae0;
-  --app-accent-hover: #365314;
-}
-.dark.theme-forest {
-  --app-base: #1c241b;
-  --app-panel: #232c21;
-  --app-surface: #26301f;
-  --app-line: #3a4634;
-  --app-ink: #e6eadf;
-  --app-ink-muted: #a3b18a;
-  --app-accent: #84cc16;
-  --app-on-accent: #16200f;
-  --app-hover: #31402a;
-  --app-accent-hover: #a3e635;
-}
-.theme-purple-night {
-  --app-base: #f8f7fc;
-  --app-panel: #f0eef7;
-  --app-surface: #ffffff;
-  --app-line: #e4e0ee;
-  --app-ink: #231d33;
-  --app-ink-muted: #6b6486;
-  --app-accent: #6d28d9;
-  --app-on-accent: #faf9ff;
-  --app-hover: #e9e5f4;
-  --app-accent-hover: #5b21b6;
-}
-.dark.theme-purple-night {
-  --app-base: #1e1b2e;
-  --app-panel: #262238;
-  --app-surface: #2a2540;
-  --app-line: #3d3659;
-  --app-ink: #e6e2f5;
-  --app-ink-muted: #9d94c4;
-  --app-accent: #8b5cf6;
-  --app-on-accent: #141126;
-  --app-hover: #332c4e;
-  --app-accent-hover: #a78bfa;
-}
-.theme-rose {
-  --app-base: #faf7f8;
-  --app-panel: #f3ebee;
-  --app-surface: #ffffff;
-  --app-line: #ecdfe3;
-  --app-ink: #2b2226;
-  --app-ink-muted: #7c6b71;
-  --app-accent: #be185d;
-  --app-on-accent: #fdf6f9;
-  --app-hover: #f1e4e9;
-  --app-accent-hover: #9d174d;
-}
-.dark.theme-rose {
-  --app-base: #261c20;
-  --app-panel: #2f2226;
-  --app-surface: #322529;
-  --app-line: #46343a;
-  --app-ink: #f2e8ec;
-  --app-ink-muted: #b39aa3;
-  --app-accent: #ec4899;
-  --app-on-accent: #1b1417;
-  --app-hover: #3d2c32;
-  --app-accent-hover: #f472b6;
-}
-.theme-dusk {
-  --app-base: #f7f8fb;
-  --app-panel: #eef0f6;
-  --app-surface: #ffffff;
-  --app-line: #dfe3ef;
-  --app-ink: #171c2e;
-  --app-ink-muted: #5d657e;
-  --app-accent: #4338ca;
-  --app-on-accent: #f8f9ff;
-  --app-hover: #e4e8f4;
-  --app-accent-hover: #3730a3;
-}
-.dark.theme-dusk {
-  --app-base: #191d2f;
-  --app-panel: #212639;
-  --app-surface: #232946;
-  --app-line: #363d63;
-  --app-ink: #e4e7f7;
-  --app-ink-muted: #9aa1c4;
-  --app-accent: #6366f1;
-  --app-on-accent: #12152a;
-  --app-hover: #2d3355;
-  --app-accent-hover: #818cf8;
-}
-.theme-ember {
-  --app-base: #fbf7f4;
-  --app-panel: #f4ede7;
-  --app-surface: #ffffff;
-  --app-line: #ecdfd6;
-  --app-ink: #2e211b;
-  --app-ink-muted: #7d6a5f;
-  --app-accent: #c2410c;
-  --app-on-accent: #fffaf6;
-  --app-hover: #f2e5dc;
-  --app-accent-hover: #9a3412;
-}
-.dark.theme-ember {
-  --app-base: #271d17;
-  --app-panel: #31241d;
-  --app-surface: #342620;
-  --app-line: #48352b;
-  --app-ink: #f2e8e2;
-  --app-ink-muted: #b39d90;
-  --app-accent: #ea580c;
-  --app-on-accent: #1c130e;
-  --app-hover: #3f2d24;
-  --app-accent-hover: #fb923c;
-}
-
 /* 表单控件的原生弹层(select 下拉列表等)由浏览器自己绘制,不吃 Tailwind 类:
    必须靠 color-scheme + option 元素自身的 background/color 着色,否则深色界面下会弹出
    白底浅字列表、文字几乎不可读(T6 冒烟反馈)。color-scheme 写在 CSS 而非只靠 JS 内联,
-   让控件在首帧就按正确深浅绘制。 */
+   让控件在首帧就按正确深浅绘制;唯一写手 applyAppearance 会在设置加载后按主题 isDark 覆盖同值。 */
 :root {
   color-scheme: light;
 }
@@ -223,4 +54,174 @@ button {
 option {
   background-color: var(--app-surface);
   color: var(--app-ink);
+}
+
+/* —— 主题块(由 gen-theme-data.py 生成,勿手改) —— */
+
+/* GitHub Dark */
+.theme-github-dark {
+  --app-base: #0d1117;
+  --app-panel: #010409;
+  --app-surface: #010409;
+  --app-line: #30363d;
+  --app-ink: #e6edf3;
+  --app-ink-muted: #7d8590;
+  --app-accent: #0078d4;
+  --app-on-accent: #ffffff;
+  --app-hover: #282e33;
+  --app-accent-hover: #298dda;
+}
+
+/* GitHub Dark 高对比 */
+.theme-github-dark-hc {
+  --app-base: #0a0c10;
+  --app-panel: #010409;
+  --app-surface: #010409;
+  --app-line: #7a828e;
+  --app-ink: #f0f3f6;
+  --app-ink-muted: #f0f3f6;
+  --app-accent: #0078d4;
+  --app-on-accent: #ffffff;
+  --app-hover: #4c525d;
+  --app-accent-hover: #2b8eda;
+}
+
+/* VS Code Dark Modern */
+.theme-vscode-dark-modern {
+  --app-base: #1f1f1f;
+  --app-panel: #181818;
+  --app-surface: #181818;
+  --app-line: #2b2b2b;
+  --app-ink: #cccccc;
+  --app-ink-muted: #9d9d9d;
+  --app-accent: #0078d4;
+  --app-on-accent: #ffffff;
+  --app-hover: #1f1f1f;
+  --app-accent-hover: #2587d3;
+}
+
+/* Carbonfox */
+.theme-carbonfox {
+  --app-base: #161616;
+  --app-panel: #222222;
+  --app-surface: #2c2c2d;
+  --app-line: #424243;
+  --app-ink: #f2f4f8;
+  --app-ink-muted: #b6b8bb;
+  --app-accent: #33b1ff;
+  --app-on-accent: #101014;
+  --app-hover: #2f3030;
+  --app-accent-hover: #55bdfe;
+}
+
+/* Tango Dark */
+.theme-tango-dark {
+  --app-base: #000000;
+  --app-panel: #0c0c0b;
+  --app-surface: #151615;
+  --app-line: #2a2b29;
+  --app-ink: #d3d7cf;
+  --app-ink-muted: #555753;
+  --app-accent: #3465a4;
+  --app-on-accent: #ffffff;
+  --app-hover: #181918;
+  --app-accent-hover: #517aac;
+}
+
+/* VS Code Light+ */
+.theme-vscode-light {
+  --app-base: #ffffff;
+  --app-panel: #f4f4f4;
+  --app-surface: #e8e8e8;
+  --app-line: #d4d4d4;
+  --app-ink: #000000;
+  --app-ink-muted: #737373;
+  --app-accent: #000000;
+  --app-on-accent: #ffffff;
+  --app-hover: #e6e6e6;
+  --app-accent-hover: #2e2e2e;
+}
+
+/* GitHub Light */
+.theme-github-light {
+  --app-base: #ffffff;
+  --app-panel: #f6f8fa;
+  --app-surface: #f6f8fa;
+  --app-line: #d0d7de;
+  --app-ink: #1f2328;
+  --app-ink-muted: #656d76;
+  --app-accent: #000000;
+  --app-on-accent: #ffffff;
+  --app-hover: #ebecf0;
+  --app-accent-hover: #2e2e2e;
+}
+
+/* Gruvbox Light 高对比 */
+.theme-gruvbox-light-hard {
+  --app-base: #f9f5d7;
+  --app-panel: #f0ecd0;
+  --app-surface: #e8e4c9;
+  --app-line: #d7d3ba;
+  --app-ink: #3c3836;
+  --app-ink-muted: #928374;
+  --app-accent: #000000;
+  --app-on-accent: #ffffff;
+  --app-hover: #e6e2c7;
+  --app-accent-hover: #2d2c27;
+}
+
+/* Selenized White */
+.theme-selenized-white {
+  --app-base: #ffffff;
+  --app-panel: #ebebeb;
+  --app-surface: #ececec;
+  --app-line: #cdcdcd;
+  --app-ink: #282828;
+  --app-ink-muted: #878787;
+  --app-accent: #0064e4;
+  --app-on-accent: #ffffff;
+  --app-hover: #eaeaea;
+  --app-accent-hover: #2e80e9;
+}
+
+/* Tango Light */
+.theme-tango-light {
+  --app-base: #ffffff;
+  --app-panel: #f6f6f6;
+  --app-surface: #eceded;
+  --app-line: #d9dada;
+  --app-ink: #2e3434;
+  --app-ink-muted: #555753;
+  --app-accent: #3465a4;
+  --app-on-accent: #ffffff;
+  --app-hover: #eaebeb;
+  --app-accent-hover: #5981b4;
+}
+
+/* Flexoki Light */
+.theme-flexoki-light {
+  --app-base: #fffcf0;
+  --app-panel: #f2f0e5;
+  --app-surface: #e6e4d9;
+  --app-line: #dad8ce;
+  --app-ink: #100f0f;
+  --app-ink-muted: #6f6e69;
+  --app-accent: #205ea6;
+  --app-on-accent: #ffffff;
+  --app-hover: #e7e4da;
+  --app-accent-hover: #487ab3;
+}
+
+/* Tomorrow */
+.theme-tomorrow {
+  --app-base: #ffffff;
+  --app-panel: #f7f7f7;
+  --app-surface: #efefef;
+  --app-line: #dfdfdf;
+  --app-ink: #4d4d4c;
+  --app-ink-muted: #8e908c;
+  --app-accent: #4271ae;
+  --app-on-accent: #ffffff;
+  --app-hover: #ededed;
+  --app-accent-hover: #648bbd;
 }

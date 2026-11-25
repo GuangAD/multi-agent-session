@@ -1,21 +1,20 @@
 // 渲染层设置状态切片(T4,spec 模块划分):初载拉全量、patch 后以主进程返回的全量设置覆盖 store。
-// Why 独立切片:设置对话框(T6)、ThemeToggle、终端外观应用不在同一组件树分支,经 store 共享;
+// Why 独立切片:设置对话框与 App 层外观应用不在同一组件树分支,经 store 共享;
 // 主进程是设置的权威(settings:set 校验落盘后返回全量),渲染层不拼装局部状态。
 import type { StateCreator } from 'zustand'
 import { bridge } from '../ipc/bridge'
+import { DEFAULT_APP_THEME_ID } from '../../../shared/themes/app-themes'
+import { DEFAULT_TERMINAL_THEME_NAME } from '../../../shared/themes/resolve'
 import type { Settings } from '../../../shared/types'
 import { useAppStore, type AppState } from './app-store'
 
-// 初载前的兜底值,与主进程 DEFAULT_STORE.settings 同值(spec 数据结构节默认值);
-// 仅在 loadSettings 完成前短暂可见(首帧深浅由 main.tsx 按系统偏好落类,不读这份数值)。
+// 初载前的兜底值:主题两项直接取 shared 常量(与主进程 DEFAULT_STORE.settings 同源,不手抄),
+// 仅在 loadSettings 完成前短暂可见(首帧由 main.tsx 按默认主题落类,不读这份数值)。
 const INITIAL_SETTINGS: Settings = {
   scrollbackRows: 10000,
-  theme: 'system',
+  appTheme: DEFAULT_APP_THEME_ID,
+  terminalTheme: DEFAULT_TERMINAL_THEME_NAME,
   shell: 'powershell',
-  appThemeDark: 'default',
-  appThemeLight: 'default',
-  terminalThemeDark: 'Ghostty Default Style Dark',
-  terminalThemeLight: 'Builtin Tango Light',
   terminalFontSize: 14,
   terminalFontWeight: 300,
   terminalLineHeight: 1.0,
@@ -45,7 +44,7 @@ export function useSettings<T>(selector: (settings: Settings) => T): T {
 }
 
 // 启动/打开设置对话框时从主进程拉全量设置进 store;可重复调用,返回值与 store 一致。
-// 失败不落 store、原样抛给调用方(ThemeToggle 沿用「读取失败按系统偏好兜底」既有策略)。
+// 失败不落 store、原样抛给调用方(App 层沿用「读取失败沿用默认值」既有策略)。
 //
 // Why 与 app-store 循环 import 安全:app-store 装配本切片,本模块只在函数运行期
 // (useAppStore 已初始化后)才解引用,模块求值期不触碰。
@@ -57,7 +56,7 @@ export async function loadSettings(): Promise<Settings> {
 
 // 发 patch 落盘,以主进程返回的全量设置更新 store;可 fire-and-forget(store 迟延一两帧),
 // 并发调用以主进程返回顺序为准。出错:不回滚显示,console.error 记录,下次启动读回旧值
-// (沿用 ThemeToggle 既有策略),返回当前 store 值保持「返回值与 store 一致」。
+// (沿用 App 层既有策略),返回当前 store 值保持「返回值与 store 一致」。
 export async function updateSettings(patch: Partial<Settings>): Promise<Settings> {
   try {
     const settings = await bridge.settings.set(patch)
