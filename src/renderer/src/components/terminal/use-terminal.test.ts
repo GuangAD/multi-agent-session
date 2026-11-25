@@ -329,8 +329,14 @@ vi.mock('@xterm/addon-webgl', () => ({
 // 容器桩:openTerminal 不在容器挂 wheel 监听(滚轮走 terminal 实例上的官方钩子),
 // 桩内 xterm.open 为空操作,容器仅作 ResizeObserver.observe 的观察对象身份;
 // style 桩供 applyTerminalAppearanceToAll 读 inline display 判定可见性(隐藏终端跳过 fit)
-function makeContainerStub(display?: string): HTMLElement {
-  return { style: { display: display ?? '' } } as unknown as HTMLElement
+function makeContainerStub(display?: string, size?: { width: number; height: number }): HTMLElement {
+  // clientWidth/Height 供 0 尺寸守卫 canFitNow 判定:默认正数(布局已生效),可传 0 模拟
+  // 「display 翻转后布局尚未生效」的切换瞬间(2×1 陷阱回归用例)
+  return {
+    style: { display: display ?? '' },
+    clientWidth: size?.width ?? 800,
+    clientHeight: size?.height ?? 600
+  } as unknown as HTMLElement
 }
 
 // 全量设置桩:与 shared/settings-defaults DEFAULT_SETTINGS(渲染层初值与主进程 DEFAULT_STORE.settings 同源)同值
@@ -911,6 +917,50 @@ describe('use-terminal 窗口跟随(ResizeObserver + RAF 稳定帧收敛)', () =
     flushAnimationFrame()
     expect(fitAddon.fitCalls).toBe(0) // 待决帧已撤销:关闭后不再 fit
     expect(rafState.queue.length).toBe(0)
+  })
+
+  // —— 0 尺寸守卫(T1 后暴露的 2×1 陷阱,2026-11-25 统一验证 DBG 实锤后修复)——
+  it('0 尺寸守卫:display:none 的终端 RO 触发收敛时拒绝 fit,网格不被 2×1 压扁', () => {
+    const container = makeContainerStub('none')
+    openTerminal('s-fit-guard-hidden', 10000, makeSettings(), container)
+    flushAnimationFrame() // 出生隐藏:首帧 RAF 守卫拒绝(既有语义,现在走 canFitNow)
+    const fitAddon = createdFitAddons.at(-1)!
+    fitAddon.fitCalls = 0
+    const observer = fitObservers.at(-1)!
+    fitAddon.proposed = { cols: 2, rows: 1 } // 隐藏容器 0 尺寸提案的形状(连续两帧相同必收敛)
+    observer.trigger()
+    flushAnimationFrame()
+    flushAnimationFrame()
+    expect(fitAddon.fitCalls, '0 尺寸盒子拒绝 fit,隐藏终端网格不被 2×1 应用').toBe(0)
+    closeTerminal('s-fit-guard-hidden')
+  })
+
+  it('0 尺寸守卫:激活瞬间布局未生效(0 盒)顺延重试至多 3 帧,恢复后 fit 成功', () => {
+    const container = makeContainerStub('', { width: 0, height: 0 })
+    openTerminal('s-fit-guard-race', 10000, makeSettings(), container)
+    flushAnimationFrame() // 出生首帧:守卫拒绝(0 尺寸)
+    const fitAddon = createdFitAddons.at(-1)!
+    fitAddon.fitCalls = 0
+    activateTerminal('s-fit-guard-race') // 切回:RAF 守卫重试(至多 3 次顺延)
+    flushAnimationFrame() // 重试帧 1:拒
+    flushAnimationFrame() // 重试帧 2:拒
+    flushAnimationFrame() // 重试帧 3:拒(已排第 4 帧)
+    expect(fitAddon.fitCalls, '布局未生效期间 fit 不应用(2×1 陷阱回归)').toBe(0)
+    // 布局生效(clientWidth/Height 是 readonly,经 Object.defineProperty 翻转桩值)
+    Object.defineProperty(container, 'clientWidth', { value: 800 })
+    Object.defineProperty(container, 'clientHeight', { value: 600 })
+    flushAnimationFrame() // 第 4 帧:守卫通过 → fit
+    expect(fitAddon.fitCalls).toBe(1)
+    closeTerminal('s-fit-guard-race')
+  })
+
+  it('0 尺寸守卫:出生时布局未生效(flex 但 0 盒)首帧不 fit', () => {
+    const container = makeContainerStub('', { width: 0, height: 0 })
+    openTerminal('s-fit-guard-open', 10000, makeSettings(), container)
+    flushAnimationFrame()
+    const fitAddon = createdFitAddons.at(-1)!
+    expect(fitAddon.fitCalls, '0 盒首帧拒绝 fit,不以 2×1 配发 spawn 尺寸').toBe(0)
+    closeTerminal('s-fit-guard-open')
   })
 })
 

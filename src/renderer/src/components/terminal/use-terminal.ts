@@ -73,8 +73,31 @@ function terminalDimensionsEqual(entry: TerminalEntry, dims: ProposedDimensions)
   return entry.terminal.cols === dims.cols && entry.terminal.rows === dims.rows
 }
 
+// ready 补发的唯一出口:仅在真实 fit 成功后调用(0 尺寸守卫拒绝的 fit 不算)——spawn 尺寸
+// 必须来自真实布局,否则待 spawn 记录会把 2×1 之类错误网格带给主进程
+function announceReadyIfPending(sessionId: SessionId, entry: TerminalEntry): void {
+  if (!entry.readyFired) {
+    entry.readyFired = true
+    terminalReadyHandler?.(sessionId, entry.terminal.cols, entry.terminal.rows)
+  }
+}
+
+// fit 的 0 尺寸守卫(T1 后暴露的 2×1 陷阱,2026-11-25 统一验证实锤):display:none 或盒子
+// 宽高为 0 时提案必落到 2×1 最小网格,fit 会把它当真实尺寸应用——xterm reflow 打乱 TUI 全屏
+// 画面、pty:resize(2×1) 打到 agent。拒绝本帧,等布局生效后 ResizeObserver 再触发自然收敛。
+function canFitNow(entry: TerminalEntry): boolean {
+  return (
+    entry.container.style.display !== 'none' &&
+    entry.container.clientWidth > 0 &&
+    entry.container.clientHeight > 0
+  )
+}
+
 function finishStableFit(entry: TerminalEntry): void {
   entry.pendingFitRafId = null
+  if (!canFitNow(entry)) {
+    return // 本轮放弃,不动网格;布局生效后 ResizeObserver 会再触发一轮
+  }
   entry.fitAddon.fit()
 }
 
@@ -174,6 +197,9 @@ function scheduleWritePump(): void {
   }
   pumpFramePending = true
   requestAnimationFrame(() => {
+    const pumpEntrySample = Array.from(terminals.entries()).find(([, e]) => e.container.style.display !== 'none')
+    if (pumpEntrySample) {
+    }
     pumpFramePending = false
     writeScheduler.pump()
   })
@@ -386,17 +412,16 @@ export function openTerminal(
     if (!entry) {
       return // 已在同一帧内被关闭
     }
-    // 隐藏容器(display:none)不能 fit:盒子是 0 尺寸,自定义 addon 的提案会落到 2×1 最小网格,
-    // fit 会把它当真实尺寸应用并经 onResize → pty.resize 打到后台 agent(T6 评审 P1-2:
+    // 0 尺寸守卫(canFitNow,涵盖 display:none 与布局未生效的 0 盒):提案会落到 2×1 最小
+    // 网格,fit 会把它当真实尺寸应用并经 onResize → pty.resize 打到后台 agent(T6 评审 P1-2:
     // 改回滚行数会重建隐藏标签,这条路因此可达)。不 fit 也不回调 ready——spawn 等
-    // activateTerminal 的可见后 fit 再来(隐藏标签本就不该在这时拉进程)。
-    if (entry.container.style.display === 'none') {
+    // activateTerminal 的可见后 fit 或 ResizeObserver 收敛再来(真实布局才配发尺寸)。
+    if (!canFitNow(entry)) {
       return
     }
     entry.fitAddon.fit()
     // TUI(pi 等)启动即正确宽度(它收不到后续 resize 通知,见 sessions-slice 的 Why)
-    entry.readyFired = true
-    terminalReadyHandler?.(sessionId, entry.terminal.cols, entry.terminal.rows)
+    announceReadyIfPending(sessionId, entry)
   })
 }
 
@@ -477,18 +502,28 @@ export function activateTerminal(sessionId: SessionId): void {
       entry.webglLost = false
     }
   }
-  requestAnimationFrame(() => {
-    if (terminals.get(sessionId) !== entry) {
-      return // 已被 dispose(快速开关 tab 的竞态)
-    }
-    entry.fitAddon.fit()
-    // 隐藏期被跳过 ready 的会话(创建时不可见),在首次可见时补发一次——此时 cols/rows 是真实尺寸
-    if (!entry.readyFired) {
-      entry.readyFired = true
-      terminalReadyHandler?.(sessionId, entry.terminal.cols, entry.terminal.rows)
-    }
-    entry.terminal.focus()
-  })
+  // RAF fit + ready 补发(0 尺寸守卫版):切回瞬间布局可能尚未生效——实测该时机 fit 会落到
+  // 2×1 最小网格并打乱 TUI 画面(2026-11-25 统一验证 DBG 实锤)。不可测时顺延一帧,至多 3 帧;
+  // 超限放弃本轮,ready 随下次成功 fit(finishStableFit / 后续激活)补发,spawn 不卡。
+  let fitAttempts = 0
+  const rafFitAndFocus = (): void => {
+    requestAnimationFrame(() => {
+      if (terminals.get(sessionId) !== entry) {
+        return // 已被 dispose(快速开关 tab 的竞态)
+      }
+      if (!canFitNow(entry)) {
+        if (fitAttempts < 3) {
+          fitAttempts += 1
+          rafFitAndFocus()
+        }
+        return // 本轮放弃:网格保持原值零伤害,后续成功 fit 再补 ready 与聚焦
+      }
+      entry.fitAddon.fit()
+      announceReadyIfPending(sessionId, entry)
+      entry.terminal.focus()
+    })
+  }
+  rafFitAndFocus()
 }
 
 // —— 后台 fit(T5):窗口稳定后按「假如可见」的网格分帧重设隐藏终端 ——
