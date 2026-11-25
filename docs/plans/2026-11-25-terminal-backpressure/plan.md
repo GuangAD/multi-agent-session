@@ -10,7 +10,7 @@
 - [x] **T2 node-pty JS 层补丁重放**
       交付:node-pty 补丁重放成功,管道错误封堵、自退泄漏修复、加载重试生效;C++ 段进源码不编译;关标签 / agent 自退 / 强杀三场景冒烟正常
       挡谁:无
-- [ ] **T3 主进程合并转发**
+- [x] **T3 主进程合并转发**
       交付:新增合并器(16ms 窗口 + 64KB 阈值 + 退出前清空保序),pty:data 事件频率从每秒数千降到约 60;合并器三组行为单测绿
       挡谁:无
 - [ ] **T4 渲染层数据泵双闸与隐藏只缓冲**
@@ -47,7 +47,8 @@
 - **T1 完成**(2026-11-25,commit 5e5fc0f1):重放零冲突;源码段标记 `hasMeasuredCellHeight` 5 处、CoreBrowserTerminal/RenderDebouncer/CompositionHelper 各段特有标记在位;产物段 sha256 变化实证;typecheck exit 0;全量 45 文件/315 用例绿与基线一致。冒烟(用户实机):标签切换无空白、无冻结、中文输入正常——**通过**;遗留观察:切回多内容标签约 1 秒等待,登记 TODO 长期观察项(T4 落地后复测)。结论(下游):① patch_hash=6f384928… 可作 T2 同类验证参照;② 冒烟对照点 = Viewport NaN 防护 / RenderDebouncer 帧内 while+finally / CompositionHelper IME 事务;③ 升级 xterm 版本须重新生成并重放补丁(brief §4 既有约束)
 - **T2 完成**(2026-11-25,commit 1cdf85f6):重放零冲突;JS 段标记 `ConPTY output relay exited` 在位;binding.gyp 段移除 Windows 原生编译目标,与「C++ 段进源码不编译」自洽(conpty.dll/OpenConsole.exe 时间戳仍为基线,未触发编译);typecheck exit 0;全量 45/315 绿与基线一致。冒烟(用户实机):agent 自退正常关、pi 运行中关标签无错、强杀不波及其余终端——**通过**。结论(下游):① C++ 段落地情况 = conpty.cc 17 处 / pty.cc 16 处 Orca 标记,含 TerminateJobObject(类别 C 延期的源码已就位,仅差编译链);② typings 段(getForegroundProcessGroup? 等)已落地但本项目不接桥;③ T7 可开工,TerminalTabs 渲染结构改造不受本任务影响
 - **T7 完成**(2026-11-25,commit 56609465):改动仅 TerminalTabs.tsx(+22/-11),终端组移出预览条件分支常驻渲染,`active` 收窄为「标签激活且预览未激活」,TerminalView 本体零改动;use-terminal 31/31、typecheck exit 0、全量 45/315 绿与基线一致。实机验证(用户复现原始报障场景):预览开合后画面完整无双 TUI、TUI 内翻页滚动正常、预览期间切标签终端状态正常——**通过**。边界核实:`previewActive && previewPath === null` 无可达入口(openPreview 同置/closePreview 同清/activatePreview 仅从既有预览标签触发),新旧行为差异仅存于不可达分支。结论(下游):① 预览卸载路径消失,暂存袋回归「进程输出早于终端创建」的正常兜底语义;② T4 隐藏只缓冲从第一天即完整语义(隐藏终端实例存活,入队即可);③ deactivatePreview 只清 active 不清 path(标签停留栏上)——T8 的预览重挂读取态归零语义与此无关,不受影响
-- **T8 完成**(2026-11-25,commit 待回填):FilePreview 文本区接入 useSettings + resolveTerminalAppearance(单一来源),`<pre>` 三项 inline style,头部/提示样式未动;typecheck exit 0、全量 45/315 绿与基线一致。实机目验(用户):设置变更即时跟随、中文与长行不破版——**通过**;字号观感(px 直传 vs 终端 pt 换算)用户裁量接受现状,不换算。流程调整(controller 裁决,2026-11-25):T3–T6 实机验证不阻塞后续任务开发,统一攒到全部任务结束后一次验证;期间以单测+全量套件为门。结论(下游):① FilePreview 已订阅全量 settings,后续加 lineHeight 等外观跟随在 appearance 上取值即可;② file-panel 目录无 *.test.ts,scoped vitest 恒 exit 1(no test files),复用该命令时预期此结果
+- **T8 完成**(2026-11-25,commit 1c83a6cd):FilePreview 文本区接入 useSettings + resolveTerminalAppearance(单一来源),`<pre>` 三项 inline style,头部/提示样式未动;typecheck exit 0、全量 45/315 绿与基线一致。实机目验(用户):设置变更即时跟随、中文与长行不破版——**通过**;字号观感(px 直传 vs 终端 pt 换算)用户裁量接受现状,不换算。流程调整(controller 裁决,2026-11-25):T3–T6 实机验证不阻塞后续任务开发,统一攒到全部任务结束后一次验证;期间以单测+全量套件为门。结论(下游):① FilePreview 已订阅全量 settings,后续加 lineHeight 等外观跟随在 appearance 上取值即可;② file-panel 目录无 *.test.ts,scoped vitest 恒 exit 1(no test files),复用该命令时预期此结果
+- **T3 完成**(2026-11-25,commit 待回填):新增合并器(9 用例,TDD)+ ipc/pty.ts 接线(onData→push,onExit→先 flushSession 再 pty:exit,档位 16ms/64KB 模块级常量);typecheck exit 0,全量 46 文件/324 用例绿。评审(独立 reviewer):**approve**——规格逐条符合,状态机生命周期无正确性缺陷,推演写坏实现均可被现有用例抓住;3 Minor 处置 = ①② 补守卫用例(恰等边界 + flushSession 定时器取消取证,mutation check 双向验证红因正指缺口),③ timer 注入措辞偏离裁定接受现状(fake timers 等价,不加注入参数)。实机验证(ptv:data 频率 ~60/s)按流程调整延后统一验证。结论(下游):① flush 投递口注入已满足可测性,后续任务勿再加 timer 注入参数;② merge 后每会话事件率 ≈ 60/s,T4 渲染层队列消费预算以此为输入量级;③ 合并器单实例应用生命周期复用,destroy 仅测试收尾调用
 - 开工前接口预检 | 通过
   - 跨任务共享接口:无——三个新接缝(合并器/调度器/稳定门)均在本任务内生产并消费;T4 → T5 仅为运行时数据承接(队列承接后台 fit 的 resize 数据),无接口签名依赖;T7 复用既有 TerminalView active/display 接缝,无新增导出
   - 接口与 spec 一致性:createPtyDataCoalescer / createWriteScheduler / createStableResizeGate / fitHiddenTerminals 四个接缝名与签名形状逐一对得上,spec 数据结构节与契约伪代码一致

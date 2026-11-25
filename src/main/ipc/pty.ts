@@ -7,6 +7,7 @@ import { ipcMain, type BrowserWindow } from 'electron'
 import { statSync } from 'node:fs'
 import { IPC_CHANNELS } from './channels'
 import { ptyRegistry } from '../pty-registry'
+import { createPtyDataCoalescer } from '../pty-data-coalescer'
 import { agentRegistry } from '../agents/agent-registry'
 import {
   BackfillCoordinator,
@@ -19,6 +20,10 @@ import type { Injector } from '../agent-hooks/injector'
 import type { AgentDefinition, ImportCandidate, ResumeRef } from '../../shared/agents'
 import type { AppStore, AgentId, Session, SessionId } from '../../shared/types'
 import type { PtyDataEvent, PtyExitEvent } from '../../shared/ipc-contract'
+
+// T3 合并转发档位(brief 第 5 节:16ms 窗口或 64KB 先到先发;64KB = 字符数)
+const PTY_DATA_COALESCE_WINDOW_MS = 16
+const PTY_DATA_COALESCE_MAX_CHARS = 64 * 1024
 
 function sendToRenderer(
   getWindow: () => BrowserWindow | null,
@@ -207,10 +212,21 @@ export function registerPtyIpc(
   })
 
   // 事件出站:注册表 → 渲染层(退订函数在单窗口应用生命周期内不需调用)
+  // T3 合并转发:data 先入每会话合并器(16ms 窗口或 64KB 先到先发,brief 第 5 节),
+  // 把每秒数千条 data 事件压到每会话约 60 条;exit 前先 flushSession 清空该会话缓冲,
+  // 退出事件不越过尾数据。投递失败沿用 sendToRenderer 的窗口存活判断,合并器不另设错误路径。
+  const dataCoalescer = createPtyDataCoalescer({
+    windowMs: PTY_DATA_COALESCE_WINDOW_MS,
+    maxChars: PTY_DATA_COALESCE_MAX_CHARS,
+    flush: (sessionId, text) => {
+      sendToRenderer(getWindow, IPC_CHANNELS.ptyData, { sessionId, data: text })
+    }
+  })
   ptyRegistry.onData((event) => {
-    sendToRenderer(getWindow, IPC_CHANNELS.ptyData, event)
+    dataCoalescer.push(event.sessionId, event.data)
   })
   ptyRegistry.onExit((event) => {
+    dataCoalescer.flushSession(event.sessionId) // 退出保序:尾数据先于 exit 到渲染层
     sendToRenderer(getWindow, IPC_CHANNELS.ptyExit, event)
   })
 }
