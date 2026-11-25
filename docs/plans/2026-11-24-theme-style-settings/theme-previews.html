@@ -1219,4 +1219,272 @@
     <div class="swatches"><span class="sw" style="background:#FCFCFC" title="base #FCFCFC"><i>#FCFCFC</i></span><span class="sw" style="background:#f5f5f5" title="panel #f5f5f5"><i>#f5f5f5</i></span><span class="sw" style="background:#eeeeee" title="surface #eeeeee"><i>#eeeeee</i></span><span class="sw" style="background:#dfe0e1" title="line #dfe0e1"><i>#dfe0e1</i></span><span class="sw" style="background:#5C6166" title="ink #5C6166"><i>#5C6166</i></span><span class="sw" style="background:#a4a7aa" title="inkMuted #a4a7aa"><i>#a4a7aa</i></span><span class="sw" style="background:#4196df" title="accent #4196df"><i>#4196df</i></span><span class="sw" style="background:#101014" title="onAccent #101014"><i>#101014</i></span><span class="sw" style="background:#ececed" title="hover #ececed"><i>#ececed</i></span><span class="sw" style="background:#63a8e4" title="accentHover #63a8e4"><i>#63a8e4</i></span></div>
     <footer class="src">alacritty-theme ayu_light.toml</footer>
   </article></div>
+<h2>VS Code / GitHub 官方主题（9 套 · token 取官方变量，派生项逐卡标注）</h2>
+<p class="meta">这 10 套来自 <code>.reference/.../stablyai.orca-vscode-default-themes</code> 与 <code>stablyai.orca-github-vscode-theme</code> 的规范化 JSON:
+<code>base←--background</code>、<code>panel←--sidebar</code>、<code>surface←--card</code>、<code>line←--border</code>、<code>ink←--foreground</code>、<code>inkMuted←--muted-foreground</code>、<code>accent←--primary</code>、<code>onAccent←--primary-foreground</code>、<code>hover←--secondary</code>;
+<br>诚实标注:7 套是「官方 9 值 + 仅 <code>accentHover</code> 派生」(强调色向 ink/base 混合 18%);
+<b>VS Code Dark+ / Light+ 的 JSON 只给了 background / border / foreground 三项</b>,其余 7 项按本页规则派生,卡片底下已列出派生项——它们的观感不等同于真正的 Dark+/Light+。</p>
+<div class="grid">
+  <article class="card" style="--base:#1f1f1f;--panel:#181818;--surface:#181818;--line:#2b2b2b;--ink:#cccccc;--muted:#9d9d9d;--accent:#0078d4;--on-accent:#ffffff;--hover:#1f1f1f">
+    <header class="card-head"><b>VS Code Dark Modern</b><span class="note">VS Code 现役默认深色</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="swatches"><span class="sw" style="background:#1f1f1f" title="base #1f1f1f"><i>#1f1f1f</i></span><span class="sw" style="background:#181818" title="panel #181818"><i>#181818</i></span><span class="sw" style="background:#181818" title="surface #181818"><i>#181818</i></span><span class="sw" style="background:#2b2b2b" title="line #2b2b2b"><i>#2b2b2b</i></span><span class="sw" style="background:#cccccc" title="ink #cccccc"><i>#cccccc</i></span><span class="sw" style="background:#9d9d9d" title="inkMuted #9d9d9d"><i>#9d9d9d</i></span><span class="sw" style="background:#0078d4" title="accent #0078d4"><i>#0078d4</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#1f1f1f" title="hover #1f1f1f"><i>#1f1f1f</i></span><span class="sw" style="background:#2587d3" title="accentHover #2587d3"><i>#2587d3</i></span></div>
+    <footer class="src">官方 9 值 + 派生 accentHover · vs-code-dark-modern.json</footer>
+  </article>
+  <article class="card" style="--base:#1e1e1e;--panel:#252526;--surface:#252526;--line:#303031;--ink:#d4d4d4;--muted:#828282;--accent:#d4d4d4;--on-accent:#101014;--hover:#303030">
+    <header class="card-head"><b>VS Code Dark+</b><span class="note">VS Code 经典默认深色</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="swatches"><span class="sw" style="background:#1e1e1e" title="base #1e1e1e"><i>#1e1e1e</i></span><span class="sw" style="background:#252526" title="panel #252526"><i>#252526</i></span><span class="sw" style="background:#252526" title="surface #252526"><i>#252526</i></span><span class="sw" style="background:#303031" title="line #303031"><i>#303031</i></span><span class="sw" style="background:#d4d4d4" title="ink #d4d4d4"><i>#d4d4d4</i></span><span class="sw" style="background:#828282" title="inkMuted #828282"><i>#828282</i></span><span class="sw" style="background:#d4d4d4" title="accent #d4d4d4"><i>#d4d4d4</i></span><span class="sw" style="background:#101014" title="onAccent #101014"><i>#101014</i></span><span class="sw" style="background:#303030" title="hover #303030"><i>#303030</i></span><span class="sw" style="background:#d4d4d4" title="accentHover #d4d4d4"><i>#d4d4d4</i></span></div>
+    <footer class="src">官方 3 值 + 派生 panel, surface, inkMuted, accent, onAccent, hover, accentHover · vs-code-dark.json</footer>
+  </article>
+  <article class="card" style="--base:#0d1117;--panel:#010409;--surface:#010409;--line:#30363d;--ink:#e6edf3;--muted:#7d8590;--accent:#238636;--on-accent:#ffffff;--hover:#282e33">
+    <header class="card-head"><b>GitHub Dark</b><span class="note">GitHub 官方深色默认</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="swatches"><span class="sw" style="background:#0d1117" title="base #0d1117"><i>#0d1117</i></span><span class="sw" style="background:#010409" title="panel #010409"><i>#010409</i></span><span class="sw" style="background:#010409" title="surface #010409"><i>#010409</i></span><span class="sw" style="background:#30363d" title="line #30363d"><i>#30363d</i></span><span class="sw" style="background:#e6edf3" title="ink #e6edf3"><i>#e6edf3</i></span><span class="sw" style="background:#7d8590" title="inkMuted #7d8590"><i>#7d8590</i></span><span class="sw" style="background:#238636" title="accent #238636"><i>#238636</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#282e33" title="hover #282e33"><i>#282e33</i></span><span class="sw" style="background:#469958" title="accentHover #469958"><i>#469958</i></span></div>
+    <footer class="src">官方 9 值 + 派生 accentHover · github-dark-default.json</footer>
+  </article>
+  <article class="card" style="--base:#22272e;--panel:#1c2128;--surface:#1c2128;--line:#444c56;--ink:#adbac7;--muted:#848f9b;--accent:#347d39;--on-accent:#ffffff;--hover:#3d444d">
+    <header class="card-head"><b>GitHub Dark Dimmed</b><span class="note">GitHub 官方深色降饱和</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="swatches"><span class="sw" style="background:#22272e" title="base #22272e"><i>#22272e</i></span><span class="sw" style="background:#1c2128" title="panel #1c2128"><i>#1c2128</i></span><span class="sw" style="background:#1c2128" title="surface #1c2128"><i>#1c2128</i></span><span class="sw" style="background:#444c56" title="line #444c56"><i>#444c56</i></span><span class="sw" style="background:#adbac7" title="ink #adbac7"><i>#adbac7</i></span><span class="sw" style="background:#848f9b" title="inkMuted #848f9b"><i>#848f9b</i></span><span class="sw" style="background:#347d39" title="accent #347d39"><i>#347d39</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#3d444d" title="hover #3d444d"><i>#3d444d</i></span><span class="sw" style="background:#4a8853" title="accentHover #4a8853"><i>#4a8853</i></span></div>
+    <footer class="src">官方 9 值 + 派生 accentHover · github-dark-dimmed.json</footer>
+  </article>
+  <article class="card" style="--base:#0a0c10;--panel:#010409;--surface:#010409;--line:#7a828e;--ink:#f0f3f6;--muted:#f0f3f6;--accent:#09b43a;--on-accent:#0a0c10;--hover:#4c525d">
+    <header class="card-head"><b>GitHub Dark High Contrast</b><span class="note">GitHub 官方深色高对比</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="swatches"><span class="sw" style="background:#0a0c10" title="base #0a0c10"><i>#0a0c10</i></span><span class="sw" style="background:#010409" title="panel #010409"><i>#010409</i></span><span class="sw" style="background:#010409" title="surface #010409"><i>#010409</i></span><span class="sw" style="background:#7a828e" title="line #7a828e"><i>#7a828e</i></span><span class="sw" style="background:#f0f3f6" title="ink #f0f3f6"><i>#f0f3f6</i></span><span class="sw" style="background:#f0f3f6" title="inkMuted #f0f3f6"><i>#f0f3f6</i></span><span class="sw" style="background:#09b43a" title="accent #09b43a"><i>#09b43a</i></span><span class="sw" style="background:#0a0c10" title="onAccent #0a0c10"><i>#0a0c10</i></span><span class="sw" style="background:#4c525d" title="hover #4c525d"><i>#4c525d</i></span><span class="sw" style="background:#33bf5c" title="accentHover #33bf5c"><i>#33bf5c</i></span></div>
+    <footer class="src">官方 9 值 + 派生 accentHover · github-dark-high-contrast.json</footer>
+  </article></div>
+<div class="grid" style="margin-top:18px">
+  <article class="card" style="--base:#ffffff;--panel:#f8f8f8;--surface:#f8f8f8;--line:#e5e5e5;--ink:#3b3b3b;--muted:#3b3b3b;--accent:#005fb8;--on-accent:#ffffff;--hover:#e5e5e5">
+    <header class="card-head"><b>VS Code Light Modern</b><span class="note">VS Code 现役默认浅色</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="swatches"><span class="sw" style="background:#ffffff" title="base #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#f8f8f8" title="panel #f8f8f8"><i>#f8f8f8</i></span><span class="sw" style="background:#f8f8f8" title="surface #f8f8f8"><i>#f8f8f8</i></span><span class="sw" style="background:#e5e5e5" title="line #e5e5e5"><i>#e5e5e5</i></span><span class="sw" style="background:#3b3b3b" title="ink #3b3b3b"><i>#3b3b3b</i></span><span class="sw" style="background:#3b3b3b" title="inkMuted #3b3b3b"><i>#3b3b3b</i></span><span class="sw" style="background:#005fb8" title="accent #005fb8"><i>#005fb8</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#e5e5e5" title="hover #e5e5e5"><i>#e5e5e5</i></span><span class="sw" style="background:#2e7cc5" title="accentHover #2e7cc5"><i>#2e7cc5</i></span></div>
+    <footer class="src">官方 9 值 + 派生 accentHover · vs-code-light-modern.json</footer>
+  </article>
+  <article class="card" style="--base:#ffffff;--panel:#f4f4f4;--surface:#e8e8e8;--line:#d4d4d4;--ink:#000000;--muted:#737373;--accent:#000000;--on-accent:#ffffff;--hover:#e8e8e8">
+    <header class="card-head"><b>VS Code Light+</b><span class="note">VS Code 经典默认浅色</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="swatches"><span class="sw" style="background:#ffffff" title="base #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#f4f4f4" title="panel #f4f4f4"><i>#f4f4f4</i></span><span class="sw" style="background:#e8e8e8" title="surface #e8e8e8"><i>#e8e8e8</i></span><span class="sw" style="background:#d4d4d4" title="line #d4d4d4"><i>#d4d4d4</i></span><span class="sw" style="background:#000000" title="ink #000000"><i>#000000</i></span><span class="sw" style="background:#737373" title="inkMuted #737373"><i>#737373</i></span><span class="sw" style="background:#000000" title="accent #000000"><i>#000000</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#e8e8e8" title="hover #e8e8e8"><i>#e8e8e8</i></span><span class="sw" style="background:#2e2e2e" title="accentHover #2e2e2e"><i>#2e2e2e</i></span></div>
+    <footer class="src">官方 3 值 + 派生 panel, surface, inkMuted, accent, onAccent, hover, accentHover · vs-code-light.json</footer>
+  </article>
+  <article class="card" style="--base:#ffffff;--panel:#f6f8fa;--surface:#f6f8fa;--line:#d0d7de;--ink:#1f2328;--muted:#656d76;--accent:#1f883d;--on-accent:#ffffff;--hover:#ebecf0">
+    <header class="card-head"><b>GitHub Light</b><span class="note">GitHub 官方浅色默认</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="swatches"><span class="sw" style="background:#ffffff" title="base #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#f6f8fa" title="panel #f6f8fa"><i>#f6f8fa</i></span><span class="sw" style="background:#f6f8fa" title="surface #f6f8fa"><i>#f6f8fa</i></span><span class="sw" style="background:#d0d7de" title="line #d0d7de"><i>#d0d7de</i></span><span class="sw" style="background:#1f2328" title="ink #1f2328"><i>#1f2328</i></span><span class="sw" style="background:#656d76" title="inkMuted #656d76"><i>#656d76</i></span><span class="sw" style="background:#1f883d" title="accent #1f883d"><i>#1f883d</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#ebecf0" title="hover #ebecf0"><i>#ebecf0</i></span><span class="sw" style="background:#479d60" title="accentHover #479d60"><i>#479d60</i></span></div>
+    <footer class="src">官方 9 值 + 派生 accentHover · github-light-default.json</footer>
+  </article>
+  <article class="card" style="--base:#ffffff;--panel:#ffffff;--surface:#ffffff;--line:#20252c;--ink:#0e1116;--muted:#0e1116;--accent:#055d20;--on-accent:#ffffff;--hover:#acb6c0">
+    <header class="card-head"><b>GitHub Light High Contrast</b><span class="note">GitHub 官方浅色高对比</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="swatches"><span class="sw" style="background:#ffffff" title="base #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#ffffff" title="panel #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#ffffff" title="surface #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#20252c" title="line #20252c"><i>#20252c</i></span><span class="sw" style="background:#0e1116" title="ink #0e1116"><i>#0e1116</i></span><span class="sw" style="background:#0e1116" title="inkMuted #0e1116"><i>#0e1116</i></span><span class="sw" style="background:#055d20" title="accent #055d20"><i>#055d20</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#acb6c0" title="hover #acb6c0"><i>#acb6c0</i></span><span class="sw" style="background:#327a48" title="accentHover #327a48"><i>#327a48</i></span></div>
+    <footer class="src">官方 9 值 + 派生 accentHover · github-light-high-contrast.json</footer>
+  </article></div>
 </body></html>

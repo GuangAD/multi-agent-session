@@ -190,6 +190,77 @@ LIGHT_LIST = [
 DISPLAY = {'Builtin Tango Light': 'Tango Light', 'Ghostty Default Style Dark': 'Ghostty Default Dark'}
 
 
+REF = '.reference/orca-1.4.265/resources/plugins/launch'
+JSON_THEMES = [
+    (f'{REF}/stablyai.orca-vscode-default-themes/themes/vs-code-dark-modern.json', 'VS Code Dark Modern', 'VS Code 现役默认深色'),
+    (f'{REF}/stablyai.orca-vscode-default-themes/themes/vs-code-dark.json', 'VS Code Dark+', 'VS Code 经典默认深色'),
+    (f'{REF}/stablyai.orca-vscode-default-themes/themes/vs-code-light-modern.json', 'VS Code Light Modern', 'VS Code 现役默认浅色'),
+    (f'{REF}/stablyai.orca-vscode-default-themes/themes/vs-code-light.json', 'VS Code Light+', 'VS Code 经典默认浅色'),
+    (f'{REF}/stablyai.orca-github-vscode-theme/themes/github-dark-default.json', 'GitHub Dark', 'GitHub 官方深色默认'),
+    (f'{REF}/stablyai.orca-github-vscode-theme/themes/github-dark-dimmed.json', 'GitHub Dark Dimmed', 'GitHub 官方深色降饱和'),
+    (f'{REF}/stablyai.orca-github-vscode-theme/themes/github-dark-high-contrast.json', 'GitHub Dark High Contrast', 'GitHub 官方深色高对比'),
+    (f'{REF}/stablyai.orca-github-vscode-theme/themes/github-light-default.json', 'GitHub Light', 'GitHub 官方浅色默认'),
+    (f'{REF}/stablyai.orca-github-vscode-theme/themes/github-light-high-contrast.json', 'GitHub Light High Contrast', 'GitHub 官方浅色高对比'),
+]
+
+# JSON 主题的 token 映射:全官方值,不做派生;只有 hover/accentHover 在缺失时兜底
+JSON_TOKEN_MAP = {
+    'base': '--background',
+    'panel': '--sidebar',
+    'surface': '--card',
+    'line': '--border',
+    'ink': '--foreground',
+    'inkMuted': '--muted-foreground',
+    'accent': '--primary',
+    'onAccent': '--primary-foreground',
+}
+
+
+def tokens_from_json(doc):
+    """主题 JSON -> (10 token, 派生项名单)。
+
+    8 个 token 直接取官方变量;个别主题(如 VS Code Dark+/Light+)的 JSON 只给 5-6 个值,
+    缺的那几个按页面上写明的规则派生,并如实列进「派生项」,不混进「全官方值」。
+    """
+    t = doc['tokens']
+    out = {k: t[v] for k, v in JSON_TOKEN_MAP.items() if v in t}
+    is_dark = luminance(t['--background']) < 0.5
+    step = 0.10 if is_dark else 0.09
+    derived = []
+    if 'panel' not in out:
+        out['panel'] = t.get('--popover') or mix(out['base'], out['ink'], step / 2)
+        derived.append('panel')
+    if 'surface' not in out:
+        out['surface'] = t.get('--card') or t.get('--popover') or mix(out['base'], out['ink'], step)
+        derived.append('surface')
+    if 'inkMuted' not in out:
+        out['inkMuted'] = mix(out['ink'], out['base'], 0.45)
+        derived.append('inkMuted')
+    if 'accent' not in out:
+        # 没有 --primary 的主题(Dark+/Light+)用前景色作单色强调,与我们的「默认灰」同构
+        out['accent'] = out['ink']
+        derived.append('accent')
+    if 'onAccent' not in out:
+        out['onAccent'] = on_color(out['accent'])
+        derived.append('onAccent')
+    out['hover'] = t.get('--secondary') or mix(out['base'], out['ink'], step)
+    if '--secondary' not in t:
+        derived.append('hover')
+    out['accentHover'] = mix(out['accent'], out['ink'] if is_dark else out['base'], 0.18)
+    derived.append('accentHover')
+    return out, derived
+
+
+def load_json_themes():
+    themes = []
+    for path, name, note in JSON_THEMES:
+        doc = json.load(io.open(path, encoding='utf-8'))
+        tokens, derived = tokens_from_json(doc)
+        themes.append(dict(name=name, note=note, source=path, derived=derived,
+                           is_dark=doc.get('base') == 'dark', tokens=tokens))
+    return themes
+
+
 def build_entry(name, kind, note, catalog):
     if kind == 'cat':
         f = catalog[name]
@@ -210,8 +281,8 @@ def build_entry(name, kind, note, catalog):
     return p
 
 
-def card(p, is_dark):
-    t = derive(p, is_dark)
+def card(p, t):
+    """p = {name, note, src};t = 10 个 token 值"""
     swatches = ''.join(
         f'<span class="sw" style="background:{t[k]}" title="{k} {t[k]}"><i>{t[k]}</i></span>'
         for k in ('base', 'panel', 'surface', 'line', 'ink', 'inkMuted', 'accent', 'onAccent', 'hover', 'accentHover')
@@ -249,11 +320,25 @@ def card(p, is_dark):
   </article>'''
 
 
+def card_json(theme):
+    t = theme['tokens']
+    p = dict(name=theme['name'], note=theme['note'], src=theme['source'].split('themes/')[-1])
+    official = 10 - len(theme['derived'])
+    if theme['derived']:
+        label = f'官方 {official} 值 + 派生 {", ".join(theme["derived"])} · '
+    else:
+        label = '全部官方值 · '
+    return card(p, t).replace('<footer class="src">', f'<footer class="src">{label}')
+
+
 def main():
     catalog = parse_catalog()
     dark = [build_entry(n, k, note, catalog) for n, k, note in DARK_LIST]
     light = [build_entry(n, k, note, catalog) for n, k, note in LIGHT_LIST]
     assert len(dark) == 20 and len(light) == 20, (len(dark), len(light))
+    json_themes = load_json_themes()
+    json_dark = [t for t in json_themes if t['is_dark']]
+    json_light = [t for t in json_themes if not t['is_dark']]
 
     html = f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
@@ -313,9 +398,16 @@ def main():
   Gruvbox 家族「强调色上的文字」约 4.5(临界,正文不受影响)。
 </p>
 <h2>深色 20 套</h2>
-<div class="grid">{''.join(card(p, True) for p in dark)}</div>
+<div class="grid">{''.join(card(p, derive(p, True)) for p in dark)}</div>
 <h2>浅色 20 套</h2>
-<div class="grid">{''.join(card(p, False) for p in light)}</div>
+<div class="grid">{''.join(card(p, derive(p, False)) for p in light)}</div>
+<h2>VS Code / GitHub 官方主题（9 套 · token 取官方变量，派生项逐卡标注）</h2>
+<p class="meta">这 10 套来自 <code>.reference/.../stablyai.orca-vscode-default-themes</code> 与 <code>stablyai.orca-github-vscode-theme</code> 的规范化 JSON:
+<code>base←--background</code>、<code>panel←--sidebar</code>、<code>surface←--card</code>、<code>line←--border</code>、<code>ink←--foreground</code>、<code>inkMuted←--muted-foreground</code>、<code>accent←--primary</code>、<code>onAccent←--primary-foreground</code>、<code>hover←--secondary</code>;
+<br>诚实标注:7 套是「官方 9 值 + 仅 <code>accentHover</code> 派生」(强调色向 ink/base 混合 18%);
+<b>VS Code Dark+ / Light+ 的 JSON 只给了 background / border / foreground 三项</b>,其余 7 项按本页规则派生,卡片底下已列出派生项——它们的观感不等同于真正的 Dark+/Light+。</p>
+<div class="grid">{''.join(card_json(t) for t in json_dark)}</div>
+<div class="grid" style="margin-top:18px">{''.join(card_json(t) for t in json_light)}</div>
 </body></html>'''
     io.open(OUT, 'w', encoding='utf-8', newline='\n').write(html)
     print('written', OUT, len(html), 'bytes')
