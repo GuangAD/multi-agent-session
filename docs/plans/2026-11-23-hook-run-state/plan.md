@@ -1,6 +1,6 @@
 # Hook 驱动的运行状态识别 · 切片
 
-> 2026-11-23 | 状态:T1–T4 完成(2026-11-24 随 0d8289fb 入库);T5 剩实机冒烟(验项 H1–H5 已转 TODO.md 跟踪,正典清单在 docs/pending-verification.md 四),过即门 3
+> 2026-11-23 | 状态:T1–T4 完成(2026-11-24 随 0d8289fb 入库);T5 剩实机冒烟(验项 H1–H5 已并入 TODO.md 跟踪),过即门 3
 
 ## 任务
 
@@ -27,7 +27,7 @@ T1 → T2 → T3 → T4 → T5,严格串行(引擎接缝是全部后续的地基
 ## 遗留项
 
 - claude `Notification` 事件覆盖面实机校准(可能从 waiting 槽收窄)→ T5
-- codex / kimi / antigravity 本机未装:注入、事件、env 继承、信任门槛全部装后复核 → pending-verification.md(T5 挂)
+- codex / kimi / antigravity 本机未装:注入、事件、env 继承、信任门槛全部装后复核 → TODO.md「装后复核」节(2026-11-25 起,pending-verification 已并入 TODO)
 - 显式移除的 UI 入口位置(授权项)→ seam 与 IPC 在 T3 落全,入口随实现按现有 UI 惯例定,冒烟可用 store/IPC 直调代替
 - Bug 3(fit 可见性守卫)已由主题特性终审 P1-2 修复(2026-11-24:openTerminal 首帧隐藏守卫 + readyFired 补发;冒烟项 R26 通过),不在本特性
 
