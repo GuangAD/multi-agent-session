@@ -1,5 +1,5 @@
 // xterm 生命周期容器:每会话一个常驻实例(Map),tab 切换仅切可见性,tab 关闭才 dispose
-// (契约:容器持 Map;数据经 bridge 事件按 sessionId 分发直灌实例,不进 React state)
+// (契约:容器持 Map;数据经 bridge 事件入写入调度器统一队列,双闸调度喂入实例,不进 React state)
 // + 滚轮处理(ADR-0004 修订 + T3.5 评审增量):经 xterm 官方钩子 attachCustomWheelEventHandler
 //   挂单 handler 四分支(Shift 本地滚 / mouse mode 放大重放 / alt buffer 非 mouse 转翻页键 / xterm 默认)
 // + 窗口跟随:每终端 ResizeObserver 观察容器 + RAF 稳定帧收敛
@@ -8,6 +8,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 // Fix-B 右侧空白治理:提案 = 盒子的纯函数(device/dpr cell 尺寸,与当前列数解耦),见 stable-cell-fit-addon.ts
 import { StableCellFitAddon } from './stable-cell-fit-addon'
+import { createWriteScheduler } from './terminal-write-scheduler'
 import { activateRgiUnicodeProvider } from './terminal-unicode-provider'
 import { resolveTerminalAppearance } from '../../../../shared/themes/resolve'
 import { bridge } from '../../ipc/bridge'
@@ -131,16 +132,64 @@ export function setTerminalReadyHandler(
   terminalReadyHandler = handler
 }
 
-// Why: spawn await 返回后子进程即可产出,而终端注册发生在 React 提交后的 effect 里,
-// 期间到达的 pty:data(快启动 CLI 的 banner/首帧)不能直接丢——按 sessionId 暂存,
-// openTerminal 注册时立即 flush(先到先存、注册即放);tab 关闭一并清理
-const pendingData = new Map<SessionId, string>()
+// —— 渲染层写入调度器(T4):渲染层唯一数据出口,洪峰限速 + 隐藏缓冲 ——
+// 既有 pendingData 暂存袋并入调度器队列:未注册会话默认不可见只入队(先到先存),
+// openTerminal 注册转可见后按入队序消费(注册即放),注册前后同一条路
+// 双闸参数(brief 第 5 节):每帧预算 256KB、在途上限 4MB、队列上限 4MB;单位 = 字符
+// (与主进程合并器 maxChars 同口径:UTF-16 码元数;常规块 ≤64KB,超限单块由调度器保队尾兜底)
+export const WRITE_FRAME_BUDGET_CHARS = 262_144
+export const WRITE_INFLIGHT_LIMIT_CHARS = 4_194_304
+export const WRITE_QUEUE_LIMIT_CHARS = 4_194_304
 
-// 暂存袋上限(D6):异常路径(进程输出但画布永不出现)下内存有界
-// Why: 正常路径袋子仅活几毫秒、只装几百字节启动输出,上限只约束退化路径;超限丢最旧、保最新画面
-export const PENDING_DATA_MAX_CHARS = 1_000_000
+const writeScheduler = createWriteScheduler({
+  write: (sessionId, chunk, done) => {
+    const entry = terminals.get(sessionId)
+    if (!entry) {
+      // 不可达兜底(调度器只投递可见会话,可见必已注册):不计在途直接放行,防僵尸悬挂
+      done()
+      return
+    }
+    // 真背压:xterm 解析完该块才回调 done(未回调字节数超 4MB 即停喂);释放可能解锁续泵
+    entry.terminal.write(chunk, () => {
+      done()
+      scheduleWritePump()
+    })
+  },
+  frameBudgetChars: WRITE_FRAME_BUDGET_CHARS,
+  inflightLimitChars: WRITE_INFLIGHT_LIMIT_CHARS,
+  queueLimitChars: WRITE_QUEUE_LIMIT_CHARS
+})
 
-// 单一数据泵:pty:data 事件按 sessionId 分发直灌对应实例(挂一次,页面生命周期常驻)
+// 泵帧调度:有活才排帧。enqueue / 转可见 / 在途释放三类事件都可能解锁消费,各自排一帧;
+// 帧内 pump 后无新事件即自然停帧——空闲零帧耗,持续输出时等价「常驻 RAF 每帧 pump」
+let pumpFramePending = false
+function scheduleWritePump(): void {
+  if (pumpFramePending) {
+    return
+  }
+  pumpFramePending = true
+  requestAnimationFrame(() => {
+    pumpFramePending = false
+    writeScheduler.pump()
+  })
+}
+
+// Why: 泵帧记账是模块级单例,测试环境直接清空 rAF 队列会让记账与队列脱节;
+// 与 resetAppliedAppearanceCache 同款,供用例显式重置起点(模块级单例,用例间不隐式继承)
+export function resetWritePumpLoop(): void {
+  pumpFramePending = false
+}
+
+// 可见性落闸薄导出(T4 评审发现1):TerminalView 在 active 翻 false 的失活路径调用——
+// 预览打开等不经 activateTerminal 的隐藏路径也及时停喂只缓冲;转可见可能解锁积压队列,排一帧泵
+export function setTerminalVisible(sessionId: SessionId, visible: boolean): void {
+  writeScheduler.setVisible(sessionId, visible)
+  if (visible) {
+    scheduleWritePump()
+  }
+}
+
+// 单一数据泵:pty:data 事件入统一队列(挂一次,页面生命周期常驻)
 let dataBusBound = false
 function ensureDataBus(): void {
   if (dataBusBound) {
@@ -148,17 +197,8 @@ function ensureDataBus(): void {
   }
   dataBusBound = true
   bridge.pty.onPtyData(({ sessionId, data }) => {
-    const entry = terminals.get(sessionId)
-    if (entry) {
-      entry.terminal.write(data)
-    } else {
-      // 未注册:先到先存,openTerminal 注册时立即 flush;累计超上限丢最旧,内存有界(D6)
-      const merged = (pendingData.get(sessionId) ?? '') + data
-      pendingData.set(
-        sessionId,
-        merged.length > PENDING_DATA_MAX_CHARS ? merged.slice(-PENDING_DATA_MAX_CHARS) : merged
-      )
-    }
+    writeScheduler.enqueue(sessionId, data)
+    scheduleWritePump()
   })
 }
 
@@ -318,12 +358,9 @@ export function openTerminal(
   terminals.set(sessionId, entry)
   // 窗口跟随:observer 观察容器,尺寸变化(含窗口/侧栏/面板引发的)经稳定帧循环收敛 fit
   attachTerminalFitResizeObserver(entry, container)
-  // 注册即放:注册前暂存的启动输出立即写入,先于此后到达的直灌数据
-  const pending = pendingData.get(sessionId)
-  if (pending !== undefined) {
-    pendingData.delete(sessionId)
-    terminal.write(pending)
-  }
+  // 可见性接线(T4 隐藏只缓冲):出生即按容器实况落闸——display:none 的出生隐藏终端
+  // 只入队不消费,首次 activateTerminal 转可见后渐进追平
+  setTerminalVisible(sessionId, container.style.display !== 'none')
   // 首帧布局稳定后再 fit(容器刚挂载时尺寸未定);ResizeObserver 初次回调亦会触发收敛,此处兜底
   requestAnimationFrame(() => {
     const entry = terminals.get(sessionId)
@@ -352,7 +389,7 @@ export function closeTerminal(sessionId: SessionId): void {
     entry.terminal.dispose() // 滚轮钩子随 dispose 自清,无需摘除
   }
   terminals.delete(sessionId)
-  pendingData.delete(sessionId) // 暂存随 tab 清理,防泄漏/串台到此后新开的终端
+  writeScheduler.remove(sessionId) // 队列与在途计数随 tab 清理,防泄漏/串台到此后新开的终端
 }
 
 // —— 设置接线(T5;T-R5 收成单一 settings 入参)→ 全部已开终端即时应用解析结果 ——
@@ -402,11 +439,16 @@ export function applyTerminalAppearanceToAll(settings: Settings): void {
   }
 }
 
-// tab 切换激活:display 由组件渲染控制;这里在可见后 fit(隐藏期间无尺寸)+ 聚焦
+// tab 切换激活:display 由组件渲染控制;这里落可见性闸 + 在可见后 fit(隐藏期间无尺寸)+ 聚焦
 export function activateTerminal(sessionId: SessionId): void {
   const entry = terminals.get(sessionId)
   if (!entry) {
     return
+  }
+  // 可见性接线(T4 隐藏只缓冲):激活者唯一可见,其余终端转隐藏只入队(切走即停消费);
+  // 落闸经薄导出(避免双写),转可见侧由其排一帧泵
+  for (const [id] of terminals) {
+    setTerminalVisible(id, id === sessionId)
   }
   requestAnimationFrame(() => {
     if (terminals.get(sessionId) !== entry) {

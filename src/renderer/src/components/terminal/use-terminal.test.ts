@@ -1,11 +1,20 @@
-// Fix-2 守卫:pty:data 早于 xterm 注册到达时「先到先存、注册即放」,启动输出不丢
+// Fix-2 守卫 + T4 迁移:pty:data 早于 xterm 注册到达时「先到先存、注册即放」,启动输出不丢
 // 落法:use-terminal 是渲染层模块,node 环境下对其 import 面(bridge = window.api、
-// @xterm/xterm、@xterm/addon-fit)与 rAF/ResizeObserver 全局打桩;数据泵暂存与 openTerminal
-// flush 逻辑本体不 mock,断言打在 Terminal 写入序列/fit 调用/滚轮 dispatch/bridge.pty.write
-// 调用记录上(环境桩不碰被测逻辑)
+// @xterm/xterm、@xterm/addon-fit)与 rAF/ResizeObserver 全局打桩;数据泵经写入调度器统一队列
+// (write(data, done) 桩形态,done 由测试手动放行),断言打在 Terminal 写入序列/fit 调用/
+// 滚轮 dispatch/bridge.pty.write 调用记录上(环境桩不碰被测逻辑)
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { bridge } from '../../ipc/bridge'
-import { PENDING_DATA_MAX_CHARS, applyTerminalAppearanceToAll, closeTerminal, openTerminal, resetAppliedAppearanceCache } from './use-terminal'
+import {
+  WRITE_QUEUE_LIMIT_CHARS,
+  activateTerminal,
+  applyTerminalAppearanceToAll,
+  closeTerminal,
+  openTerminal,
+  resetAppliedAppearanceCache,
+  resetWritePumpLoop,
+  setTerminalVisible
+} from './use-terminal'
 import { resolveTerminalAppearance } from '../../../../shared/themes/resolve'
 import { TERMINAL_THEMES } from '../../../../shared/themes/catalog'
 import { DEFAULT_FONT_FALLBACK_CHAIN } from '../../../../shared/themes/fonts'
@@ -41,6 +50,8 @@ const {
     const onPtyDataHandlers: Array<(event: PumpEvent) => void> = []
     const createdTerminals: Array<{
       writes: string[]
+      // T4:write(data, done) 桩形态——记录投递回调,由测试手动放行(真实 xterm 解析完才回调)
+      writeDoneCallbacks: Array<() => void>
       scrolled: number[]
       options: Record<string, unknown>
       // 运行时整包应用记录(真实 xterm = options setter 部分合并);构造期不走 setter 不进此表
@@ -131,6 +142,8 @@ vi.mock('../../ipc/bridge', () => ({
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
     writes: string[] = []
+    // T4:write(data, done) 桩形态——投递回调记录在此,由测试手动放行
+    writeDoneCallbacks: Array<() => void> = []
     scrolled: number[] = []
     buffer: {
       active: {
@@ -192,8 +205,11 @@ vi.mock('@xterm/xterm', () => ({
       this._options = options
       createdTerminals.push(this)
     }
-    write(data: string): void {
+    write(data: string, done?: () => void): void {
       this.writes.push(data)
+      if (done) {
+        this.writeDoneCallbacks.push(done)
+      }
     }
     scrollLines(amount: number): void {
       this.scrolled.push(amount)
@@ -219,6 +235,11 @@ vi.mock('@xterm/xterm', () => ({
     }
     open(_container: HTMLElement): void {}
     loadAddon(_addon: unknown): void {}
+    // T4 可见性接线用例经 activateTerminal 的 RAF 触达:焦点调用桩化(记录调用备断言)
+    focusCalls = 0
+    focus(): void {
+      this.focusCalls += 1
+    }
     onData(_listener: (data: string) => void): { dispose: () => void } {
       return { dispose: () => undefined }
     }
@@ -334,6 +355,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   rafState.queue = [] // 帧队列逐测试隔离,防上一用例的循环帧泄漏
+  resetWritePumpLoop() // 泵帧记账与被清空的帧队列同步(调度器消费循环的显式起点)
   vi.mocked(bridge.pty.write).mockClear() // PTY 写入记录逐测试隔离:翻页键守卫只看本用例的 write
 })
 
@@ -347,6 +369,17 @@ function flushAnimationFrame(): void {
   rafState.queue = []
   for (const frame of pending) {
     frame.cb(0)
+  }
+}
+
+// 排空调度器(T4):逐帧 pump,每帧后手动放行 write 回调(真实 xterm 解析完才回调,桩由
+// 测试放行),直到无待决帧——大量积压数据受帧预算约束需多帧消费,助手代劳逐帧推进
+function drainScheduler(terminal: (typeof createdTerminals)[number]): void {
+  for (let guard = 0; rafState.queue.length > 0 && guard < 1000; guard += 1) {
+    flushAnimationFrame()
+    for (const done of terminal.writeDoneCallbacks.splice(0)) {
+      done()
+    }
   }
 }
 
@@ -427,60 +460,123 @@ describe('use-terminal 复制/中断键位(Windows Terminal 惯例)', () => {
   })
 })
 
-describe('use-terminal 数据泵(Fix-2 守卫)', () => {
-  it('先到先存、注册即放:未注册 id 的 pty:data 不丢,flush 进写入序列首部,之后正常直灌', () => {
+describe('use-terminal 数据泵(Fix-2 守卫 + T4 调度器迁移)', () => {
+  it('T4 用例6 先到先存、注册即放:未注册 id 的 pty:data 入队不丢,openTerminal 后按入队序落写入序列首部,之后照常消费', () => {
     // 先开再关一个引导终端:确保数据泵已挂(dataBusBound 幂等),拿到泵回调
     openTerminal('s-boot', 10000, makeSettings(), makeContainerStub())
     closeTerminal('s-boot')
     const pump = onPtyDataHandlers[0]
     expect(pump, '数据泵应随首次 openTerminal 挂上').toBeDefined()
 
-    // spawn 与注册之间的丢失窗口:数据先到,id 尚未注册
+    // spawn 与注册之间的丢失窗口:数据先到,id 尚未注册(默认不可见,只入队)
     pump!({ sessionId: 's-early', data: 'BANNER-1' })
     pump!({ sessionId: 's-early', data: 'BANNER-2' })
 
     openTerminal('s-early', 10000, makeSettings(), makeContainerStub())
     const terminal = createdTerminals.at(-1)!
-    // flush 内容完整出现在写入序列首部
+    // 注册即放(T4):注册转可见,下一帧泵按入队序消费;断言与迁移前一致(内容/顺序不变)
+    flushAnimationFrame()
     expect(terminal.writes.join('')).toBe('BANNER-1BANNER-2')
 
-    // 注册后的数据恢复直灌,顺序接在 flush 之后
+    // 注册后的数据照常消费,顺序接在 flush 之后
     pump!({ sessionId: 's-early', data: 'LIVE' })
+    flushAnimationFrame()
     expect(terminal.writes.join('')).toBe('BANNER-1BANNER-2LIVE')
 
     closeTerminal('s-early')
   })
 
-  // D6 守卫:暂存袋上限——异常路径(进程输出但画布永不出现)下内存有界,超限丢最旧
-  it('pendingData 上限:累计超上限丢最旧,flush 只含最新上限内内容', () => {
+  // 上限守卫(原 D6 暂存袋 → T4 队列上限迁移):进程输出但画布永不出现的退化路径内存有界,
+  // 超限丢最旧、保最新画面;调度器内部的丢最旧规则已在其函数级测试穷尽,此处验证接线后的总量
+  it('队列上限:累计超 4MB 丢最旧,注册后只消费上限内最新内容', () => {
     openTerminal('s-boot', 10000, makeSettings(), makeContainerStub())
     closeTerminal('s-boot')
     const pump = onPtyDataHandlers[0]!
-    const chunk = 'x'.repeat(600_000) // 三袋 180 万字符 > 上限 100 万
-    pump({ sessionId: 's-cap', data: chunk })
-    pump({ sessionId: 's-cap', data: chunk })
-    pump({ sessionId: 's-cap', data: chunk })
+    // 三块各 200 万字符 = 600 万 > 队列上限 4,194,304(WRITE_QUEUE_LIMIT_CHARS)→ 丢最旧一块
+    const chunk = (marker: string): string => marker + 'x'.repeat(2_000_000 - marker.length)
+    pump({ sessionId: 's-cap', data: chunk('MARK-1-') })
+    pump({ sessionId: 's-cap', data: chunk('MARK-2-') })
+    pump({ sessionId: 's-cap', data: chunk('MARK-3-') })
     openTerminal('s-cap', 10000, makeSettings(), makeContainerStub())
     const terminal = createdTerminals.at(-1)!
+    drainScheduler(terminal)
     const flushed = terminal.writes.join('')
-    expect(flushed.length).toBe(PENDING_DATA_MAX_CHARS) // 丢最旧:只剩最新 100 万字符
+    // 丢最旧:只剩最新两块,总量恰 400 万字符且收敛在上限内
+    expect(flushed.length).toBe(4_000_000)
+    expect(flushed.length).toBeLessThanOrEqual(WRITE_QUEUE_LIMIT_CHARS)
+    expect(flushed.startsWith('MARK-2-'), '队首块被丢,留存自第二块起').toBe(true)
+    expect(flushed.includes('MARK-1-'), '被丢的队首不再出现').toBe(false)
+    expect(flushed.includes('MARK-3-'), '队尾块完整保留').toBe(true)
     closeTerminal('s-cap')
   })
 
-  it('tab 关闭清理 pending:关闭前暂存的未注册数据不得串到此后新开的终端', () => {
+  it('tab 关闭清理队列(T4 用例9):关闭前暂存随 close 清空不串台;关闭后到达的数据入队不消费', () => {
     // 引导终端:数据泵随首次 openTerminal 挂一次(幂等)。自带引导,不依赖上一用例先跑过——
     // Why: 用例顺序独立才可靠,否则 shuffle/单用例过滤时 onPtyDataHandlers 为空(pump 是 undefined)
     openTerminal('s-boot', 10000, makeSettings(), makeContainerStub())
     closeTerminal('s-boot')
     const pump = onPtyDataHandlers[0]!
     expect(pump, '数据泵应随首次 openTerminal 挂上').toBeDefined()
+
+    // 关闭前暂存的数据:closeTerminal 的 remove 连队列一并清空,不得串到此后新开的终端
     pump({ sessionId: 's-stale', data: 'STALE-OUT' })
     closeTerminal('s-stale') // 未注册过的 id 也走清理路径
-
     openTerminal('s-stale', 10000, makeSettings(), makeContainerStub())
-    const terminal = createdTerminals.at(-1)!
+    let terminal = createdTerminals.at(-1)!
+    flushAnimationFrame()
     expect(terminal.writes.join('')).toBe('')
     closeTerminal('s-stale')
+
+    // 关闭后到达的数据(T4 用例9):remove 后再入队不消费——与任何未注册会话同一条路,
+    // 挂在自身队列上有界存放(无泄漏);既有的 pendingData 旁路在重开时同样会 flush 此类数据,
+    // 对外行为兼容(spec「数据泵对外行为兼容」),故重开后按注册即放消费,这里只断言关闭期不消费
+    pump({ sessionId: 's-stale', data: 'LATE-DATA' })
+    openTerminal('s-stale', 10000, makeSettings(), makeContainerStub())
+    terminal = createdTerminals.at(-1)!
+    flushAnimationFrame()
+    expect(terminal.writes.join(''), '与既有暂存袋行为一致:重开(注册)即放').toBe('LATE-DATA')
+    closeTerminal('s-stale')
+  })
+
+  it('T4 接线·可见性切换:切走标签的会话只入队不消费,activateTerminal 切回后一帧消费积压', () => {
+    const a = openSettledTerminal('s-vis-a')
+    openSettledTerminal('s-vis-b')
+    activateTerminal('s-vis-b') // 激活 B:B 唯一可见,A 转隐藏只缓冲
+    flushAnimationFrame()
+
+    const pump = onPtyDataHandlers[0]!
+    pump({ sessionId: 's-vis-a', data: 'BG-DATA' })
+    flushAnimationFrame()
+    expect(a.terminal.writes.join(''), '隐藏会话:零喂入').toBe('')
+
+    activateTerminal('s-vis-a') // 切回 A:转可见解锁积压
+    flushAnimationFrame()
+    expect(a.terminal.writes.join(''), '切回后一帧内渐进消费').toBe('BG-DATA')
+
+    closeTerminal('s-vis-a')
+    closeTerminal('s-vis-b')
+  })
+
+  it('T4 评审发现1·预览失活路径:active 翻 false(不经 activateTerminal)落闸只缓冲,重新激活消费恢复', () => {
+    // 场景:预览打开把全部 active 置 false,TerminalView 激活 effect 的 if (active) 对任何
+    // 终端都不触发——原激活终端旗标滞留 true,隐藏 xterm 持续被喂入(评审 Important)
+    const a = openSettledTerminal('s-preview')
+    activateTerminal('s-preview')
+    flushAnimationFrame()
+
+    // 失活分支(TerminalView active→false):不经 activateTerminal 的隐藏路径也必须停喂
+    setTerminalVisible('s-preview', false)
+    const pump = onPtyDataHandlers[0]!
+    pump({ sessionId: 's-preview', data: 'PREVIEW-BG' })
+    flushAnimationFrame()
+    expect(a.terminal.writes.join(''), '失活(预览隐藏)终端:零喂入只缓冲').toBe('')
+
+    // 关预览重新激活:转可见解锁积压,消费恢复
+    activateTerminal('s-preview')
+    flushAnimationFrame()
+    expect(a.terminal.writes.join(''), '重新激活后消费恢复').toBe('PREVIEW-BG')
+
+    closeTerminal('s-preview')
   })
 })
 

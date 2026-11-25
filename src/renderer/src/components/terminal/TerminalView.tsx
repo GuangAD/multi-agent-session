@@ -3,7 +3,7 @@
 // applyTerminalAppearanceToAll 统一应用——本组件不重建实例(重建即丢画面)。
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '../../store/app-store'
-import { activateTerminal, closeTerminal, openTerminal } from './use-terminal'
+import { activateTerminal, closeTerminal, openTerminal, setTerminalVisible } from './use-terminal'
 import type { SessionId } from '../../../../shared/types'
 
 export function TerminalView({
@@ -33,10 +33,13 @@ export function TerminalView({
     return () => closeTerminal(sessionId)
   }, [sessionId, scrollback])
 
-  // 激活切换:可见后 fit(隐藏期间无尺寸)+ 聚焦
+  // 激活切换:可见后 fit(隐藏期间无尺寸)+ 聚焦;失活落闸停喂(T4 评审发现1)——
+  // 预览打开把全部 active 置 false 时不经 activateTerminal,必须在此显式只缓冲
   useEffect(() => {
     if (active) {
       activateTerminal(sessionId)
+    } else {
+      setTerminalVisible(sessionId, false)
     }
   }, [sessionId, active])
 
