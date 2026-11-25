@@ -121,3 +121,54 @@ it('platform 注入 linux:POSIX 分支按裸名命中无扩展名文件(守卫:�
     await rm(bin, { recursive: true, force: true })
   }
 })
+
+// ============ D7:PATH 未命中的安装位兜底(homeDir 注入,真实落文件) ============
+it('PATH 未命中:兜底目录(homeDir/.local/bin)命中,返回绝对路径', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'agent-sessions-cmdpath-home-'))
+  try {
+    const fallbackBin = join(home, '.local', 'bin')
+    await mkdir(fallbackBin, { recursive: true })
+    await writeFile(join(fallbackBin, 'fallback-agent.cmd'), '@echo off\r\n', 'utf8')
+    // pathEnv 指向空目录(PATH 主循环必 miss);未注入 homeDir 的旧用例不受影响
+    const result = await resolveCommandPath('fallback-agent', {
+      pathEnv: emptyCwd,
+      cwd: emptyCwd,
+      homeDir: home
+    })
+    await expectHit(result, fallbackBin, 'fallback-agent.cmd')
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+it('PATH 与兜底均未命中:返回 null', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'agent-sessions-cmdpath-home2-'))
+  try {
+    const result = await resolveCommandPath('never-installed-agent', {
+      pathEnv: emptyCwd,
+      cwd: emptyCwd,
+      homeDir: home
+    })
+    expect(result).toBeNull()
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+it('带分隔符的命令不走兜底:路径不存在即 null,不回退到兜底目录的同名文件', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'agent-sessions-cmdpath-home3-'))
+  try {
+    const fallbackBin = join(home, '.local', 'bin')
+    await mkdir(fallbackBin, { recursive: true })
+    await writeFile(join(fallbackBin, 'sep-cmd.cmd'), '@echo off\r\n', 'utf8')
+    // 命令自带分隔符且指向不存在的位置;若兜底误触发会命中 home/.local/bin/sep-cmd.cmd
+    const result = await resolveCommandPath(join(root, 'elsewhere', 'sep-cmd.cmd'), {
+      pathEnv: emptyCwd,
+      cwd: emptyCwd,
+      homeDir: home
+    })
+    expect(result).toBeNull()
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})

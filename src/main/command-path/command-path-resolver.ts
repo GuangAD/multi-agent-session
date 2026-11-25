@@ -12,8 +12,10 @@
 // 4) 目录读取与 stat 均为异步(原件即异步),故返回 Promise<string | null>;契约伪代码的
 //    同步记法以此为准(测试与消费方均 await)。
 import { access, constants as fsConstants, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import path from 'node:path'
 import { readDetectionDirectory, directoryNameKey } from './command-path-directory'
+import { getCliInstallDirs } from './cli-install-dirs'
 import { getExecutableNames } from './node-cli-command-resolution'
 
 export interface ResolveCommandPathOptions {
@@ -28,6 +30,8 @@ export interface ResolveCommandPathOptions {
   platform?: NodeJS.Platform
   /** 仅 win32「先搜当前目录」规则使用;缺省 process.cwd()。 */
   cwd?: string
+  /** PATH 未命中后的安装位兜底(D7)以该 home 推导目录;缺省 os.homedir()。测试注入 tmpdir。 */
+  homeDir?: string
 }
 
 // Windows 环境变量键不区分大小写,而这个 Record 区分(原件同款)。
@@ -142,6 +146,25 @@ export async function resolveCommandPath(
       seen.add(candidateKey)
       if (await isExecutableFile(candidate, isWin)) {
         return candidate
+      }
+    }
+  }
+  // PATH 未命中走常见安装位兜底(D7):仅裸名命令(带分隔符的路径用户自给,原件同款不兜底)。
+  // 兜底目录数量少(≤8),逐目录逐扩展名 stat 即可,不用 PATH 主循环的折叠清单优化。
+  if (!hasPathSeparator) {
+    const homePath = options.homeDir ?? homedir()
+    for (const dir of getCliInstallDirs(options.platform ?? process.platform, homePath)) {
+      for (const ext of extensions) {
+        const wanted = command + ext
+        const candidate = path.posix.join(dir, wanted)
+        const candidateKey = isWin ? candidate.toLowerCase() : candidate
+        if (!isAbsolute(candidate) || seen.has(candidateKey)) {
+          continue
+        }
+        seen.add(candidateKey)
+        if (await isExecutableFile(candidate, isWin)) {
+          return candidate
+        }
       }
     }
   }

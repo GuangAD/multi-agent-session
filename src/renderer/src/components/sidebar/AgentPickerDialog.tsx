@@ -42,10 +42,16 @@ function AgentPickerPanel({
   const closeAgentDialog = useAppStore((state) => state.closeAgentDialog)
   const openSession = useAppStore((state) => state.openSession)
   const importSessions = useAppStore((state) => state.importSessions)
-  // agent 清单来自 store 载荷(T2:App 启动 loadAgents 装载,弹窗不自己拉)
+  const loadAgents = useAppStore((state) => state.loadAgents)
   const agents = useAppStore((state) => state.agents)
   const [running, setRunning] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  // 打开即重扫(D7):安装检测由主进程 agents:list 现查(含 install-dir 兜底),新装 agent
+  // 重开弹窗即可见,无需重启应用;侧栏徽标 store(agents-slice)随 loadAgents 一并刷新。
+  // loadAgents 自吞失败(保持现有清单),静默降级语义不变(T2 口径自此更新:弹窗打开时拉取)。
+  useEffect(() => {
+    void loadAgents()
+  }, [loadAgents])
 
   // Esc 关闭(导入运行中除外);弹窗自身监听,App 快捷键处理只拦带修饰键的组合,互不干扰
   useEffect(() => {
