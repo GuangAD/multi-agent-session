@@ -97,6 +97,22 @@ EXTERNAL = {
                       src='rose-pine/neovim palette.lua'),
     'Rosé Pine Moon': dict(bg='#232136', fg='#e0def4', muted='#908caa', accent='#c4a7e7',
                            src='rose-pine/neovim palette.lua'),
+    'Cobalt2': dict(bg='#122637', fg='#ffffff', muted='#545454', accent='#f0cb09',
+                    src='alacritty-theme Cobalt2.toml'),
+    'Ayu Mirage': dict(bg='#1f2430', fg='#cbccc6', muted='#686868', accent='#60b8d6',
+                       src='alacritty-theme ayu_mirage.toml'),
+    'Carbonfox': dict(bg='#161616', fg='#f2f4f8', muted='#b6b8bb', accent='#33b1ff',
+                      src='alacritty-theme carbonfox.toml'),
+    'Flexoki Dark': dict(bg='#100F0F', fg='#CECDC3', muted='#878580', accent='#D14D41',
+                         src='kepano/flexoki README(base-900/base-300/red-400)'),
+    'Alabaster': dict(bg='#F7F7F7', fg='#434343', muted='#777777', accent='#325CC0',
+                      src='alacritty-theme alabaster.toml'),
+    'Ashes Light': dict(bg='#f3f4f5', fg='#565e65', muted='#747c84', accent='#ae95c7',
+                        src='alacritty-theme ashes_light.toml'),
+    'Tomorrow': dict(bg='#ffffff', fg='#4d4d4c', muted='#8e908c', accent='#4271ae',
+                     src='alacritty-theme tomorrow.toml'),
+    'Flexoki Light': dict(bg='#FFFCF0', fg='#100F0F', muted='#6F6E69', accent='#205EA6',
+                          src='kepano/flexoki README(paper/black/blue-600)'),
     'Rosé Pine Dawn': dict(bg='#faf4ed', fg='#464261', muted='#9893a5', accent='#907aa9',
                            src='rose-pine/neovim palette.lua'),
     'Kanagawa Wave': dict(bg='#1F1F28', fg='#DCD7BA', muted='#727169', accent='#7E9CD8',
@@ -160,6 +176,18 @@ DARK_LIST = [
     ('Nord', 'ext', '极地冷灰蓝'),
     ('Dracula', 'ext', '高饱和紫'),
     ('One Dark', 'cat', 'Atom 经典深色'),
+    ('Night Owl', 'cat', '深夜蓝黑 + 高饱和强调'),
+    ('Horizon Dark', 'cat', '地平线暖紫深色'),
+    ('Material Dark', 'cat', 'Material 深色'),
+    ('Ayu Dark', 'cat', 'Ayu 原生深色'),
+    ('Tango Dark', 'cat', '偏黄的传统终端深色'),
+    ('Ghostty Default Style Dark', 'cat', '终端默认深色(基准观感)'),
+    ('Cobalt2', 'ext', 'Sublime 经典钴蓝 + 亮黄'),
+    ('Ayu Mirage', 'ext', 'Ayu 中间明度深色'),
+    ('Carbonfox', 'ext', 'IBM Carbon 风格,冷灰蓝'),
+    ('Selenized Dark', 'ext', '青蓝底 + 高辨识强调'),
+    ('Selenized Black', 'ext', '纯灰阶底 + 高辨识强调'),
+    ('Flexoki Dark', 'ext', '墨黑底 + 赤陶强调'),
 ]
 
 LIGHT_LIST = [
@@ -183,6 +211,10 @@ LIGHT_LIST = [
     ('Dawnfox', 'ext', '暖粉白底 + 灰蓝'),
     ('PaperColor Light', 'ext', '灰底 + 青蓝'),
     ('Ayu Light', 'ext', '近纯白 + 天蓝'),
+    ('Alabaster', 'ext', '近白灰底 + 纯正蓝(高可读)'),
+    ('Ashes Light', 'ext', '冷灰底 + 灰紫强调'),
+    ('Tomorrow', 'ext', '纯白底 + 经典 Tomorrow 蓝'),
+    ('Flexoki Light', 'ext', '纸白底 + 墨黑正文'),
 ]
 
 
@@ -335,14 +367,14 @@ def main():
     catalog = parse_catalog()
     dark = [build_entry(n, k, note, catalog) for n, k, note in DARK_LIST]
     light = [build_entry(n, k, note, catalog) for n, k, note in LIGHT_LIST]
-    assert len(dark) == 20 and len(light) == 20, (len(dark), len(light))
+    assert len(dark) >= 20 and len(light) >= 20, (len(dark), len(light))
     json_themes = load_json_themes()
     json_dark = [t for t in json_themes if t['is_dark']]
     json_light = [t for t in json_themes if not t['is_dark']]
 
     html = f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
-<title>主题候选预览 · 深色 20 / 浅色 20</title>
+<title>主题候选预览</title>
 <style>
   :root {{ color-scheme: dark; }}
   body {{ margin:0; padding:24px 28px 64px; background:#0f1013; color:#e6e6e9;
@@ -386,7 +418,7 @@ def main():
            color:#6f6f7a; }}
   .src {{ padding:8px 12px 10px; color:#666672; font-size:11px; }}
 </style></head><body>
-<h1>主题候选预览 · 深色 20 / 浅色 20</h1>
+<h1>主题候选预览 · 深色 {len(dark)} · 浅色 {len(light)} · 官方 {len(json_themes)}</h1>
 <p class="meta">
   每张卡里的迷你界面用的是本项目的 10 个语义 token(<code>base / panel / surface / line / ink / inkMuted / accent / onAccent / hover / accentHover</code>)。<br>
   色值来源两部分:本仓库 <code>src/shared/themes/catalog.ts</code>(移植 Orca 的终端主题,一手数据);
@@ -397,9 +429,9 @@ def main():
   <b>对比度体检</b>(正文 ink / base):多数在 6.5–14;<b>Solarized Light 4.13、Solarized Dark 4.75</b> 是这套配色本身的低对比设计,不是笔误;
   Gruvbox 家族「强调色上的文字」约 4.5(临界,正文不受影响)。
 </p>
-<h2>深色 20 套</h2>
+<h2>深色 {len(dark)} 套</h2>
 <div class="grid">{''.join(card(p, derive(p, True)) for p in dark)}</div>
-<h2>浅色 20 套</h2>
+<h2>浅色 {len(light)} 套</h2>
 <div class="grid">{''.join(card(p, derive(p, False)) for p in light)}</div>
 <h2>VS Code / GitHub 官方主题（9 套 · token 取官方变量，派生项逐卡标注）</h2>
 <p class="meta">这 10 套来自 <code>.reference/.../stablyai.orca-vscode-default-themes</code> 与 <code>stablyai.orca-github-vscode-theme</code> 的规范化 JSON:
