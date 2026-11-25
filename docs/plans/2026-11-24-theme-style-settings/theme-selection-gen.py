@@ -146,7 +146,9 @@ SELECTION = [
          path=f'{REF}/stablyai.orca-github-vscode-theme/themes/github-light-default.json',
          note='GitHub 官方浅色', accent='#000000', accent_note='主色按你的指定改为 #000000(单色强调)'),
     dict(name='Gruvbox Light (hard)', kind='cat', is_dark=False, catalog='Gruvbox Light',
-         bg='#f9f5d7', fg='#3c3836', note='Gruvbox 浅色高对比档(仓库 catalog + 官方 bg 档位)'),
+         bg='#f9f5d7', fg='#3c3836', accent='#000000',
+         accent_note='主色按你的指定改为 #000000(原为 aqua #458588)',
+         note='Gruvbox 浅色高对比档(仓库 catalog + 官方 bg 档位)'),
     dict(name='Selenized White', kind='manual', is_dark=False,
          bg='#ffffff', fg='#282828', muted='#878787', accent='#0064e4',
          panel='#ebebeb', line='#cdcdcd',
@@ -166,11 +168,6 @@ SELECTION = [
 def resolve(entry, cat):
     if entry['kind'] == 'json':
         tokens, official, derived = from_json(entry['path'])
-        if entry.get('accent'):
-            tokens['accent'] = entry['accent']
-            tokens['onAccent'] = on_color(entry['accent'])
-            tokens['accentHover'] = mix(entry['accent'], tokens['ink'] if entry['is_dark'] else tokens['base'], 0.18)
-            derived.append('accent(指定)')
         src = entry['path'].split('themes/')[-1] + f' · 官方 {official} 项'
         if derived:
             src += ' + 派生 ' + ', '.join(derived)
@@ -183,6 +180,15 @@ def resolve(entry, cat):
         tokens = derive(entry['bg'], entry['fg'], entry.get('muted'), entry['accent'], entry['is_dark'],
                         entry.get('panel'), entry.get('surface'), entry.get('line'), entry.get('hover'))
         src = entry['note'].split('(')[-1].rstrip(')') if '(' in entry['note'] else entry['note']
+
+    # 主色覆盖:不分来源统一生效(卡片上另行标注 accent_note)
+    if entry.get('accent'):
+        tokens['accent'] = entry['accent']
+        tokens['onAccent'] = on_color(entry['accent'])
+        tokens['accentHover'] = mix(entry['accent'],
+                                    tokens['ink'] if entry['is_dark'] else tokens['base'], 0.18)
+        if entry['kind'] == 'json':
+            src += ' + 主色指定'
     return tokens, src
 
 

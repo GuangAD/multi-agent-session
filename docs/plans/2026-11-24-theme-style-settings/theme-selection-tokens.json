@@ -90,10 +90,10 @@
     "line": "#d7d3ba",
     "ink": "#3c3836",
     "inkMuted": "#928374",
-    "accent": "#458588",
-    "onAccent": "#101014",
+    "accent": "#000000",
+    "onAccent": "#ffffff",
     "hover": "#e6e2c7",
-    "accentHover": "#659996"
+    "accentHover": "#2d2c27"
   },
   "Selenized White": {
     "base": "#ffffff",
