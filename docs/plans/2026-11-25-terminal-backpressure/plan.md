@@ -4,7 +4,7 @@
 
 ## 任务
 
-- [ ] **T1 xterm 补丁重放**
+- [x] **T1 xterm 补丁重放**
       交付:Orca 根级 xterm 补丁经补丁机制重放成功;类型检查与全部单测绿;实机多开切换不再出现空白与整窗冻结(NaN 防护与回调快照化生效)
       挡谁:无(单测层面;T4 的实机验收体验依赖本任务先落地,见依赖节)
 - [ ] **T2 node-pty JS 层补丁重放**
@@ -44,6 +44,7 @@
 - 回退协议登记(2026-11-25,切片期):brief 第 7.2 节接缝数量 2 → 3,增补「窗口稳定门」——T5 后台 fit 需要稳定信号才有测试落点,属需求阶段清单遗漏,不触及第 2/3/5 节方向,就地修订,门 2 一并呈报确认
 - 门 2 批准与 T7 并入(2026-11-25):用户报障「预览激活后终端内容截断/双 TUI/滚动错乱」,根因 = TerminalTabs 预览分支卸载 TerminalView(违背 ADR-0002),按 debugging 流程定位后并入 T7,执行顺序 T2 → T7;门 2 五问随 T7 一并确认
 - T8 并入(2026-11-25,门 2 后用户补充):文件预览文字样式跟随设置——原留痕 TODO.md 已移入本特性(TODO 对应条目删除);执行顺序 T7 → T8
+- **T1 完成**(2026-11-25,commit 待回填):重放零冲突;源码段标记 `hasMeasuredCellHeight` 5 处、CoreBrowserTerminal/RenderDebouncer/CompositionHelper 各段特有标记在位;产物段 sha256 变化实证;typecheck exit 0;全量 45 文件/315 用例绿与基线一致。冒烟(用户实机):标签切换无空白、无冻结、中文输入正常——**通过**;遗留观察:切回多内容标签约 1 秒等待,登记 TODO 长期观察项(T4 落地后复测)。结论(下游):① patch_hash=6f384928… 可作 T2 同类验证参照;② 冒烟对照点 = Viewport NaN 防护 / RenderDebouncer 帧内 while+finally / CompositionHelper IME 事务;③ 升级 xterm 版本须重新生成并重放补丁(brief §4 既有约束)
 - 开工前接口预检 | 通过
   - 跨任务共享接口:无——三个新接缝(合并器/调度器/稳定门)均在本任务内生产并消费;T4 → T5 仅为运行时数据承接(队列承接后台 fit 的 resize 数据),无接口签名依赖;T7 复用既有 TerminalView active/display 接缝,无新增导出
   - 接口与 spec 一致性:createPtyDataCoalescer / createWriteScheduler / createStableResizeGate / fitHiddenTerminals 四个接缝名与签名形状逐一对得上,spec 数据结构节与契约伪代码一致

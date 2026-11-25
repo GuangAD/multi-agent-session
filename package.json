@@ -60,6 +60,9 @@
     "onlyBuiltDependencies": [
       "electron",
       "node-pty"
-    ]
+    ],
+    "patchedDependencies": {
+      "@xterm/xterm@6.1.0-beta.336": "config/patches/@xterm__xterm@6.1.0-beta.336.patch"
+    }
   }
 }
