@@ -153,6 +153,13 @@ SELECTION = [
          note='纯白底 + 高辨识蓝(来源 selenized the-values.md,panel/line 用其 bg_1/bg_2)'),
     dict(name='Tango Light', kind='cat', is_dark=False, catalog='Builtin Tango Light',
          note='偏黄的传统终端浅色(仓库 catalog)'),
+    dict(name='Flexoki Light', kind='manual', is_dark=False,
+         bg='#FFFCF0', fg='#100F0F', muted='#6F6E69', accent='#205EA6',
+         panel='#F2F0E5', surface='#E6E4D9', line='#DAD8CE',
+         note='纸白底 + 墨黑正文(kepano/flexoki paper/base-50/100/150/blue-600)'),
+    dict(name='Tomorrow', kind='manual', is_dark=False,
+         bg='#ffffff', fg='#4d4d4c', muted='#8e908c', accent='#4271ae',
+         note='纯白底 + Tomorrow 蓝(alacritty-theme tomorrow)'),
 ]
 
 

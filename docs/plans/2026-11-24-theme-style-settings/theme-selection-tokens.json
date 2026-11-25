@@ -118,5 +118,29 @@
     "onAccent": "#ffffff",
     "hover": "#eaebeb",
     "accentHover": "#5981b4"
+  },
+  "Flexoki Light": {
+    "base": "#FFFCF0",
+    "panel": "#F2F0E5",
+    "surface": "#E6E4D9",
+    "line": "#DAD8CE",
+    "ink": "#100F0F",
+    "inkMuted": "#6F6E69",
+    "accent": "#205EA6",
+    "onAccent": "#ffffff",
+    "hover": "#e7e4da",
+    "accentHover": "#487ab3"
+  },
+  "Tomorrow": {
+    "base": "#ffffff",
+    "panel": "#f7f7f7",
+    "surface": "#efefef",
+    "line": "#dfdfdf",
+    "ink": "#4d4d4c",
+    "inkMuted": "#8e908c",
+    "accent": "#4271ae",
+    "onAccent": "#ffffff",
+    "hover": "#ededed",
+    "accentHover": "#648bbd"
   }
 }
