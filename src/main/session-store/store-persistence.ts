@@ -164,7 +164,21 @@ export function saveStoreAtomic(file: string, store: AppStore): Promise<void> {
     file,
     task.catch(() => undefined)
   )
+  // 链上存吞掉失败的尾随 promise:前一次保存失败不阻塞也不毒化后续,调用方仍从返回值拿到原始错误
+  const tail = task.catch(() => undefined)
+  saveQueues.set(file, tail)
+  // 队列空闲即清理(D5):条目仅存活到「本轮写完且无新保存进队」;期间若有新保存,
+  // set 已把条目换成新尾随 promise,引用比较不成立,清理让位(绝不误删活跃队列)
+  void tail.finally(() => {
+    if (saveQueues.get(file) === tail) saveQueues.delete(file)
+  })
   return task
+}
+
+// 测试可观测点:该文件是否仍有排队/在写的保存条目(D5 结案守卫)
+// Why: 「保存完成后条目清理」无法从 saveStoreAtomic 返回值观察,导出最小查询而非暴露 Map 本体
+export function hasQueuedSave(file: string): boolean {
+  return saveQueues.has(file)
 }
 
 async function writeStoreAtomically(file: string, store: AppStore): Promise<void> {

@@ -4,7 +4,7 @@ import { access, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { DEFAULT_STORE, loadStore, saveStoreAtomic } from './store-persistence'
+import { DEFAULT_STORE, hasQueuedSave, loadStore, saveStoreAtomic } from './store-persistence'
 import type { AppStore } from '../../shared/types'
 
 let dir: string
@@ -63,6 +63,15 @@ it('原子写后目录只有目标文件,无 .tmp 残留', async () => {
   expect(await readdir(dir)).toEqual(['store.json'])
 })
 
+// D5 结案守卫:保存队列条目「只增不减」的清理——写完且无新保存进队时,Map 不得留死条目
+it('保存完成后队列条目清理:Map 不留死条目', async () => {
+  await saveStoreAtomic(file, FILLED_STORE)
+  await expect(loadStore(file)).resolves.toEqual(FILLED_STORE)
+  // 让出微任务节拍:tail 的 finally 清理回调排在 await task 的 continuation 之后
+  await Promise.resolve()
+  expect(hasQueuedSave(file)).toBe(false)
+})
+
 it('半截 JSON:返回 DEFAULT_STORE,原文件改名 .corrupt-* 留存', async () => {
   const broken = '{"version":1,"projects":[{"id":"p-1"'
   await writeFile(file, broken, 'utf8')
@@ -113,6 +122,9 @@ it('并发保存:8 写者各 3 轮并发,最终为其中一次写入的完整内
   expect(contents).toContainEqual(loaded)
   // 全部 rename 消费各自的 tmp、失败路径 best-effort 清理:目录只剩目标文件
   expect(await readdir(dir)).toEqual(['store.json'])
+  // D5 守卫(并发):全部链排空后,队列条目同样不留残留(清理的引用比较不得误删/漏删)
+  await Promise.resolve()
+  expect(hasQueuedSave(file)).toBe(false)
 })
 
 // ============ 主题单槽改造 T-R1:旧字段迁移 + 新字段补默认(spec 接缝三迁移行)============
