@@ -54,6 +54,7 @@ hook 特性(`docs/plans/2026-11-23-hook-run-state/`)T5 收尾仅剩实机冒烟:
 
 要做:先移植 Orca 的 kitty 全支持面(DA1 所有权协商、图片后强制重绘、kitty 文件读取——裸挂 addon 不够),再按存档指引重新接入。
 
+
 存档与验项:`docs/terminal-image-rendering.md`(重加指引)、`docs/hook-state-test-guide.md` K2-1b。
 
 ## 四、优化与讨论(暂不排期)

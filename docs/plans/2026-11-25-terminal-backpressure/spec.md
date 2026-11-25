@@ -155,6 +155,10 @@ type WriteScheduler = {
 
 无单测接缝(组件渲染结构,项目无渲染测试基建,debugging 收尾清单登记「无正确 seam」)。覆盖 = 原始报障场景复现验证:pi 会话运行中激活预览 → 切回,画面完整无双 TUI、TUI 滚动正常、内容无截断;叠加全量套件绿(TerminalView 本体零改动,use-terminal 既有桩全绿即结构未破坏)。
 
+### T8 文件预览样式跟随设置(实机 + 全量)
+
+无单测接缝(样式接线,无逻辑分支)。文本区字体三项(fontFamily/fontSize/fontWeight)取自 `resolveTerminalAppearance`(与终端同一解析来源,不出现第二处字体解析),以 inline style 应用;`useSettings` selector 驱动重渲染,设置变更后已打开的预览即时跟随。覆盖 = 实机:改设置终端字体 → 已打开的预览即时跟随;中文与长行不破版;全量套件绿。
+
 ### T1/T2 补丁(重放验证 + 冒烟)
 
 - T1:重放零冲突、`node_modules` 内源码段含补丁标记、类型检查与全部既有单测绿(条数与基线一致)、冒烟清单逐项过
@@ -175,3 +179,4 @@ type WriteScheduler = {
 - `use-terminal.fitHiddenTerminals` -- 接缝 -- 对全部隐藏终端按假想尺寸分帧重设
 - `ipc/pty.ts` 转发接线 -- 非接缝 -- 消费合并器,不单独导出
 - `TerminalTabs.tsx` 预览共存渲染 -- 非接缝 -- 渲染结构修改(T7),无新增导出
+- `FilePreview.tsx` 样式接线 -- 非接缝 -- 消费 resolveTerminalAppearance 字体三项(T8),无新增导出
