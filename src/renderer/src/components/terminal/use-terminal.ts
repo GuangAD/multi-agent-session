@@ -136,6 +136,10 @@ export function setTerminalReadyHandler(
 // openTerminal 注册时立即 flush(先到先存、注册即放);tab 关闭一并清理
 const pendingData = new Map<SessionId, string>()
 
+// 暂存袋上限(D6):异常路径(进程输出但画布永不出现)下内存有界
+// Why: 正常路径袋子仅活几毫秒、只装几百字节启动输出,上限只约束退化路径;超限丢最旧、保最新画面
+export const PENDING_DATA_MAX_CHARS = 1_000_000
+
 // 单一数据泵:pty:data 事件按 sessionId 分发直灌对应实例(挂一次,页面生命周期常驻)
 let dataBusBound = false
 function ensureDataBus(): void {
@@ -148,8 +152,12 @@ function ensureDataBus(): void {
     if (entry) {
       entry.terminal.write(data)
     } else {
-      // 未注册:先到先存,openTerminal 注册时立即 flush
-      pendingData.set(sessionId, (pendingData.get(sessionId) ?? '') + data)
+      // 未注册:先到先存,openTerminal 注册时立即 flush;累计超上限丢最旧,内存有界(D6)
+      const merged = (pendingData.get(sessionId) ?? '') + data
+      pendingData.set(
+        sessionId,
+        merged.length > PENDING_DATA_MAX_CHARS ? merged.slice(-PENDING_DATA_MAX_CHARS) : merged
+      )
     }
   })
 }
@@ -350,8 +358,22 @@ export function closeTerminal(sessionId: SessionId): void {
 // —— 设置接线(T5;T-R5 收成单一 settings 入参)→ 全部已开终端即时应用解析结果 ——
 // 可重复调用、幂等(值来自纯函数解析输出);注册表为空时遍历空集,无副作用。
 // 出错:单终端失败不阻断其余终端,console.error 记录该终端。
+// 上次全量应用的解析指纹(D12):与本次解析完全一致即跳过重放——shell/回滚行数等无关
+// settings 字段变更、以及「值未变的重复应用」(loadSettings 初载重拉)不再触碰任何终端;
+// 外观真变时正常应用。reset 供测试定起点(模块级单例,用例间不得隐式继承缓存状态)。
+let lastAppliedAppearance: string | null = null
+
+export function resetAppliedAppearanceCache(): void {
+  lastAppliedAppearance = null
+}
+
 export function applyTerminalAppearanceToAll(settings: Settings): void {
   const appearance = resolveTerminalAppearance(settings)
+  const fingerprint = JSON.stringify(appearance)
+  if (fingerprint === lastAppliedAppearance) {
+    return
+  }
+  lastAppliedAppearance = fingerprint
   for (const [sessionId, entry] of terminals) {
     try {
       // xterm v6 无 applyOptions 方法,运行时更新唯一入口是 options setter(部分对象逐键合并,

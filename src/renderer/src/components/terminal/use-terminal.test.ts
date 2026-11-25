@@ -5,7 +5,7 @@
 // 调用记录上(环境桩不碰被测逻辑)
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { bridge } from '../../ipc/bridge'
-import { applyTerminalAppearanceToAll, closeTerminal, openTerminal } from './use-terminal'
+import { PENDING_DATA_MAX_CHARS, applyTerminalAppearanceToAll, closeTerminal, openTerminal, resetAppliedAppearanceCache } from './use-terminal'
 import { resolveTerminalAppearance } from '../../../../shared/themes/resolve'
 import { TERMINAL_THEMES } from '../../../../shared/themes/catalog'
 import { DEFAULT_FONT_FALLBACK_CHAIN } from '../../../../shared/themes/fonts'
@@ -451,6 +451,22 @@ describe('use-terminal 数据泵(Fix-2 守卫)', () => {
     closeTerminal('s-early')
   })
 
+  // D6 守卫:暂存袋上限——异常路径(进程输出但画布永不出现)下内存有界,超限丢最旧
+  it('pendingData 上限:累计超上限丢最旧,flush 只含最新上限内内容', () => {
+    openTerminal('s-boot', 10000, makeSettings(), makeContainerStub())
+    closeTerminal('s-boot')
+    const pump = onPtyDataHandlers[0]!
+    const chunk = 'x'.repeat(600_000) // 三袋 180 万字符 > 上限 100 万
+    pump({ sessionId: 's-cap', data: chunk })
+    pump({ sessionId: 's-cap', data: chunk })
+    pump({ sessionId: 's-cap', data: chunk })
+    openTerminal('s-cap', 10000, makeSettings(), makeContainerStub())
+    const terminal = createdTerminals.at(-1)!
+    const flushed = terminal.writes.join('')
+    expect(flushed.length).toBe(PENDING_DATA_MAX_CHARS) // 丢最旧:只剩最新 100 万字符
+    closeTerminal('s-cap')
+  })
+
   it('tab 关闭清理 pending:关闭前暂存的未注册数据不得串到此后新开的终端', () => {
     // 引导终端:数据泵随首次 openTerminal 挂一次(幂等)。自带引导,不依赖上一用例先跑过——
     // Why: 用例顺序独立才可靠,否则 shuffle/单用例过滤时 onPtyDataHandlers 为空(pump 是 undefined)
@@ -849,5 +865,23 @@ describe('use-terminal 滚轮四分支(T3.5:Shift 本地滚 / mouse mode 放大�
     expect(terminal.scrolled).toEqual([])
     expect(dispatched).toEqual([])
     closeTerminal('s-w3-default')
+  })
+})
+
+
+describe('use-terminal 幂等短路(D12:无关 settings 变更不重放终端)', () => {
+  it('解析结果未变的重复应用零动作,外观真变后恢复应用', () => {
+    openSettledTerminal('s-d12')
+    const terminal = createdTerminals.at(-1)!
+    const base = makeSettings()
+    resetAppliedAppearanceCache() // 明确起点:视为外观尚未应用过
+    applyTerminalAppearanceToAll(base)
+    const afterFirst = terminal.appliedOptions.length
+    expect(afterFirst, '首次应用应生效').toBeGreaterThanOrEqual(1)
+    applyTerminalAppearanceToAll(base) // 同值重放:短路,零动作
+    expect(terminal.appliedOptions.length, '同值重放不得重写终端').toBe(afterFirst)
+    applyTerminalAppearanceToAll(makeSettings({ terminalFontSize: 26 })) // 外观真变:恢复应用
+    expect(terminal.appliedOptions.length, '外观变化后应再次应用').toBe(afterFirst + 1)
+    closeTerminal('s-d12')
   })
 })
