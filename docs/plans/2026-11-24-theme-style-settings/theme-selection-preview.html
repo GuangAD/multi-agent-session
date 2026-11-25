@@ -1,0 +1,356 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>选定主题预览 · 5 深 + 5 浅</title><style>
+  :root { color-scheme: dark; }
+  body { margin:0; padding:24px 28px 64px; background:#0f1013; color:#e6e6e9;
+         font:14px/1.55 "Segoe UI","Microsoft YaHei",system-ui,sans-serif; }
+  h1 { font-size:20px; margin:0 0 6px; }
+  h2 { font-size:15px; margin:30px 0 12px; padding-bottom:6px; border-bottom:1px solid #26282f; }
+  .meta { color:#9a9aa6; font-size:13px; max-width:1100px; }
+  .meta code { background:#1b1d22; padding:1px 5px; border-radius:4px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:18px; }
+  .card { background:#15171b; border:1px solid #24262d; border-radius:10px; overflow:hidden; }
+  .card-head { display:flex; flex-direction:column; gap:2px; padding:10px 12px; }
+  .card-head b { font-size:13px; }
+  .note { color:#8b8b96; font-size:12px; }
+  .mock { background:var(--base); color:var(--ink); font-size:11px; }
+  .titlebar { display:flex; align-items:center; gap:8px; padding:5px 8px;
+              background:var(--base); border-bottom:1px solid var(--line); }
+  .dot { width:8px; height:8px; border-radius:2px; background:var(--accent); }
+  .app { font-weight:600; }
+  .actions { margin-left:auto; display:flex; gap:8px; color:var(--muted); }
+  .body { display:flex; min-height:150px; }
+  .side { width:112px; flex:none; background:var(--panel); border-right:1px solid var(--line); padding:6px; }
+  .side-title { color:var(--muted); font-size:10px; margin-bottom:4px; }
+  .row { padding:3px 5px; border-radius:4px; color:var(--ink); }
+  .row.sel { background:var(--hover); }
+  .row.muted { color:var(--muted); }
+  .main { flex:1; padding:10px; }
+  .h { font-weight:600; }
+  .p { margin:2px 0 8px; }
+  .muted { color:var(--muted); }
+  .code { margin:0 0 8px; padding:7px 8px; border-radius:5px; background:var(--surface);
+          border:1px solid var(--line); white-space:pre; font:11px/1.5 "Cascadia Mono",Consolas,monospace; }
+  .ok { color:var(--accent); font-weight:600; }
+  .dim { opacity:.65; }
+  .btns { display:flex; gap:6px; }
+  button { font:inherit; padding:3px 9px; border-radius:5px; cursor:default; }
+  .primary { background:var(--accent); color:var(--on-accent); border:1px solid transparent; }
+  .ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  .override { padding:4px 12px; font-size:11px; color:#8fb7d9; background:#12161b; }
+  .swatches { display:flex; height:26px; }
+  .sw { flex:1; }
+  .sw i { display:block; text-align:center; font-size:9px; font-style:normal; color:#6f6f7a; margin-top:2px; }
+  .src { padding:8px 12px 10px; color:#666672; font-size:11px; }
+</style></head><body>
+<h1>选定主题预览 · 深色 5 · 浅色 5</h1>
+<p class="meta">
+  你选定的 10 套。每张卡是用本项目的 10 个语义 token 渲染的迷你界面;下方色条从左到右:
+  <code>base / panel / surface / line / ink / inkMuted / accent / onAccent / hover / accentHover</code>。<br>
+  色值来源:VS Code 与 GitHub 四项取自 <code>.reference</code> 里 Orca 规范化的主题 JSON(字段一一对应);
+  Carbonfox / Selenized White 取自各自官方色值;Tango Dark / Light、Gruvbox Light (hard) 取自仓库
+  <code>src/shared/themes/catalog.ts</code>(Gruvbox 仅背景换官方 hard 档)。<br>
+  <b>两处按你的指定覆盖</b>:GitHub Dark 主色 → <code>#0078d4</code>,GitHub Light 主色 → <code>#000000</code>,卡片上已标出。
+</p>
+<h2>深色 5 套</h2><div class="grid">
+  <article class="card" style="--base:#1f1f1f;--panel:#181818;--surface:#181818;--line:#2b2b2b;--ink:#cccccc;--muted:#9d9d9d;--accent:#0078d4;--on-accent:#ffffff;--hover:#1f1f1f">
+    <header class="card-head"><b>VS Code Dark Modern</b><span class="note">VS Code 现役默认深色</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    
+    <div class="swatches"><span class="sw" style="background:#1f1f1f" title="base #1f1f1f"><i>#1f1f1f</i></span><span class="sw" style="background:#181818" title="panel #181818"><i>#181818</i></span><span class="sw" style="background:#181818" title="surface #181818"><i>#181818</i></span><span class="sw" style="background:#2b2b2b" title="line #2b2b2b"><i>#2b2b2b</i></span><span class="sw" style="background:#cccccc" title="ink #cccccc"><i>#cccccc</i></span><span class="sw" style="background:#9d9d9d" title="inkMuted #9d9d9d"><i>#9d9d9d</i></span><span class="sw" style="background:#0078d4" title="accent #0078d4"><i>#0078d4</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#1f1f1f" title="hover #1f1f1f"><i>#1f1f1f</i></span><span class="sw" style="background:#2587d3" title="accentHover #2587d3"><i>#2587d3</i></span></div>
+    <footer class="src">vs-code-dark-modern.json · 官方 9 项 + 派生 accentHover</footer>
+  </article>
+  <article class="card" style="--base:#0d1117;--panel:#010409;--surface:#010409;--line:#30363d;--ink:#e6edf3;--muted:#7d8590;--accent:#0078d4;--on-accent:#ffffff;--hover:#282e33">
+    <header class="card-head"><b>GitHub Dark</b><span class="note">GitHub 官方深色</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="override">主色按你的指定改为 #0078d4</div>
+    <div class="swatches"><span class="sw" style="background:#0d1117" title="base #0d1117"><i>#0d1117</i></span><span class="sw" style="background:#010409" title="panel #010409"><i>#010409</i></span><span class="sw" style="background:#010409" title="surface #010409"><i>#010409</i></span><span class="sw" style="background:#30363d" title="line #30363d"><i>#30363d</i></span><span class="sw" style="background:#e6edf3" title="ink #e6edf3"><i>#e6edf3</i></span><span class="sw" style="background:#7d8590" title="inkMuted #7d8590"><i>#7d8590</i></span><span class="sw" style="background:#0078d4" title="accent #0078d4"><i>#0078d4</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#282e33" title="hover #282e33"><i>#282e33</i></span><span class="sw" style="background:#298dda" title="accentHover #298dda"><i>#298dda</i></span></div>
+    <footer class="src">github-dark-default.json · 官方 9 项 + 派生 accentHover, accent(指定)</footer>
+  </article>
+  <article class="card" style="--base:#0a0c10;--panel:#010409;--surface:#010409;--line:#7a828e;--ink:#f0f3f6;--muted:#f0f3f6;--accent:#09b43a;--on-accent:#0a0c10;--hover:#4c525d">
+    <header class="card-head"><b>GitHub Dark High Contrast</b><span class="note">GitHub 官方深色高对比</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    
+    <div class="swatches"><span class="sw" style="background:#0a0c10" title="base #0a0c10"><i>#0a0c10</i></span><span class="sw" style="background:#010409" title="panel #010409"><i>#010409</i></span><span class="sw" style="background:#010409" title="surface #010409"><i>#010409</i></span><span class="sw" style="background:#7a828e" title="line #7a828e"><i>#7a828e</i></span><span class="sw" style="background:#f0f3f6" title="ink #f0f3f6"><i>#f0f3f6</i></span><span class="sw" style="background:#f0f3f6" title="inkMuted #f0f3f6"><i>#f0f3f6</i></span><span class="sw" style="background:#09b43a" title="accent #09b43a"><i>#09b43a</i></span><span class="sw" style="background:#0a0c10" title="onAccent #0a0c10"><i>#0a0c10</i></span><span class="sw" style="background:#4c525d" title="hover #4c525d"><i>#4c525d</i></span><span class="sw" style="background:#33bf5c" title="accentHover #33bf5c"><i>#33bf5c</i></span></div>
+    <footer class="src">github-dark-high-contrast.json · 官方 9 项 + 派生 accentHover</footer>
+  </article>
+  <article class="card" style="--base:#161616;--panel:#222222;--surface:#2c2c2d;--line:#424243;--ink:#f2f4f8;--muted:#b6b8bb;--accent:#33b1ff;--on-accent:#101014;--hover:#2f3030">
+    <header class="card-head"><b>Carbonfox</b><span class="note">IBM Carbon 风格,冷灰蓝(来源 alacritty-theme carbonfox)</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    
+    <div class="swatches"><span class="sw" style="background:#161616" title="base #161616"><i>#161616</i></span><span class="sw" style="background:#222222" title="panel #222222"><i>#222222</i></span><span class="sw" style="background:#2c2c2d" title="surface #2c2c2d"><i>#2c2c2d</i></span><span class="sw" style="background:#424243" title="line #424243"><i>#424243</i></span><span class="sw" style="background:#f2f4f8" title="ink #f2f4f8"><i>#f2f4f8</i></span><span class="sw" style="background:#b6b8bb" title="inkMuted #b6b8bb"><i>#b6b8bb</i></span><span class="sw" style="background:#33b1ff" title="accent #33b1ff"><i>#33b1ff</i></span><span class="sw" style="background:#101014" title="onAccent #101014"><i>#101014</i></span><span class="sw" style="background:#2f3030" title="hover #2f3030"><i>#2f3030</i></span><span class="sw" style="background:#55bdfe" title="accentHover #55bdfe"><i>#55bdfe</i></span></div>
+    <footer class="src">来源 alacritty-theme carbonfox</footer>
+  </article>
+  <article class="card" style="--base:#000000;--panel:#0c0c0b;--surface:#151615;--line:#2a2b29;--ink:#d3d7cf;--muted:#555753;--accent:#3465a4;--on-accent:#ffffff;--hover:#181918">
+    <header class="card-head"><b>Tango Dark</b><span class="note">偏黄的传统终端深色(仓库 catalog)</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    
+    <div class="swatches"><span class="sw" style="background:#000000" title="base #000000"><i>#000000</i></span><span class="sw" style="background:#0c0c0b" title="panel #0c0c0b"><i>#0c0c0b</i></span><span class="sw" style="background:#151615" title="surface #151615"><i>#151615</i></span><span class="sw" style="background:#2a2b29" title="line #2a2b29"><i>#2a2b29</i></span><span class="sw" style="background:#d3d7cf" title="ink #d3d7cf"><i>#d3d7cf</i></span><span class="sw" style="background:#555753" title="inkMuted #555753"><i>#555753</i></span><span class="sw" style="background:#3465a4" title="accent #3465a4"><i>#3465a4</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#181918" title="hover #181918"><i>#181918</i></span><span class="sw" style="background:#517aac" title="accentHover #517aac"><i>#517aac</i></span></div>
+    <footer class="src">本仓库 shared/themes/catalog.ts</footer>
+  </article></div>
+<h2>浅色 5 套</h2><div class="grid">
+  <article class="card" style="--base:#ffffff;--panel:#f4f4f4;--surface:#e8e8e8;--line:#d4d4d4;--ink:#000000;--muted:#737373;--accent:#000000;--on-accent:#ffffff;--hover:#e6e6e6">
+    <header class="card-head"><b>VS Code Light+</b><span class="note">VS Code 经典浅色</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    
+    <div class="swatches"><span class="sw" style="background:#ffffff" title="base #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#f4f4f4" title="panel #f4f4f4"><i>#f4f4f4</i></span><span class="sw" style="background:#e8e8e8" title="surface #e8e8e8"><i>#e8e8e8</i></span><span class="sw" style="background:#d4d4d4" title="line #d4d4d4"><i>#d4d4d4</i></span><span class="sw" style="background:#000000" title="ink #000000"><i>#000000</i></span><span class="sw" style="background:#737373" title="inkMuted #737373"><i>#737373</i></span><span class="sw" style="background:#000000" title="accent #000000"><i>#000000</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#e6e6e6" title="hover #e6e6e6"><i>#e6e6e6</i></span><span class="sw" style="background:#2e2e2e" title="accentHover #2e2e2e"><i>#2e2e2e</i></span></div>
+    <footer class="src">vs-code-light.json · 官方 3 项 + 派生 accent, onAccent, panel, surface, inkMuted, hover, accentHover</footer>
+  </article>
+  <article class="card" style="--base:#ffffff;--panel:#f6f8fa;--surface:#f6f8fa;--line:#d0d7de;--ink:#1f2328;--muted:#656d76;--accent:#000000;--on-accent:#ffffff;--hover:#ebecf0">
+    <header class="card-head"><b>GitHub Light</b><span class="note">GitHub 官方浅色</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    <div class="override">主色按你的指定改为 #000000(单色强调)</div>
+    <div class="swatches"><span class="sw" style="background:#ffffff" title="base #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#f6f8fa" title="panel #f6f8fa"><i>#f6f8fa</i></span><span class="sw" style="background:#f6f8fa" title="surface #f6f8fa"><i>#f6f8fa</i></span><span class="sw" style="background:#d0d7de" title="line #d0d7de"><i>#d0d7de</i></span><span class="sw" style="background:#1f2328" title="ink #1f2328"><i>#1f2328</i></span><span class="sw" style="background:#656d76" title="inkMuted #656d76"><i>#656d76</i></span><span class="sw" style="background:#000000" title="accent #000000"><i>#000000</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#ebecf0" title="hover #ebecf0"><i>#ebecf0</i></span><span class="sw" style="background:#2e2e2e" title="accentHover #2e2e2e"><i>#2e2e2e</i></span></div>
+    <footer class="src">github-light-default.json · 官方 9 项 + 派生 accentHover, accent(指定)</footer>
+  </article>
+  <article class="card" style="--base:#f9f5d7;--panel:#f0ecd0;--surface:#e8e4c9;--line:#d7d3ba;--ink:#3c3836;--muted:#928374;--accent:#458588;--on-accent:#101014;--hover:#e6e2c7">
+    <header class="card-head"><b>Gruvbox Light (hard)</b><span class="note">Gruvbox 浅色高对比档(仓库 catalog + 官方 bg 档位)</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    
+    <div class="swatches"><span class="sw" style="background:#f9f5d7" title="base #f9f5d7"><i>#f9f5d7</i></span><span class="sw" style="background:#f0ecd0" title="panel #f0ecd0"><i>#f0ecd0</i></span><span class="sw" style="background:#e8e4c9" title="surface #e8e4c9"><i>#e8e4c9</i></span><span class="sw" style="background:#d7d3ba" title="line #d7d3ba"><i>#d7d3ba</i></span><span class="sw" style="background:#3c3836" title="ink #3c3836"><i>#3c3836</i></span><span class="sw" style="background:#928374" title="inkMuted #928374"><i>#928374</i></span><span class="sw" style="background:#458588" title="accent #458588"><i>#458588</i></span><span class="sw" style="background:#101014" title="onAccent #101014"><i>#101014</i></span><span class="sw" style="background:#e6e2c7" title="hover #e6e2c7"><i>#e6e2c7</i></span><span class="sw" style="background:#659996" title="accentHover #659996"><i>#659996</i></span></div>
+    <footer class="src">本仓库 shared/themes/catalog.ts + 官方对比度档背景色</footer>
+  </article>
+  <article class="card" style="--base:#ffffff;--panel:#ebebeb;--surface:#ececec;--line:#cdcdcd;--ink:#282828;--muted:#878787;--accent:#0064e4;--on-accent:#ffffff;--hover:#eaeaea">
+    <header class="card-head"><b>Selenized White</b><span class="note">纯白底 + 高辨识蓝(来源 selenized the-values.md,panel/line 用其 bg_1/bg_2)</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    
+    <div class="swatches"><span class="sw" style="background:#ffffff" title="base #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#ebebeb" title="panel #ebebeb"><i>#ebebeb</i></span><span class="sw" style="background:#ececec" title="surface #ececec"><i>#ececec</i></span><span class="sw" style="background:#cdcdcd" title="line #cdcdcd"><i>#cdcdcd</i></span><span class="sw" style="background:#282828" title="ink #282828"><i>#282828</i></span><span class="sw" style="background:#878787" title="inkMuted #878787"><i>#878787</i></span><span class="sw" style="background:#0064e4" title="accent #0064e4"><i>#0064e4</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#eaeaea" title="hover #eaeaea"><i>#eaeaea</i></span><span class="sw" style="background:#2e80e9" title="accentHover #2e80e9"><i>#2e80e9</i></span></div>
+    <footer class="src">来源 selenized the-values.md,panel/line 用其 bg_1/bg_2</footer>
+  </article>
+  <article class="card" style="--base:#ffffff;--panel:#f6f6f6;--surface:#eceded;--line:#d9dada;--ink:#2e3434;--muted:#555753;--accent:#3465a4;--on-accent:#ffffff;--hover:#eaebeb">
+    <header class="card-head"><b>Tango Light</b><span class="note">偏黄的传统终端浅色(仓库 catalog)</span></header>
+    <div class="mock">
+      <div class="titlebar">
+        <span class="dot"></span><span class="app">Soloport</span>
+        <span class="actions"><i>文件</i><i>Git</i></span>
+      </div>
+      <div class="body">
+        <aside class="side">
+          <div class="side-title">项目</div>
+          <div class="row sel">oberYunFront...</div>
+          <div class="row">Pi</div>
+          <div class="row">优化考试组织搜索...</div>
+          <div class="row">agent-sessions</div>
+          <div class="row muted">显示更多(27)</div>
+        </aside>
+        <main class="main">
+          <div class="h">没有打开的会话</div>
+          <p class="p muted">从左栏「新建会话」选择一个 agent 开始</p>
+          <pre class="code">$ npm test
+<span class="ok">PASS</span> src/preview.test.ts
+<span class="dim">✓ 3 tests</span></pre>
+          <div class="btns"><button class="primary">主要按钮</button><button class="ghost">次要</button></div>
+        </main>
+      </div>
+    </div>
+    
+    <div class="swatches"><span class="sw" style="background:#ffffff" title="base #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#f6f6f6" title="panel #f6f6f6"><i>#f6f6f6</i></span><span class="sw" style="background:#eceded" title="surface #eceded"><i>#eceded</i></span><span class="sw" style="background:#d9dada" title="line #d9dada"><i>#d9dada</i></span><span class="sw" style="background:#2e3434" title="ink #2e3434"><i>#2e3434</i></span><span class="sw" style="background:#555753" title="inkMuted #555753"><i>#555753</i></span><span class="sw" style="background:#3465a4" title="accent #3465a4"><i>#3465a4</i></span><span class="sw" style="background:#ffffff" title="onAccent #ffffff"><i>#ffffff</i></span><span class="sw" style="background:#eaebeb" title="hover #eaebeb"><i>#eaebeb</i></span><span class="sw" style="background:#5981b4" title="accentHover #5981b4"><i>#5981b4</i></span></div>
+    <footer class="src">本仓库 shared/themes/catalog.ts</footer>
+  </article></div>
+</body></html>
