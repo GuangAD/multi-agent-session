@@ -19,7 +19,8 @@ import { Sidebar } from './components/sidebar/Sidebar'
 import { FileTreePanel } from './components/file-panel/FileTreePanel'
 import { GitPanel } from './components/git-panel/GitPanel'
 import { TerminalTabs } from './components/terminal/TerminalTabs'
-import { applyTerminalAppearanceToAll } from './components/terminal/use-terminal'
+import { applyTerminalAppearanceToAll, fitHiddenTerminals } from './components/terminal/use-terminal'
+import { createStableResizeGate } from './components/terminal/stable-resize-gate'
 import { useSettings, loadSettings } from './store/settings-slice'
 import { SettingsDialog } from './components/settings/SettingsDialog'
 import { applyAppearance } from './theme'
@@ -28,6 +29,9 @@ import { bridge } from './ipc/bridge'
 
 // 右栏可显示的面板:'files' 文件树 / 'git' Git 面板 / null 收起(默认隐藏)
 type RightPanel = 'files' | 'git' | null
+
+// 后台 fit 稳定门静默期(brief 第 5 节:200ms 量级)——窗口 resize 停止该时长才判定布局稳定
+const RESIZE_SETTLE_QUIET_MS = 200
 
 function App(): React.JSX.Element {
   const setRunState = useAppStore((state) => state.setRunState)
@@ -59,6 +63,18 @@ function App(): React.JSX.Element {
     applyAppearance(getAppTheme(settings))
     applyTerminalAppearanceToAll(settings)
   }, [settings])
+
+  // 后台 fit 触发(T5):窗口 resize 抖动经稳定门收敛,布局稳定后按假想网格分帧重设隐藏终端。
+  // Why 在 App 层:resize 是窗口级事件,重设是跨实例动作(与外观应用同层);可见终端的窗口
+  // 跟随走每终端 ResizeObserver 既有路径,这里只补隐藏终端。
+  useEffect(() => {
+    const gate = createStableResizeGate({ quietMs: RESIZE_SETTLE_QUIET_MS, onSettled: fitHiddenTerminals })
+    window.addEventListener('resize', gate.notifyResize)
+    return () => {
+      window.removeEventListener('resize', gate.notifyResize)
+      gate.reset()
+    }
+  }, [])
   const activeProject = projects.find((item) => item.id === selectedProjectId) ?? null
 
   // 启动顺序:项目与 agent 载荷并行(agents:list 与项目无关;项目一旦失败不得阻断 agent 装载——

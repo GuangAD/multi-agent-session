@@ -10,8 +10,10 @@ import {
   activateTerminal,
   applyTerminalAppearanceToAll,
   closeTerminal,
+  fitHiddenTerminals,
   openTerminal,
   resetAppliedAppearanceCache,
+  resetHiddenFitLoop,
   resetWritePumpLoop,
   setTerminalVisible
 } from './use-terminal'
@@ -84,10 +86,22 @@ const {
       // 网格现值(xterm Terminal.cols/rows 只读投影):稳定帧收敛按它与提案比对
       cols: number
       rows: number
+      // T5:resize 直接重设记录与方法(fitHiddenTerminals 的观察面;桩同步 cols/rows)
+      resizeCalls: Array<{ cols: number; rows: number }>
+      resize: (cols: number, rows: number) => void
+      // T5 假想网格参照:格子像素读数源(readTerminalStableCellSize 桩读取)
+      dimensions?: { device: { cell: { width: number; height: number } } }
       // xterm modes 投影:滚轮分支按 mouseTrackingMode 判定(xterm 默认 'none')
       modes: XtermModesStub
-      // xterm.open 后才有的根元素;桩置 null,重放测试注入 dispatchEvent 记录器
-      element: { dispatchEvent: (event: unknown) => boolean } | null
+      // xterm.open 后才有的根元素;桩置 null,重放测试注入 dispatchEvent 记录器;
+      // fitHiddenTerminals(T5)的参照读数经 parentElement/ownerDocument 注入几何桩
+      element: {
+        dispatchEvent?: (event: unknown) => boolean
+        parentElement?: unknown
+        ownerDocument?: {
+          defaultView?: { getComputedStyle: (el: unknown) => { getPropertyValue: (prop: string) => string } }
+        }
+      } | null
     }> = []
     const createdFitAddons: Array<{
       fitCalls: number
@@ -163,7 +177,17 @@ vi.mock('@xterm/xterm', () => ({
     cols = 80
     rows = 24
     modes: XtermModesStub = { mouseTrackingMode: 'none' }
-    element: { dispatchEvent: (event: unknown) => boolean } | null = null
+    element: {
+      dispatchEvent?: (event: unknown) => boolean
+      parentElement?: unknown
+      ownerDocument?: {
+        defaultView?: { getComputedStyle: (el: unknown) => { getPropertyValue: (prop: string) => string } }
+      }
+    } | null = null
+    // T5:resize 直接重设记录(真实 xterm 对同尺寸 early-return 不触发 onResize;桩同步 cols/rows)
+    resizeCalls: Array<{ cols: number; rows: number }> = []
+    // T5 假想网格参照:格子像素读数源(readTerminalStableCellSize 的环境面,桩直供 device cell)
+    dimensions?: { device: { cell: { width: number; height: number } } }
     // options 对齐真实 xterm 语义:v6 无 applyOptions 方法,运行时更新 = options setter
     // (部分对象逐键合并、对象值按引用比较)。setter 记录每次运行时应用供用例断言;
     // 构造期直赋 _options,不进 appliedOptions
@@ -214,6 +238,11 @@ vi.mock('@xterm/xterm', () => ({
     scrollLines(amount: number): void {
       this.scrolled.push(amount)
     }
+    resize(cols: number, rows: number): void {
+      this.resizeCalls.push({ cols, rows })
+      this.cols = cols
+      this.rows = rows
+    }
     // 捕获 attachCustomWheelEventHandler 挂上的 handler,供测试直接调用
     attachCustomWheelEventHandler(handler: (event: WheelEvent) => boolean): void {
       this.customWheelHandlers.push(handler)
@@ -263,6 +292,14 @@ vi.mock('./stable-cell-fit-addon', () => ({
     proposeDimensions(): ProposedDimensions | undefined {
       return this.proposed
     }
+  },
+  // T5:格子像素读数桩——device cell 直读,与真实函数同一语义面(dpr/css 回退为环境细节,
+  // 真实读数专测在 stable-cell-fit-addon.test.ts);测试经 terminal.dimensions 注入期望格子
+  readTerminalStableCellSize: (
+    terminal: { dimensions?: { device?: { cell?: { width: number; height: number } } } }
+  ): { width: number; height: number } | null => {
+    const cell = terminal.dimensions?.device?.cell
+    return cell && cell.width > 0 && cell.height > 0 ? { width: cell.width, height: cell.height } : null
   }
 }))
 
@@ -356,6 +393,7 @@ beforeAll(() => {
 beforeEach(() => {
   rafState.queue = [] // 帧队列逐测试隔离,防上一用例的循环帧泄漏
   resetWritePumpLoop() // 泵帧记账与被清空的帧队列同步(调度器消费循环的显式起点)
+  resetHiddenFitLoop() // 后台 fit 轮次记账与被清空的帧队列同步(T5,同上款理由)
   vi.mocked(bridge.pty.write).mockClear() // PTY 写入记录逐测试隔离:翻页键守卫只看本用例的 write
 })
 
@@ -979,5 +1017,204 @@ describe('use-terminal 幂等短路(D12:无关 settings 变更不重放终端)',
     applyTerminalAppearanceToAll(makeSettings({ terminalFontSize: 26 })) // 外观真变:恢复应用
     expect(terminal.appliedOptions.length, '外观变化后应再次应用').toBe(afterFirst + 1)
     closeTerminal('s-d12')
+  })
+})
+
+// —— 后台 fit(T5:fitHiddenTerminals)——
+// 参照手算基准:盒子 1000×500、格子 10×20、padding 0、scrollback 10000、scrollbar 预留 7
+// → 可用宽 = 1000 − 0 − 0 − 7 = 993 → cols = ⌊993/10⌋ = 99;可用高 = 500 → rows = ⌊500/20⌋ = 25
+const FIT_REF_BOX = { width: 1000, height: 500 }
+const FIT_REF_CELL = { width: 10, height: 20 }
+const FIT_EXPECTED_GRID = { cols: 99, rows: 25 }
+
+// 参照几何桩:fitHiddenTerminals 的读数面 = 可见终端 element 链(.xterm 的 parentElement 即
+// xterm-container,与 StableCellFitAddon.proposeDimensions 同一测量点);getComputedStyle 按
+// 元素身份分发:parentElement → 盒子宽高,element 自身 → padding(隐藏终端换算用)
+function attachSlotGeometry(
+  terminal: (typeof createdTerminals)[number],
+  box: { width: number; height: number },
+  padding = 0
+): void {
+  const parent = { role: 'slot-box' }
+  terminal.element = {
+    parentElement: parent,
+    ownerDocument: {
+      defaultView: {
+        getComputedStyle: (el: unknown) =>
+          el === parent
+            ? {
+                getPropertyValue: (prop: string): string =>
+                  prop === 'width' ? String(box.width) : prop === 'height' ? String(box.height) : ''
+              }
+            : {
+                getPropertyValue: (prop: string): string => (prop.startsWith('padding') ? String(padding) : '')
+              }
+      }
+    }
+  }
+}
+
+// 格子像素注入:readTerminalStableCellSize 桩经 dimensions.device.cell 读取
+function attachCellMetrics(terminal: (typeof createdTerminals)[number], cell: { width: number; height: number }): void {
+  terminal.dimensions = { device: { cell } }
+}
+
+// 开一个隐藏终端(display:none 出生):首帧 fit 被既有守卫跳过,帧队列清空后从零基线开始
+function openHiddenTerminal(sessionId: string): {
+  container: HTMLElement
+  fitAddon: (typeof createdFitAddons)[number]
+  terminal: (typeof createdTerminals)[number]
+} {
+  const container = makeContainerStub('none')
+  openTerminal(sessionId, 10000, makeSettings(), container)
+  flushAnimationFrame()
+  const fitAddon = createdFitAddons.at(-1)!
+  fitAddon.fitCalls = 0
+  return { container, fitAddon, terminal: createdTerminals.at(-1)! }
+}
+
+describe('use-terminal fitHiddenTerminals(T5:后台按假想网格分帧重设)', () => {
+  it('T5 用例4 只动隐藏:一可见一隐藏,触发 fit → 隐藏终端按假想网格 resize,可见终端零 resize 零 fit', () => {
+    const visible = openSettledTerminal('s-fit4-ref')
+    attachSlotGeometry(visible.terminal, FIT_REF_BOX)
+    attachCellMetrics(visible.terminal, FIT_REF_CELL)
+    const hidden = openHiddenTerminal('s-fit4-bg')
+    expect(hidden.terminal.resizeCalls.length, '基线:未触发前零重设').toBe(0)
+
+    fitHiddenTerminals()
+    flushAnimationFrame()
+    flushAnimationFrame() // 单目标一轮即排空,此帧应空转
+
+    // 期望值来源(手算):993/10 → 99 列,500/20 → 25 行(见上方手算基准)
+    expect(hidden.terminal.resizeCalls, '隐藏终端按假想网格重设').toEqual([FIT_EXPECTED_GRID])
+    expect(visible.terminal.resizeCalls, '可见终端不经此路重设').toEqual([])
+    expect(visible.fitAddon.fitCalls, '可见终端的 fit 也不被触发(窗口跟随走其自身路径)').toBe(0)
+    expect(rafState.queue.length, '排空即收敛,无残留帧').toBe(0)
+
+    closeTerminal('s-fit4-ref')
+    closeTerminal('s-fit4-bg')
+  })
+
+  it('T5 用例5 目标网格换算:参照格子 8.5×19、盒子 900×500 → resize 参数 = 假想换算值(手算 ⌊(900−7)/8.5⌋=105,⌊500/19⌋=26)', () => {
+    const visible = openSettledTerminal('s-fit5-ref')
+    attachSlotGeometry(visible.terminal, { width: 900, height: 500 })
+    attachCellMetrics(visible.terminal, { width: 8.5, height: 19 })
+    const hidden = openHiddenTerminal('s-fit5-bg')
+
+    fitHiddenTerminals()
+    flushAnimationFrame()
+
+    // 手算:scrollback=10000 → 预留 scrollbar 7;900 − 7 = 893;⌊893/8.5⌋ = 105(8.5×105=892.5);
+    // 500/19 = 26.3 → 26。分数格子的下取整证明换算走既有 terminalGridSizeForBox,不是照抄可见网格
+    expect(hidden.terminal.resizeCalls).toEqual([{ cols: 105, rows: 26 }])
+
+    closeTerminal('s-fit5-ref')
+    closeTerminal('s-fit5-bg')
+  })
+
+  it('T5 用例6 无可见参照:全部终端隐藏 → 整轮跳过零 resize;可见终端格子度量不可得同样跳过', () => {
+    // 场景 A:全场 display:none——无参照,不得拿隐藏容器实测压成最小网格(ConPTY 零尺寸陷阱)
+    const a = openHiddenTerminal('s-fit6-a')
+    const b = openHiddenTerminal('s-fit6-b')
+    fitHiddenTerminals()
+    flushAnimationFrame()
+    expect(a.terminal.resizeCalls.length, '无参照:隐藏终端零重设').toBe(0)
+    expect(b.terminal.resizeCalls.length).toBe(0)
+    expect(rafState.queue.length, '整轮跳过:不排帧').toBe(0)
+    closeTerminal('s-fit6-a')
+    closeTerminal('s-fit6-b')
+
+    // 场景 B:可见终端在,但格子像素不可得(dimensions 未就绪)→ 参照不完整,同样整轮跳过
+    const visible = openSettledTerminal('s-fit6-ref')
+    attachSlotGeometry(visible.terminal, FIT_REF_BOX) // 盒子可得,cell 不可得
+    const hidden = openHiddenTerminal('s-fit6-bg')
+    fitHiddenTerminals()
+    flushAnimationFrame()
+    expect(hidden.terminal.resizeCalls.length, 'cell 度量不可得:整轮跳过').toBe(0)
+    expect(rafState.queue.length).toBe(0)
+    closeTerminal('s-fit6-ref')
+    closeTerminal('s-fit6-bg')
+  })
+
+  it('T5 用例7 分帧:三个隐藏终端 → 单帧至多处理一个,逐帧排空;进行中重复触发被忽略', () => {
+    const visible = openSettledTerminal('s-fit7-ref')
+    attachSlotGeometry(visible.terminal, FIT_REF_BOX)
+    attachCellMetrics(visible.terminal, FIT_REF_CELL)
+    const h1 = openHiddenTerminal('s-fit7-1')
+    const h2 = openHiddenTerminal('s-fit7-2')
+    const h3 = openHiddenTerminal('s-fit7-3')
+
+    fitHiddenTerminals()
+    expect(rafState.queue.length, '只排一个待决帧,不同步全量重排').toBe(1)
+    fitHiddenTerminals() // 重入:上一轮未排空,忽略新触发
+    expect(rafState.queue.length, '可重入安全:不叠加帧').toBe(1)
+    expect(h1.terminal.resizeCalls.length, '未推进帧前零处理').toBe(0)
+
+    flushAnimationFrame()
+    expect(h1.terminal.resizeCalls, '第 1 帧:恰处理第 1 个').toEqual([FIT_EXPECTED_GRID])
+    expect(h2.terminal.resizeCalls.length).toBe(0)
+    expect(h3.terminal.resizeCalls.length).toBe(0)
+    flushAnimationFrame()
+    expect(h2.terminal.resizeCalls, '第 2 帧:恰处理第 2 个').toEqual([FIT_EXPECTED_GRID])
+    expect(h3.terminal.resizeCalls.length).toBe(0)
+    flushAnimationFrame()
+    expect(h3.terminal.resizeCalls, '第 3 帧:恰处理第 3 个').toEqual([FIT_EXPECTED_GRID])
+    expect(rafState.queue.length, '排空即收').toBe(0)
+
+    flushAnimationFrame()
+    expect(rafState.queue.length, '收敛后无残留循环').toBe(0)
+    fitHiddenTerminals() // 排空后新稳定信号:开启新一轮
+    expect(rafState.queue.length, '轮次结束后可再次触发').toBe(1)
+
+    closeTerminal('s-fit7-ref')
+    closeTerminal('s-fit7-1')
+    closeTerminal('s-fit7-2')
+    closeTerminal('s-fit7-3')
+  })
+
+  it('单终端重设失败吞掉:一个隐藏终端 resize 抛错不影响其余终端继续处理(接缝契约「出错时」)', () => {
+    const visible = openSettledTerminal('s-fit8-ref')
+    attachSlotGeometry(visible.terminal, FIT_REF_BOX)
+    attachCellMetrics(visible.terminal, FIT_REF_CELL)
+    const bad = openHiddenTerminal('s-fit8-bad')
+    bad.terminal.resize = (): void => {
+      throw new Error('terminal disposed')
+    }
+    const good = openHiddenTerminal('s-fit8-good')
+
+    fitHiddenTerminals()
+    flushAnimationFrame() // 帧 1:bad 抛错,被单点吞掉
+    flushAnimationFrame() // 帧 2:good 照常
+    expect(bad.terminal.resizeCalls.length).toBe(0)
+    expect(good.terminal.resizeCalls, '失败单点吞掉,其余终端照常重设').toEqual([FIT_EXPECTED_GRID])
+    expect(rafState.queue.length, '异常不中断轮次,队列排空').toBe(0)
+
+    closeTerminal('s-fit8-ref')
+    closeTerminal('s-fit8-bad')
+    closeTerminal('s-fit8-good')
+  })
+
+  it('轮次中关闭并重建同 id 实例:竞态守卫(引用比对)跳过该目标,新旧实例均不被 resize(评审 Minor-2)', () => {
+    const visible = openSettledTerminal('s-race-ref')
+    attachSlotGeometry(visible.terminal, FIT_REF_BOX)
+    attachCellMetrics(visible.terminal, FIT_REF_CELL)
+    const stale = openHiddenTerminal('s-race')
+
+    fitHiddenTerminals()
+    expect(rafState.queue.length, '轮次进行中:待决帧未排空').toBe(1)
+
+    // 分帧进行中关闭 + 重建同 sessionId 实例:新实例占住注册表槽位,轮次快照里的旧条目成孤儿
+    closeTerminal('s-race')
+    openTerminal('s-race', 10000, makeSettings(), makeContainerStub('none'))
+    const rebuilt = createdTerminals.at(-1)!
+    expect(rebuilt).not.toBe(stale.terminal)
+
+    flushAnimationFrame() // 处理待决 fit 帧 + 重建实例的首帧
+    expect(rebuilt.resizeCalls.length, '新实例不被本轮 resize(守卫按引用识别重建)').toBe(0)
+    expect(stale.terminal.resizeCalls.length, '旧引用(已 dispose)不再被触碰').toBe(0)
+    expect(rafState.queue.length, '单目标轮排空即收').toBe(0)
+
+    closeTerminal('s-race-ref')
+    closeTerminal('s-race')
   })
 })

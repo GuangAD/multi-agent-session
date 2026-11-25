@@ -3,11 +3,13 @@
 // + 滚轮处理(ADR-0004 修订 + T3.5 评审增量):经 xterm 官方钩子 attachCustomWheelEventHandler
 //   挂单 handler 四分支(Shift 本地滚 / mouse mode 放大重放 / alt buffer 非 mouse 转翻页键 / xterm 默认)
 // + 窗口跟随:每终端 ResizeObserver 观察容器 + RAF 稳定帧收敛
+// + 后台 fit(T5):窗口稳定门收敛后,隐藏终端按「假如可见」的假想网格分帧重设并同步 PTY
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 // Fix-B 右侧空白治理:提案 = 盒子的纯函数(device/dpr cell 尺寸,与当前列数解耦),见 stable-cell-fit-addon.ts
-import { StableCellFitAddon } from './stable-cell-fit-addon'
+import { StableCellFitAddon, readTerminalStableCellSize } from './stable-cell-fit-addon'
+import { terminalGridSizeForBox } from './terminal-grid-size-for-box'
 import { createWriteScheduler } from './terminal-write-scheduler'
 import { activateRgiUnicodeProvider } from './terminal-unicode-provider'
 import { resolveTerminalAppearance } from '../../../../shared/themes/resolve'
@@ -462,4 +464,128 @@ export function activateTerminal(sessionId: SessionId): void {
     }
     entry.terminal.focus()
   })
+}
+
+// —— 后台 fit(T5):窗口稳定后按「假如可见」的网格分帧重设隐藏终端 ——
+// 规格:docs/plans/2026-11-25-terminal-backpressure spec T5 / brief 第 5 节
+// Why: 隐藏终端(display:none)无盒,其 ResizeObserver 不触发,窗口拉宽后后台网格与 PTY
+// 网格持续过时,要等切回时 activateTerminal 补 fit 才纠正——shell 场景即宽度跳变。
+// 零尺寸陷阱(brief 失败形态):对隐藏容器实测必得 0 盒,提案落到 2×1 最小网格并被打到
+// 后台 agent——故格子像素与盒子都取可见终端作参照,对每个隐藏终端走既有
+// terminalGridSizeForBox 换算「假如可见」的目标网格,全程不经隐藏容器测量。
+type HiddenFitReference = {
+  // 参照格子像素:可见终端的 device/dpr 读数(stable-cell-fit-addon 同源)
+  cell: { width: number; height: number }
+  // 参照盒:.xterm 的 parentElement(xterm-container)计算宽高——隐藏终端假如可见即占同一
+  // 槽位(常驻实例仅 display 互斥,T7),与 StableCellFitAddon.proposeDimensions 同一测量点
+  box: { width: number; height: number }
+}
+
+// 参照读取:遍历注册表取首个度量齐备的可见终端(常态至多一个可见;多可见为防御并存)
+function readHiddenFitReference(): HiddenFitReference | null {
+  for (const entry of terminals.values()) {
+    if (entry.container.style.display === 'none') {
+      continue
+    }
+    const cell = readTerminalStableCellSize(entry.terminal)
+    const parent = entry.terminal.element?.parentElement
+    const view = entry.terminal.element?.ownerDocument.defaultView
+    if (!cell || !parent || !view) {
+      continue // 度量未就绪(初始化中):换下一个可见者
+    }
+    const style = view.getComputedStyle(parent)
+    const box = {
+      width: Number.parseInt(style.getPropertyValue('width'), 10) || 0,
+      height: Number.parseInt(style.getPropertyValue('height'), 10) || 0
+    }
+    if (box.width <= 0 || box.height <= 0) {
+      continue // 0 盒(布局未就绪):不提案,防最小网格打到 agent
+    }
+    return { cell, box }
+  }
+  return null
+}
+
+// 隐藏终端自身的盒内边距:getComputedStyle 对 display:none 元素仍返回 px 计算值
+// (.xterm 无 padding 声明,初始值即 0;非百分比不依赖布局),读法与可见路径一致
+function readTerminalElementPadding(terminal: Terminal): {
+  top: number
+  right: number
+  bottom: number
+  left: number
+} {
+  const element = terminal.element
+  const view = element?.ownerDocument.defaultView
+  if (!element || !view) {
+    return { top: 0, right: 0, bottom: 0, left: 0 }
+  }
+  const style = view.getComputedStyle(element)
+  const read = (prop: string): number => Number.parseInt(style.getPropertyValue(prop), 10) || 0
+  return {
+    top: read('padding-top'),
+    right: read('padding-right'),
+    bottom: read('padding-bottom'),
+    left: read('padding-left')
+  }
+}
+
+// 轮次记账:上一轮未排空时忽略新触发(可重入安全,稳定信号一轮足够);
+// Why 模块级单例 + reset 导出:测试环境直接清空 rAF 队列会让记账脱节(与 resetWritePumpLoop 同款)
+let hiddenFitRoundPending = false
+let hiddenFitRafId: number | null = null
+
+export function resetHiddenFitLoop(): void {
+  if (hiddenFitRafId !== null) {
+    cancelAnimationFrame(hiddenFitRafId)
+    hiddenFitRafId = null
+  }
+  hiddenFitRoundPending = false
+}
+
+// 对全部隐藏终端按假想网格分帧重设;网格变化经既有 onResize → pty:resize 链路同步 PTY
+// (真实 xterm 对同尺寸 resize 是 no-op,不变网格不产生 pty:resize——CoreBrowserTerminal.resize 早退)
+export function fitHiddenTerminals(): void {
+  if (hiddenFitRoundPending) {
+    return // 上一轮未排空:忽略新触发,等当前轮把队列消化完
+  }
+  const reference = readHiddenFitReference()
+  if (!reference) {
+    return // 无可见参照(全隐藏 / 度量未就绪):整轮静默跳过,等下一轮窗口稳定
+  }
+  const targets = Array.from(terminals.entries()).filter(
+    ([, entry]) => entry.container.style.display === 'none'
+  )
+  if (targets.length === 0) {
+    return
+  }
+  hiddenFitRoundPending = true
+  // 分帧:每帧至多处理一个终端,RAF 排空(T5 处理 4)——避免一帧内全量重排卡帧
+  let index = 0
+  const step = (): void => {
+    hiddenFitRafId = requestAnimationFrame(() => {
+      hiddenFitRafId = null
+      const target = targets[index]
+      index += 1
+      // 目标仍在注册表且未重建才动手(快速关标签/重建实例的竞态);重设失败单点吞掉不影响其余
+      if (target && terminals.get(target[0]) === target[1]) {
+        try {
+          const grid = terminalGridSizeForBox(reference.box, {
+            cell: reference.cell,
+            padding: readTerminalElementPadding(target[1].terminal),
+            scrollback: target[1].terminal.options.scrollback,
+            scrollbar: target[1].terminal.options.scrollbar
+          })
+          target[1].terminal.resize(grid.cols, grid.rows)
+        } catch {
+          // 终端已销毁等单点失败:吞掉继续(T5 失败与退出)
+        }
+      }
+      if (index < targets.length) {
+        step()
+      } else {
+        hiddenFitRoundPending = false
+      }
+    })
+  }
+  step()
 }
