@@ -28,6 +28,9 @@ interface TerminalEntry {
   container: HTMLElement
   // spawn 就绪回调是否已发:隐藏期跳过首帧 fit 时保持 false,由首次可见的 activateTerminal 补发
   readyFired: boolean
+  // WebGL 降级标记(T6):context loss 置位;activateTerminal 按标记尝试重挂一次,
+  // 重挂成功清位回 WebGL 渲染,失败保留继续用 DOM(失败终态,无退避/重试循环)
+  webglLost?: boolean
   // 窗口跟随:容器观察者与稳定帧循环的待决 RAF id(closeTerminal 时显式撤销)
   fitResizeObserver: ResizeObserver | null
   pendingFitRafId: number | null
@@ -204,6 +207,31 @@ function ensureDataBus(): void {
   })
 }
 
+// WebGL 挂载与丢失检测接线(openTerminal 初挂与 T6 激活重挂共用同一条路)。
+// Why 订阅 onContextLoss 并主动 dispose:addon 收到 webglcontextlost 只 preventDefault 并起
+// 3 秒计时器,未恢复时仅 fire 本事件、**不会自 dispose**(读 addon 0.20.0-beta.329 源码);
+// 而回退 DOM renderer 的动作在 dispose 回调里(setRenderer(_createRenderer()))。
+// 不订阅则 GPU 上下文丢失(驱动重置/远程桌面切换/休眠唤醒)后终端停在失效渲染器上白屏不恢复。
+// 丢失同时置 webglLost 降级标记(T6):下次 activateTerminal 按标记尝试重挂一次。
+// 返回是否挂载成功:loadAddon 同步抛(无 WebGL2 / 驱动拒绝)= 保持 DOM renderer,返回 false。
+function mountWebglAddon(sessionId: SessionId, terminal: Terminal): boolean {
+  try {
+    const webglAddon = new WebglAddon()
+    webglAddon.onContextLoss(() => {
+      webglAddon.dispose() // 内部 setRenderer(DOM):xterm 自动回退,画面重绘
+      const entry = terminals.get(sessionId)
+      if (entry) {
+        entry.webglLost = true // 丢失标记(T6):下次激活尝试重挂
+      }
+    })
+    terminal.loadAddon(webglAddon)
+    return true
+  } catch {
+    // 无 WebGL2 / GPU 受限环境(远程桌面等):保持 DOM renderer
+    return false
+  }
+}
+
 // tab 挂载时创建实例;重入(StrictMode 双挂载等)时已有实例则不动
 export function openTerminal(
   sessionId: SessionId,
@@ -249,21 +277,10 @@ export function openTerminal(
   // 字形,cell 宽非整数(实测 8.203px)时浏览器亚像素栅格化在格子边界抗锯齿,pi 输入框的连续
   // ─ 边框每格出一个暗点(用户实机 + dev 复现);Windows Terminal 与挂了本 addon 的 Orca 均无
   // 此现象——webgl renderer 对 box-drawing/block/powerline 走 CustomGlyphs 矢量自绘
-  // (xtermjs#2409),不依赖字体字形。getContext('webgl2') 失败会在 loadAddon 内同步 throw,
+  // (xtermjs#2409),不依赖字体字形。挂载与丢失检测接线收敛于 mountWebglAddon
+  // (T6 激活重挂同一条路);getContext('webgl2') 失败在 loadAddon 内同步 throw,
   // 接住即留在 DOM renderer,行为不劣于现状。
-  // Why 订阅 onContextLoss 并主动 dispose:addon 收到 webglcontextlost 只 preventDefault 并起
-  // 3 秒计时器,未恢复时仅 fire 本事件、**不会自 dispose**(读 addon 0.20.0-beta.329 源码);
-  // 而回退 DOM renderer 的动作在 dispose 回调里(setRenderer(_createRenderer()))。
-  // 不订阅则 GPU 上下文丢失(驱动重置/远程桌面切换/休眠唤醒)后终端停在失效渲染器上白屏不恢复。
-  try {
-    const webglAddon = new WebglAddon()
-    webglAddon.onContextLoss(() => {
-      webglAddon.dispose() // 内部 setRenderer(DOM):xterm 自动回退,画面重绘
-    })
-    terminal.loadAddon(webglAddon)
-  } catch {
-    // 无 WebGL2 / GPU 受限环境(远程桌面等):保持 DOM renderer
-  }
+  mountWebglAddon(sessionId, terminal)
   // 宽字符宽度表(2026-11-23,对齐 Orca):xterm 内置宽度表只有 Unicode 6,该表下 emoji
   // (U+2705 ✅ / U+274C ❌ 等)宽度算 1;而 agent CLI 按 Unicode 9+ 排版、emoji 算 2 格,
   // 于是含 emoji 的行少占一格、右边框整体左移一格,视觉上像框线断开(用户实机截图)。
@@ -451,6 +468,14 @@ export function activateTerminal(sessionId: SessionId): void {
   // 落闸经薄导出(避免双写),转可见侧由其排一帧泵
   for (const [id] of terminals) {
     setTerminalVisible(id, id === sessionId)
+  }
+  // WebGL 重挂(T6):丢失标记存在时本激活尝试重挂一次——成功清标记回 WebGL 渲染;
+  // 抛错(无 WebGL2 / 驱动拒绝)吞掉,标记保留继续用 DOM,fit 与聚焦照常(下一帧)。
+  // 每次激活至多尝试一次,无自动重试循环;重挂失败保持 DOM 是稳态
+  if (entry.webglLost) {
+    if (mountWebglAddon(sessionId, entry.terminal)) {
+      entry.webglLost = false
+    }
   }
   requestAnimationFrame(() => {
     if (terminals.get(sessionId) !== entry) {

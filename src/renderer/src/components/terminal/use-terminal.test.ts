@@ -102,6 +102,10 @@ const {
           defaultView?: { getComputedStyle: (el: unknown) => { getPropertyValue: (prop: string) => string } }
         }
       } | null
+      // T6 重挂观察面:loadAddon 方法(重挂失败注入点——真实失败在 loadAddon 内同步抛)
+      loadAddon: (addon: unknown) => void
+      // T6 激活路径观察面:focus 调用计数(重挂失败/无标记时聚焦照常的断言)
+      focusCalls: number
     }> = []
     const createdFitAddons: Array<{
       fitCalls: number
@@ -761,6 +765,86 @@ describe('use-terminal WebGL context loss 回退', () => {
     closeTerminal('s-webgl')
   })
 })
+
+describe('use-terminal WebGL 丢失重挂(T6)', () => {
+  it('T6 用例1 onContextLoss 触发 → webglLost 置位:下次激活重挂新 WebGL addon', () => {
+    openSettledTerminal('s-webgl-t6')
+    const lostAddon = createdWebglAddons.at(-1)!
+    const baseline = createdWebglAddons.length
+
+    lostAddon.contextLossHandlers[0]!() // 丢失事件:既有语义先 dispose 回退 DOM
+    expect(lostAddon.disposed, '丢失后应 dispose 回退 DOM(既有语义)').toBe(true)
+
+    // 标记置位的可观察面:丢失后的 activateTerminal 重挂恰好一个新 addon(实现前无重挂 → 计数不涨 = 红因)
+    activateTerminal('s-webgl-t6')
+    flushAnimationFrame()
+    expect(createdWebglAddons.length, '丢失标记置位:下次激活重挂恰好一个新 WebGL addon').toBe(baseline + 1)
+    expect(createdWebglAddons.at(-1)!.contextLossHandlers.length, '重挂的新 addon 应同样接线丢失检测').toBe(1)
+
+    closeTerminal('s-webgl-t6')
+  })
+
+  it('T6 用例2 webglLost 标记存在时 activateTerminal → 新 WebglAddon 加载,标记清除,再激活不重复挂', () => {
+    openSettledTerminal('s-webgl-remount')
+    const baseline = createdWebglAddons.length
+
+    createdWebglAddons.at(-1)!.contextLossHandlers[0]!() // 丢失 → 降级 DOM + 置标记
+    activateTerminal('s-webgl-remount') // 第一次激活:重挂
+    flushAnimationFrame()
+    expect(createdWebglAddons.length, '标记存在:激活重挂恰一个新 addon').toBe(baseline + 1)
+    const remounted = createdWebglAddons.at(-1)!
+
+    activateTerminal('s-webgl-remount') // 第二次激活:标记已清,零加载
+    flushAnimationFrame()
+    expect(createdWebglAddons.length, '重挂成功清标记:再激活不重复挂').toBe(baseline + 1)
+    expect(remounted.disposed, '新 addon 在役,未误 dispose').toBe(false)
+
+    closeTerminal('s-webgl-remount')
+  })
+
+  it('T6 用例3 webgl 重挂时 loadAddon 抛错 → 吞错保持 DOM,标记保留,fit 与聚焦照常', () => {
+    const { terminal, fitAddon } = openSettledTerminal('s-webgl-fail')
+    const baseline = createdWebglAddons.length
+
+    createdWebglAddons.at(-1)!.contextLossHandlers[0]!() // 丢失 → 置标记
+    // 注入模拟(TODO.md K2-1b 的 WEBGL_lose_context 场景单测投影):真实失败点 =
+    // loadAddon 内 getContext('webgl2') 失败同步抛(驱动拒绝)。覆写实例方法只命中重挂路径
+    // (创建期加载在 openTerminal 内已完成,不受影响)
+    terminal.loadAddon = (): void => {
+      throw new Error('webgl2 unavailable')
+    }
+
+    expect(() => activateTerminal('s-webgl-fail'), '重挂抛错不得冒泡').not.toThrow()
+    flushAnimationFrame()
+    expect(fitAddon.fitCalls, '失败时 fit 照常').toBe(1)
+    expect(terminal.focusCalls, '失败时聚焦照常').toBe(1)
+
+    // 标记保留:下次激活仍按标记再试一次(每激活至多一次,非自动重试循环)
+    activateTerminal('s-webgl-fail')
+    flushAnimationFrame()
+    expect(createdWebglAddons.length, '标记保留:下次激活仍再试恰一次').toBe(baseline + 2)
+
+    closeTerminal('s-webgl-fail')
+  })
+
+  it('T6 用例4 无 webgl 丢失标记的 activateTerminal → 零加载调用,激活路径不变', () => {
+    const { terminal, fitAddon } = openSettledTerminal('s-webgl-healthy')
+    const baseline = createdWebglAddons.length
+
+    activateTerminal('s-webgl-healthy') // 无丢失标记:激活不得触碰 WebGL
+    flushAnimationFrame()
+    expect(createdWebglAddons.length, '无标记:激活零 WebGL addon 加载').toBe(baseline)
+    expect(fitAddon.fitCalls, '激活路径不变:fit 照常').toBe(1)
+    expect(terminal.focusCalls, '激活路径不变:聚焦照常').toBe(1)
+
+    activateTerminal('s-webgl-healthy') // 重复激活同样零加载:重挂只由丢失标记驱动
+    flushAnimationFrame()
+    expect(createdWebglAddons.length).toBe(baseline)
+
+    closeTerminal('s-webgl-healthy')
+  })
+})
+
 describe('use-terminal 窗口跟随(ResizeObserver + RAF 稳定帧收敛)', () => {
   it('observer 观察 container;触发后 RAF 循环等布局稳定,收敛时 fit 恰一次并退出', () => {
     const { container, fitAddon, observer } = openSettledTerminal('s-fit')
