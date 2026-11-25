@@ -117,6 +117,17 @@ export function TerminalTabs(): React.JSX.Element {
           )}
         </div>
       )}
+      {/* 终端组常驻(T7):移出预览条件分支始终渲染——预览激活不卸载实例,scrollback 与
+          TTY 状态全程保留;视觉互斥由 active 收窄(标签激活且预览未激活)后 TerminalView
+          自身的 display:none 整组实现,关闭预览恢复激活走既有 activateTerminal */}
+      {tabs.map((tab) => (
+        <TerminalView
+          key={tab.sessionId}
+          sessionId={tab.sessionId}
+          active={tab.sessionId === activeTabId && !previewActive}
+          scrollback={scrollback}
+        />
+      ))}
       {previewActive && previewPath !== null ? (
         /* 预览占中间区:key = 路径,切换文件重挂读取态归零;T10 起按 previewKind 分流
            (文件只读预览 / 变更文件差异),两者都不往标签载荷塞 root */
@@ -127,16 +138,7 @@ export function TerminalTabs(): React.JSX.Element {
         )
       ) : tabs.length === 0 ? (
         <EmptyState title="没有打开的会话" hint="从左栏「新建会话」选择一个 agent 开始" />
-      ) : (
-        tabs.map((tab) => (
-          <TerminalView
-            key={tab.sessionId}
-            sessionId={tab.sessionId}
-            active={tab.sessionId === activeTabId}
-            scrollback={scrollback}
-          />
-        ))
-      )}
+      ) : null}
     </div>
   )
 }
