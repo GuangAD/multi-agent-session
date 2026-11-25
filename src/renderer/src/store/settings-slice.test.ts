@@ -2,6 +2,7 @@
 // 期望值来源:T4 契约接口面(loadSettings/updateSettings 的用途与出错约定);
 // bridge 打桩,不起真实 IPC(与 agents-slice.test.ts 同款)。useSettings 是 hook 薄委托,由冒烟覆盖。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { bridge } from '../ipc/bridge'
 import type { Settings } from '../../../shared/types'
 import { useAppStore } from './app-store'
@@ -71,4 +72,13 @@ describe('settings-slice(初载与 patch 同步)', () => {
     await expect(loadSettings()).rejects.toThrow('get failed')
     expect(useAppStore.getState().settings).toEqual(BASELINE)
   })
+})
+
+// P2-1 结构守卫:本切片与 app-store 循环值依赖,模块求值期任何顶层 const/let 初始化
+// 都是「import 顺序敏感」的 TDZ 启动白屏地雷,且 vitest 的解析顺序测不出来 -- 
+// 常量一律落 shared/settings-defaults(叶子),本文件保持「只有 import 与 function」。
+it('P2-1 守卫:切片源码模块求值期无顶层 const/let 初始化', () => {
+  const source = readFileSync(new URL('./settings-slice.ts', import.meta.url), 'utf8')
+  const offenders = source.split('\n').filter((line) => /^(const|let) /.test(line))
+  expect(offenders).toEqual([])
 })

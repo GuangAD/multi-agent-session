@@ -3,24 +3,9 @@
 // 主进程是设置的权威(settings:set 校验落盘后返回全量),渲染层不拼装局部状态。
 import type { StateCreator } from 'zustand'
 import { bridge } from '../ipc/bridge'
-import { DEFAULT_APP_THEME_ID } from '../../../shared/themes/app-themes'
-import { DEFAULT_TERMINAL_THEME_NAME } from '../../../shared/themes/resolve'
+import { DEFAULT_SETTINGS } from '../../../shared/settings-defaults'
 import type { Settings } from '../../../shared/types'
 import { useAppStore, type AppState } from './app-store'
-
-// 初载前的兜底值:主题两项直接取 shared 常量(与主进程 DEFAULT_STORE.settings 同源,不手抄),
-// 仅在 loadSettings 完成前短暂可见(首帧由 main.tsx 按默认主题落类,不读这份数值)。
-const INITIAL_SETTINGS: Settings = {
-  scrollbackRows: 10000,
-  appTheme: DEFAULT_APP_THEME_ID,
-  terminalTheme: DEFAULT_TERMINAL_THEME_NAME,
-  shell: 'powershell',
-  terminalFontSize: 14,
-  terminalFontWeight: 300,
-  terminalLineHeight: 1.0,
-  terminalCursorStyle: 'block',
-  terminalCursorBlink: false
-}
 
 export interface SettingsSlice {
   settings: Settings
@@ -35,7 +20,7 @@ export function createSettingsSlice(
   ...args: Parameters<StateCreator<AppState, [], [], SettingsSlice>>
 ): SettingsSlice {
   void args
-  return { settings: INITIAL_SETTINGS }
+  return { settings: DEFAULT_SETTINGS }
 }
 
 // 读设置切片(订阅变更);selector 收到全量 Settings,与 useAppStore 同款用法

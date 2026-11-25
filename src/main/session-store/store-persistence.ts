@@ -3,29 +3,18 @@
 import { promises as fs } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import type { AppStore, Settings } from '../../shared/types'
-import { APP_THEMES, DEFAULT_APP_THEME_ID } from '../../shared/themes/app-themes'
+import { DEFAULT_SETTINGS } from '../../shared/settings-defaults'
+import { APP_THEMES } from '../../shared/themes/app-themes'
 import { TERMINAL_THEMES } from '../../shared/themes/catalog'
-import { DEFAULT_TERMINAL_THEME_NAME } from '../../shared/themes/resolve'
 
-// 非接缝,只读常量:store 默认值。settings 默认出自 spec 数据结构节——主题单槽(J-005:
-// appTheme / terminalTheme,默认 github-dark 与 Ghostty Default Style Dark)加终端外观六项;
-// terminalFontFamily 可选缺省 = 默认回退链,故不列默认值。
+// settings 默认出自 spec 数据结构节,唯一来源 = shared/settings-defaults 的 DEFAULT_SETTINGS
+// (渲染层初值与主进程同源;terminalFontFamily 可选缺省 = 默认回退链,故不列)。
 // loadStore 的「缺字段补默认」以本对象为唯一依据,旧字段迁移的兜底值也从这里取
 export const DEFAULT_STORE: AppStore = {
   version: 1,
   projects: [],
   sessions: [],
-  settings: {
-    scrollbackRows: 10000,
-    appTheme: DEFAULT_APP_THEME_ID,
-    terminalTheme: DEFAULT_TERMINAL_THEME_NAME,
-    shell: 'powershell',
-    terminalFontSize: 14,
-    terminalFontWeight: 300,
-    terminalLineHeight: 1.0,
-    terminalCursorStyle: 'block',
-    terminalCursorBlink: false
-  }
+  settings: DEFAULT_SETTINGS
 }
 
 // Why: DEFAULT_STORE 是只读常量,兜底路径返回深拷贝,避免调用方(入口持有的内存 store)污染模块级默认值
