@@ -30,10 +30,10 @@
     "line": "#7a828e",
     "ink": "#f0f3f6",
     "inkMuted": "#f0f3f6",
-    "accent": "#09b43a",
-    "onAccent": "#0a0c10",
+    "accent": "#0078d4",
+    "onAccent": "#ffffff",
     "hover": "#4c525d",
-    "accentHover": "#33bf5c"
+    "accentHover": "#2b8eda"
   },
   "Carbonfox": {
     "base": "#161616",

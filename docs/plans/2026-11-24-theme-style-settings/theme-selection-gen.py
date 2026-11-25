@@ -132,7 +132,7 @@ SELECTION = [
          note='GitHub 官方深色', accent='#0078d4', accent_note='主色按你的指定改为 #0078d4'),
     dict(name='GitHub Dark High Contrast', kind='json', is_dark=True,
          path=f'{REF}/stablyai.orca-github-vscode-theme/themes/github-dark-high-contrast.json',
-         note='GitHub 官方深色高对比'),
+         note='GitHub 官方深色高对比', accent='#0078d4', accent_note='主色按你的指定改为 #0078d4(原为绿色 #09b43a)'),
     dict(name='Carbonfox', kind='manual', is_dark=True,
          bg='#161616', fg='#f2f4f8', muted='#b6b8bb', accent='#33b1ff',
          note='IBM Carbon 风格,冷灰蓝(来源 alacritty-theme carbonfox)'),
