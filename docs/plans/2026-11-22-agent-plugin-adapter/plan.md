@@ -61,5 +61,5 @@ T2 依赖 T1(载荷的 icon/color 字段与依赖反转先存在,渲染层才有
 - 状态:三任务全部完成,brief 7.1 五条验收全部通过(详见门 3 最终报告);整特性终审无 Critical/Important,可合并。
 - 终审代跑核实(Controller 本回合执行,证据先于声称):全量 `pnpm test` 31 文件/203 用例绿、`pnpm typecheck` exit 0、`pnpm build` exit 0(产物 out/main/index.js 含 5 枚内联 SVG、5 处品牌色,`svg?raw` 仅存于 Vite 源注释)、`agents-icons` 代码引用零残留(仅 SVG 注释里的 Ported 来源标注)、CSP `img-src 'self' data:` 放行。
 - 文档对账:CONTEXT.md「agent 插件」词条已落盘(冻结形态=仓内静态,与 ADR-0006 一致);ADR-0006 在册未变更;AGENTS.md 两条陈旧条目同步——扩展点改为 `plugins/<id>/ + 清单一行`、领域横向依赖双向例外条目删除;spec.md 三处 icon 装载描述同步为 ?raw 口径;T1.md 因契约冻结不改正文,加实现修订注记指向本记录。
-- 遗留 Minor(汇总,均不阻断合并):T1 反向守卫不递归子目录/不识别 export-from、未知 agentId fail-loud;T2 console.error 硬断言、已知空 name 不回落、agents:list 启动失败弹窗空列表至重启(契约固化取舍);终审三条(AGENTS.md 两条已修、T1.md/spec.md 漂移已修、冒烟无自动化接缝属 brief waiver)。
+- 遗留 Minor(汇总,均不阻断合并):T1 反向守卫不递归子目录/不识别 export-from、未知 agentId fail-loud;T2 console.error 硬断言、已知空 name 不回落、agents:list 启动失败弹窗空列表至重启(契约固化取舍);终审三条(AGENTS.md 两条已修、T1.md/spec.md 漂移已修、冒烟无自动化接缝属 brief waiver)。2026-11-25 结案:前四条转 TODO.md「优化待办」登记(守卫加固类,碍事再做;底稿 D4 同步移除)。
 - 本次已写入:CONTEXT.md 词条 1 条(agent 插件,此前任务期落盘)、ADR-0006 1 条(门 1 批准时落盘)——对账与文件实况一致,无遗漏。

@@ -46,5 +46,5 @@ T2 依赖 T1(弹窗组件与 ui-slice 弹窗描述状态先存在,T2 的入口�
 - 终审(整特性 cc3ce86a..fc17f042)| 完成 | 裁决:可合并
   - 评审:无 Critical / 无 Important;三条接缝(生产/消费一致、两删除零残留、双入口行为一致)逐条核验通过;挂账 Minor M1-M6 逐条核验均可留
   - controller 就地修复:projects-slice.ts 两条孤儿注释(引用已删 NewSessionMenu → 现状描述),复审确认与现状一致;终审后门禁 pnpm typecheck exit 0 + pnpm test 29 files / 195 tests 全绿
-  - 遗留(登记备跟进):M2 导入运行中 Ctrl+N/B 切走弹窗,结果消息不显示(数据无风险);M3 role="menu" 键盘契约未实现;M4 底部项目「更多」面板可能被滚动区裁剪;M5 行本体 Space 未 preventDefault(特性前既有);M6 弹窗无初始焦点管理,Tab 进终端后 Esc 会同时关弹窗并送 ^[ 给 CLI(窄路径低损;T1 冒烟备注「不可达」口径已修正)
+  - 遗留结案(2026-11-25):M4 冒烟确认无裁剪;M3/M5/M6 为键盘交互,个人项目不使用键盘不处理;M2 与键盘三条转入 TODO.md「优化待办」节统一接管(底稿 docs/backlog-2026-11-25.md 的 D1/D2 同步移除)
   - 沉淀对账:本特性无新 CONTEXT.md 词条、无新 ADR(纯 UI 重排,可逆;无新领域术语),与文件实况相符

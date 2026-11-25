@@ -1,6 +1,6 @@
 # 终端 emoji/宽字符宽度错位:含图标行整体左移一格
 
-> 2026-11-23(一轮)/ 2026-11-24(二轮) | 状态:**已修复(二轮待实机目视确认)** | 根因两轮:①xterm 内置宽度表只有 Unicode 6(✅/❌ 算 1 格),pi 按 Unicode 9+ 排版算 2 格,含 emoji 行整体左移一格 → 加载 `@xterm/addon-unicode11` 激活 `'11'`。②残留的滚动条竖线左移 = pi 按 RGI emoji 把「窄基码+VS16」序列(`➡️` `↗️` 等)计 2 格,而 `'11'` 基表按单个码点查 EAW 仍算 1 格 → 移植 Orca unicode provider(`charProperties` 序列感知)并加 VS16 规则,详见第六节
+> 2026-11-23(一轮)/ 2026-11-24(二轮) | 状态:**已修复(二轮已实机目视确认,2026-11-25)** | 根因两轮:①xterm 内置宽度表只有 Unicode 6(✅/❌ 算 1 格),pi 按 Unicode 9+ 排版算 2 格,含 emoji 行整体左移一格 → 加载 `@xterm/addon-unicode11` 激活 `'11'`。②残留的滚动条竖线左移 = pi 按 RGI emoji 把「窄基码+VS16」序列(`➡️` `↗️` 等)计 2 格,而 `'11'` 基表按单个码点查 EAW 仍算 1 格 → 移植 Orca unicode provider(`charProperties` 序列感知)并加 VS16 规则,详见第六节
 
 ## 一、现象
 

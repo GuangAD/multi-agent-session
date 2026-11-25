@@ -1,19 +1,19 @@
 # Hook 驱动的运行状态识别 · 切片
 
-> 2026-11-23 | 状态:已确认(门 1 通过)
+> 2026-11-23 | 状态:T1–T4 完成(2026-11-24 随 0d8289fb 入库);T5 剩实机冒烟(验项 H1–H5 见 docs/pending-verification.md 四),过即门 3
 
 ## 任务
 
-- [ ] **T1 hook 状态引擎与事件契约**
+- [x] **T1 hook 状态引擎与事件契约**
       交付:AgentStateRules 重构(hooks 事件映射,旧字段删除)+ hook-tracker 接缝与事件序列 fixture 回放(五家正/反样本)+ 五插件 state 段改写;state-parser.ts 与读屏 fixture 删除(ipc/state 暂以适配层喂 hook tracker,保编译绿)
       挡谁:T2、T3、T4
-- [ ] **T2 接收器与路由编排**
+- [x] **T2 接收器与路由编排**
       交付:loopback receiver(端口/token/路由纯接缝)+ forwarder 脚本生成与落盘 + ipc/state 重写(receiver→tracker)+ pty spawn env 注入;env 继承探针(claude/pi 本机实测,记录结论)
       挡谁:T3、T5
-- [ ] **T3 注入器与五家配置合并**
+- [x] **T3 注入器与五家配置合并**
       交付:三个 merge 接缝(claude-settings / hooks-json / kimi-toml marker,用户内容逐字节保留硬断言)+ injector(启动 reconcile / 项目添加补写 / spawn 前校验 / 显式移除 seam + IPC)+ 项目删除联动清理 + pi 扩展模板写盘
       挡谁:T4、T5
-- [ ] **T4 三源退役清理**
+- [x] **T4 三源退役清理**
       交付:use-terminal 删快照节流与标题上行;契约/preload 删 state:title / state:snapshot;渲染层相关测试用例清理;全量 typecheck + vitest + build 绿
       挡谁:T5
 - [ ] **T5 实机冒烟与文档收尾**
@@ -29,7 +29,7 @@ T1 → T2 → T3 → T4 → T5,严格串行(引擎接缝是全部后续的地基
 - claude `Notification` 事件覆盖面实机校准(可能从 waiting 槽收窄)→ T5
 - codex / kimi / antigravity 本机未装:注入、事件、env 继承、信任门槛全部装后复核 → pending-verification.md(T5 挂)
 - 显式移除的 UI 入口位置(授权项)→ seam 与 IPC 在 T3 落全,入口随实现按现有 UI 惯例定,冒烟可用 store/IPC 直调代替
-- Bug 3(fit 可见性守卫)独立修复,不在本特性(用户已确认另行进行)
+- Bug 3(fit 可见性守卫)已由主题特性终审 P1-2 修复(2026-11-24:openTerminal 首帧隐藏守卫 + readyFired 补发;冒烟项 R26 通过),不在本特性
 
 ## 开发记录
 
