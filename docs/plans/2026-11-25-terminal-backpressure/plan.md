@@ -1,6 +1,6 @@
 # 终端输出背压与渲染修复 · 切片
 
-> 2026-11-25 | 状态:草稿
+> 2026-11-25 | 状态:已完成(8 任务 + 1 补丁修复全部提交;统一实机验证见开发记录)
 
 ## 任务
 
@@ -51,8 +51,33 @@
 - **T3 完成**(2026-11-25,commit 147f6b35):新增合并器(9 用例,TDD)+ ipc/pty.ts 接线(onData→push,onExit→先 flushSession 再 pty:exit,档位 16ms/64KB 模块级常量);typecheck exit 0,全量 46 文件/324 用例绿。评审(独立 reviewer):**approve**——规格逐条符合,状态机生命周期无正确性缺陷,推演写坏实现均可被现有用例抓住;3 Minor 处置 = ①② 补守卫用例(恰等边界 + flushSession 定时器取消取证,mutation check 双向验证红因正指缺口),③ timer 注入措辞偏离裁定接受现状(fake timers 等价,不加注入参数)。实机验证(ptv:data 频率 ~60/s)按流程调整延后统一验证。结论(下游):① flush 投递口注入已满足可测性,后续任务勿再加 timer 注入参数;② merge 后每会话事件率 ≈ 60/s,T4 渲染层队列消费预算以此为输入量级;③ 合并器单实例应用生命周期复用,destroy 仅测试收尾调用
 - **T4 完成**(2026-11-25,commit 5a92cd9d):新增写入调度器(10 用例,双闸 + 可见性 + 丢最旧,settle 防御);use-terminal 重构(pendingData 暂存袋移除并入调度器、真背压 write 包装、RAF 泵帧三事件驱动无进展停帧、薄导出 setTerminalVisible 统一落闸);TerminalView 激活 effect 补失活分支;桩迁移 write(data,done) 形态(31→33 用例,先到先得断言逐字不变);全量 47 文件/336 用例绿,typecheck exit 0。评审(独立 reviewer):**request-changes → 处置后闭合**——发现 1(Important)预览打开路径可见性闸失联(previewActive 置全部 active=false 不经 activateTerminal,旗标滞留 true 持续喂入隐藏 xterm),按授权补 TerminalView 失活分支 + 薄导出 + 接线用例(先红后绿,红因正指盲区)闭合;发现 2(Minor)注释对齐合并器实况;发现 3(Minor 流程)本条即 controller 记账。两处授权内偏离成立:泵改事件驱动排帧(穷尽解锁条件,空闲零帧耗)、openTerminal 按容器实况落闸(正确处理 T7 预览期出生隐藏终端)。实机验证(渐进追平体验/隐藏 CPU)按流程调整延后。结论(下游):① 隐藏零解析全路径闭合(标签切换 + 预览两条路都有闸);② 切回追平速度 ≈ 16 帧/4MB ≈ 270ms,验证时对照 T1 遗留「1 秒等待」观察项;③ T5 后台 fit 落闸调用面 = setTerminalVisible(勿直调 writeScheduler)
 - **T5 完成**(2026-11-25,commit 5a1fe562):新增稳定门 createStableResizeGate(3 用例,续期/恰一次/重入/reset)+ fitHiddenTerminals(假想网格换算与 StableCellFitAddon 同一测量点、分帧每帧一个、可重入防抖、竞态守卫、单点失败吞掉)+ App.tsx 接线(window resize → 200ms 稳定门 → fitHiddenTerminals);守卫用例补齐(关闭重建同 id 跳过,变异验证红因正指孤儿旧条目盲区);全量 48 文件/345 用例绿,typecheck exit 0。评审(独立 reviewer):**approve**——规格逐条符合;「同尺寸 resize no-op 不产生 pty:resize」经 xterm 库源码取证属实;与 T4 结论③调用面纪律(不绕调度器落闸)确认遵守;4 Minor 处置 = ①轮次排空期 settle 被丢=契约语义且激活路径自愈,接受现状(代码注释已含边界);②竞态守卫补用例(已闭合);③注释出处修正(已闭合);④PTY 半边单测不可观察=接缝定义如此,实机冒烟兜底,登记备查。实机验证(切回宽度立即正确、拖拽无振荡)按流程调整延后。结论(下游):① T6 不触碰本任务文件(调度器/稳定门/fitHiddenTerminals 均冻结);② 拖拽期间窗口跟随走既有每终端 ResizeObserver,稳定门只补隐藏终端,双路径无交叉
-- **T6 完成**(2026-11-25,commit 待回填):TerminalEntry 新增内部字段 webglLost;mountWebglAddon 模块私有 helper(openTerminal 初挂与激活重挂共用同一条挂载路径);activateTerminal 追加重挂分支(标记存在时尝试一次,成功清位,失败吞掉保持 DOM 稳态,无重试循环);冻结面(调度器/稳定门/fitHiddenTerminals)零触碰;既有降级路径行为逐字不变。TDD:4 用例红绿(用例名含 webgl,-t 过滤可解析),用例 4 变异验证红因正指「无标记激活零加载」;全量 48 文件/349 用例绿,typecheck exit 0。评审:冷却自审(controller)——无新接缝、状态机简单、冻结面遵守,通过。实机验证(WEBGL_lose_context 注入降级/重挂)按流程调整延后。结论(下游):① 全部 8 任务代码就位,进入统一实机验证(汇总 T3 频率/T4 追平与 CPU/T5 宽度/T6 注入/T1 遗留 1 秒复测);② addon 不自 dispose 的取证结论(addon 0.20.0-beta.329 源码)已固化在 mountWebglAddon 注释,后续升级 xterm-addon-webgl 时复核
+- **T6 完成**(2026-11-25,commit ea457fdc):TerminalEntry 新增内部字段 webglLost;mountWebglAddon 模块私有 helper(openTerminal 初挂与激活重挂共用同一条挂载路径);activateTerminal 追加重挂分支(标记存在时尝试一次,成功清位,失败吞掉保持 DOM 稳态,无重试循环);冻结面(调度器/稳定门/fitHiddenTerminals)零触碰;既有降级路径行为逐字不变。TDD:4 用例红绿(用例名含 webgl,-t 过滤可解析),用例 4 变异验证红因正指「无标记激活零加载」;全量 48 文件/349 用例绿,typecheck exit 0。评审:冷却自审(controller)——无新接缝、状态机简单、冻结面遵守,通过。实机验证(WEBGL_lose_context 注入降级/重挂)按流程调整延后。结论(下游):① 全部 8 任务代码就位,进入统一实机验证(汇总 T3 频率/T4 追平与 CPU/T5 宽度/T6 注入/T1 遗留 1 秒复测);② addon 不自 dispose 的取证结论(addon 0.20.0-beta.329 源码)已固化在 mountWebglAddon 注释,后续升级 xterm-addon-webgl 时复核
 - 开工前接口预检 | 通过
   - 跨任务共享接口:无——三个新接缝(合并器/调度器/稳定门)均在本任务内生产并消费;T4 → T5 仅为运行时数据承接(队列承接后台 fit 的 resize 数据),无接口签名依赖;T7 复用既有 TerminalView active/display 接缝,无新增导出
   - 接口与 spec 一致性:createPtyDataCoalescer / createWriteScheduler / createStableResizeGate / fitHiddenTerminals 四个接缝名与签名形状逐一对得上,spec 数据结构节与契约伪代码一致
   - 测试命令:文件级命令均可解析;T6 的 `-k "webgl"` 过滤已补用例命名要求;T3 首条命令改文件级避免 0 条误判;全部 Expected 已写跑测条数
+
+## 收尾记录(门 3)
+
+### 统一实机验证(2026-11-25,controller 汇总)
+
+| 验证项 | 结果 |
+|---|---|
+| A 高频输出不冻结(T3+T4) | 通过(用户实测) |
+| B 切回等待复测(T1 遗留 1 秒) | 通过——见下方补丁修复,切回空白问题根因已消除 |
+| C 隐藏零解析(T4) | 通过(隐藏标签不再解析,CPU 下降可感) |
+| D 隐藏标签宽度(T5) | 通过 |
+| E 拖拽无振荡(T5) | 部分改善——拖拽中仍有中间值停顿,见遗留项 1 |
+| F WebGL 降级/恢复注入(T6) | **跳过**(用户裁决):4 条单测 + 变异验证已覆盖,真实触发条件罕见、失败后果为降级慢渲染,不阻塞交付 |
+| G 快速回归(预览/中文输入/关标签/自退/强杀) | 通过 |
+
+### 验证中发现并修复的缺陷(补丁 25726bc8)
+
+切回终端有概率出现只剩 `>` 的空白约 3 秒才恢复。经 DBG 插桩实测(日志 `[DBG-fit] 185x43 -> 2x1`、`[DBG-activate-fit] -> 2x1`)确认根因:display:none 容器尺寸为 0,fit 提案落到 2×1 最小网格并被当作真实尺寸应用——xterm reflow 打乱 TUI 全屏画面、pty:resize(2×1) 打到 agent,而 ConPTY 下 pi 收不到可靠 resize 通知,等自身周期重绘(约 3 秒)才恢复。该陷阱改造前即存在,被 NaN 毒化的 30 秒空白掩盖,T1 修好后暴露。
+
+修复:canFitNow 守卫统一覆盖三个 fit 入口(openTerminal 首帧 / finishStableFit 收敛 / activateTerminal RAF 至多 3 帧顺延),display:none 或 0 盒一律拒绝;ready 补发收敛到 announceReadyIfPending,只在真实 fit 成功后配发 spawn 尺寸。回归用例 3 条,整体变异验证三红;DBG 插桩已全部清理。
+
+### 遗留项(特性外,已登记 TODO.md)
+
+1. 拖拽窗口尺寸时可见终端仍有中间值停顿(稳定帧循环满 8 帧强制 fit 一次中间值,Orca 移植的既有防振荡设计,非本次回归)。改成实时跟随属行为变更(每帧 fit 增加重排),待有需要时单独立项。
+2. T6 实机注入验证跳过(用户裁决),如需补验:`.xterm canvas` 派发 `webglcontextlost` 事件,等 3 秒观察降级,切走切回验重挂。

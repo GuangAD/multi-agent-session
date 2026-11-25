@@ -85,10 +85,11 @@ hook 特性(`docs/plans/2026-11-23-hook-run-state/`)T5 收尾仅剩实机冒烟:
 
 ### 已知边界(非待办;2026-11-25 自 pending-verification 并入)
 
-- 切回内容很多的终端标签仍有约 1 秒等待(2026-11-25 T1 冒烟观察,长期观察项):NaN 毒化修复后从约 30 秒降至约 1 秒;预期由 T4 数据泵双闸(渐进追平)进一步改善,T4 落地后复测对比
+- 拖拽窗口尺寸时可见终端有中间值停顿(2026-11-25 终端背压特性验证发现):稳定帧循环满 8 帧强制 fit 一次中间值再进新一轮,是 Orca 移植的既有防振荡设计,非回归;改成拖拽中实时跟随属行为变更(每帧 fit 增加重排),待有需要时单独立项
+- 回退 Orca 移植代码时注意:终端 fit 的三个入口(openTerminal 首帧 / finishStableFit / activateTerminal RAF)已统一走 canFitNow 0 尺寸守卫,任何新增 fit 调用点必须同样过守卫——否则 display:none 或布局未生效时提案会落到 2×1 最小网格并压扁 TUI(2026-11-25 补丁 25726bc8 根因)
 - 未跟踪的新文件在 Git 面板点开没有 diff(显示「暂存后可见差异」):`git diff HEAD` 对未跟踪文件为空
 - 草稿级 diff 着色:正文行首恰为 `---`/`+++`(如 YAML/SQL 注释)会丢增删底色,文本本身正确
 - 回填轮询:并发第二会话若标签页一直开着不会自动接棒;关闭后重开走全新对话(防串线优先于自动续接,D8 结案口径)
 - 空仓库(未提交过):Git 面板分支下拉为空、提交按钮禁用;取消暂存走 `git rm -f --cached`
 - 应用未签名:安装包无代码签名,Windows SmartScreen 会提示「未知发布者」
-- 可选验证(不阻塞):把 `settings.shell` 改回 `"cmd"` 验证 cmd 底座;GPU 上下文丢失场景(DevTools 注入 `WEBGL_lose_context`)终端应回退 DOM 绘制
+- 可选验证(不阻塞):把 `settings.shell` 改回 `"cmd"` 验证 cmd 底座;GPU 上下文丢失注入验证(2026-11-25 用户裁决跳过,如需补验:`document.querySelector('.xterm canvas').dispatchEvent(new Event('webglcontextlost', {cancelable:true}))` 后等 3 秒观察降级 DOM,再切走切回验重挂)
