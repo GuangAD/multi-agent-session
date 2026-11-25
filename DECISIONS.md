@@ -30,3 +30,9 @@
 - 状态:有效 · 2026-11-24 · 来源:`docs/plans/2026-11-24-theme-style-settings/brief.md` 第 5 节(第二版)
 - 判断:主题为「一套 = 一组 token」的单槽直选,不设深浅双槽、不跟随系统;每套带 `isDark` 只用于 color-scheme 与原生控件着色
 - 取代:ADR-0008 的「深浅双槽」结构部分(语义 token 层部分继续有效);本条目升格 ADR-0009
+
+## J-003 第三方上游缺陷照搬 Orca 补丁重放
+
+- 状态:有效 · 2026-11-25 · 来源:`docs/plans/2026-11-25-terminal-backpressure/brief.md` 第 5 节
+- 判断:第三方包(xterm / node-pty 等)的上游缺陷,优先照搬 Orca `config/patches` 根级补丁,经 pnpm patchedDependencies 重放修复;不自研包装层绕过;升级依赖版本前须重新生成补丁
+- 波及:终端背压特性全部补丁层任务;后续 addon-webgl 等补丁同策略
