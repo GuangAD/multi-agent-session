@@ -25,7 +25,7 @@
 - [x] **T7 预览与终端共存渲染**
       交付:激活文件预览时终端实例保持挂载(仅隐藏),scrollback 与 TTY 状态不丢;切回后画面完整、无双 TUI、TUI 滚动正常(用户报障场景,根因 = 预览切换卸载 TerminalView,违背 ADR-0002)
       挡谁:无
-- [ ] **T8 文件预览样式跟随设置**
+- [x] **T8 文件预览样式跟随设置**
       交付:文件预览文本区的字体族/字号/字重取设置中的终端外观配置(单一来源),设置变更后已打开的预览即时跟随
       挡谁:无
 
@@ -46,7 +46,8 @@
 - T8 并入(2026-11-25,门 2 后用户补充):文件预览文字样式跟随设置——原留痕 TODO.md 已移入本特性(TODO 对应条目删除);执行顺序 T7 → T8
 - **T1 完成**(2026-11-25,commit 5e5fc0f1):重放零冲突;源码段标记 `hasMeasuredCellHeight` 5 处、CoreBrowserTerminal/RenderDebouncer/CompositionHelper 各段特有标记在位;产物段 sha256 变化实证;typecheck exit 0;全量 45 文件/315 用例绿与基线一致。冒烟(用户实机):标签切换无空白、无冻结、中文输入正常——**通过**;遗留观察:切回多内容标签约 1 秒等待,登记 TODO 长期观察项(T4 落地后复测)。结论(下游):① patch_hash=6f384928… 可作 T2 同类验证参照;② 冒烟对照点 = Viewport NaN 防护 / RenderDebouncer 帧内 while+finally / CompositionHelper IME 事务;③ 升级 xterm 版本须重新生成并重放补丁(brief §4 既有约束)
 - **T2 完成**(2026-11-25,commit 1cdf85f6):重放零冲突;JS 段标记 `ConPTY output relay exited` 在位;binding.gyp 段移除 Windows 原生编译目标,与「C++ 段进源码不编译」自洽(conpty.dll/OpenConsole.exe 时间戳仍为基线,未触发编译);typecheck exit 0;全量 45/315 绿与基线一致。冒烟(用户实机):agent 自退正常关、pi 运行中关标签无错、强杀不波及其余终端——**通过**。结论(下游):① C++ 段落地情况 = conpty.cc 17 处 / pty.cc 16 处 Orca 标记,含 TerminateJobObject(类别 C 延期的源码已就位,仅差编译链);② typings 段(getForegroundProcessGroup? 等)已落地但本项目不接桥;③ T7 可开工,TerminalTabs 渲染结构改造不受本任务影响
-- **T7 完成**(2026-11-25,commit 待回填):改动仅 TerminalTabs.tsx(+22/-11),终端组移出预览条件分支常驻渲染,`active` 收窄为「标签激活且预览未激活」,TerminalView 本体零改动;use-terminal 31/31、typecheck exit 0、全量 45/315 绿与基线一致。实机验证(用户复现原始报障场景):预览开合后画面完整无双 TUI、TUI 内翻页滚动正常、预览期间切标签终端状态正常——**通过**。边界核实:`previewActive && previewPath === null` 无可达入口(openPreview 同置/closePreview 同清/activatePreview 仅从既有预览标签触发),新旧行为差异仅存于不可达分支。结论(下游):① 预览卸载路径消失,暂存袋回归「进程输出早于终端创建」的正常兜底语义;② T4 隐藏只缓冲从第一天即完整语义(隐藏终端实例存活,入队即可);③ deactivatePreview 只清 active 不清 path(标签停留栏上)——T8 的预览重挂读取态归零语义与此无关,不受影响
+- **T7 完成**(2026-11-25,commit 56609465):改动仅 TerminalTabs.tsx(+22/-11),终端组移出预览条件分支常驻渲染,`active` 收窄为「标签激活且预览未激活」,TerminalView 本体零改动;use-terminal 31/31、typecheck exit 0、全量 45/315 绿与基线一致。实机验证(用户复现原始报障场景):预览开合后画面完整无双 TUI、TUI 内翻页滚动正常、预览期间切标签终端状态正常——**通过**。边界核实:`previewActive && previewPath === null` 无可达入口(openPreview 同置/closePreview 同清/activatePreview 仅从既有预览标签触发),新旧行为差异仅存于不可达分支。结论(下游):① 预览卸载路径消失,暂存袋回归「进程输出早于终端创建」的正常兜底语义;② T4 隐藏只缓冲从第一天即完整语义(隐藏终端实例存活,入队即可);③ deactivatePreview 只清 active 不清 path(标签停留栏上)——T8 的预览重挂读取态归零语义与此无关,不受影响
+- **T8 完成**(2026-11-25,commit 待回填):FilePreview 文本区接入 useSettings + resolveTerminalAppearance(单一来源),`<pre>` 三项 inline style,头部/提示样式未动;typecheck exit 0、全量 45/315 绿与基线一致。实机目验(用户):设置变更即时跟随、中文与长行不破版——**通过**;字号观感(px 直传 vs 终端 pt 换算)用户裁量接受现状,不换算。流程调整(controller 裁决,2026-11-25):T3–T6 实机验证不阻塞后续任务开发,统一攒到全部任务结束后一次验证;期间以单测+全量套件为门。结论(下游):① FilePreview 已订阅全量 settings,后续加 lineHeight 等外观跟随在 appearance 上取值即可;② file-panel 目录无 *.test.ts,scoped vitest 恒 exit 1(no test files),复用该命令时预期此结果
 - 开工前接口预检 | 通过
   - 跨任务共享接口:无——三个新接缝(合并器/调度器/稳定门)均在本任务内生产并消费;T4 → T5 仅为运行时数据承接(队列承接后台 fit 的 resize 数据),无接口签名依赖;T7 复用既有 TerminalView active/display 接缝,无新增导出
   - 接口与 spec 一致性:createPtyDataCoalescer / createWriteScheduler / createStableResizeGate / fitHiddenTerminals 四个接缝名与签名形状逐一对得上,spec 数据结构节与契约伪代码一致
