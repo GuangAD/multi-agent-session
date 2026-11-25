@@ -15,7 +15,7 @@
 | `@xterm/addon-ligatures` | 未装 | 0.11.0-beta.330 | 编程连字(仅 Orca 的 standalone 预览用) | 不需要(渲染风格选择,且与 WebGL 渲染器不叠加) |
 | `@xterm/addon-image` | 未装 | 0.10.0-beta.331 | 终端内联图片(`pane-inline-images.ts`,iTerm2/sixel 协议) | 暂不需要(agent 输出不产图;将来截图类能力再评估) |
 | `@xterm/addon-serialize` | 未装 | 0.15.0-beta.330 | 串行化缓冲区(daemon 重放/恢复) | 不需要(本项目不持久化终端画面,ADR-0002/0003 口径) |
-| `@xterm/headless` | 未装 | 6.1.0-beta.334 | 主进程无头模拟器(状态识别在 daemon 内跑) | 不需要(我们的状态识别已由渲染层快照 + 主进程字节流承担) |
+| `@xterm/headless` | 未装 | 6.1.0-beta.334 | 主进程无头模拟器(状态识别在 daemon 内跑) | 不需要(状态识别已由 hook 通道承担,ADR-0007;2026-11-25 理由随读屏退役更新) |
 
 结论:Orca 的 10 个 xterm 包中,我们真正需要且已对齐的是 xterm 内核 / fit / webgl / unicode11 四个;其余 6 个是它自身架构与功能面(daemon 重放、内联图片、终端内查找与链接、standalone 预览连字)带出来的,不属于本项目的缺陷。
 

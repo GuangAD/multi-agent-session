@@ -271,7 +271,7 @@ function makeContainerStub(display?: string): HTMLElement {
   return { style: { display: display ?? '' } } as unknown as HTMLElement
 }
 
-// 全量设置桩:与 settings-slice INITIAL_SETTINGS / 主进程 DEFAULT_STORE.settings 默认值同值
+// 全量设置桩:与 shared/settings-defaults DEFAULT_SETTINGS(渲染层初值与主进程 DEFAULT_STORE.settings 同源)同值
 // (spec 数据结构节),单用例只覆盖关注字段
 function makeSettings(over: Partial<Settings> = {}): Settings {
   return {
