@@ -55,6 +55,12 @@ option {
   background-color: var(--app-surface);
   color: var(--app-ink);
 }
+/* optgroup 的 label 行是弹层里独立的一行,不继承 option 的着色,必须单独给:
+   否则深色主题下会冒出「白底浅灰字」的分组标题(门 3 冒烟反馈 1) */
+optgroup {
+  background-color: var(--app-surface);
+  color: var(--app-ink-muted);
+}
 
 /* —— 主题块(由 gen-theme-data.py 生成,勿手改) —— */
 

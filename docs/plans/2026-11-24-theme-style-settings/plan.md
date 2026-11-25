@@ -1,6 +1,6 @@
 # 主题与样式设置 · 切片
 
-> 2026-11-24 | 状态:草稿
+> 2026-11-24 | 状态:已完成(第二版;实机冒烟通过,见 `SMOKE.md` 与本文末「门 3 冒烟反馈修复」)
 
 ## 任务
 
@@ -183,3 +183,18 @@ brief 第 6 节无欠账,无遗留项。
   3. 主题色值只改 `theme-selection-tokens.json` 后重跑 `gen-theme-data.py`,TS 与 CSS 两边由生成器同源产出;生成器会做 `.lower()` 规范化
   4. 迁移的两个入口:旧槽值必须**逐个**过目录校验(`firstMatching`),不要退回「取第一个非空再判一次」——那会让写错字的深槽值把可用的浅槽值一起拖成默认
   5. 主进程原生控件(`themeSource` / overlay)与渲染层同一个 `getAppTheme`;建窗路径必须拿到真实设置(冷启动时 `registerSettingsIpc` 的 overlay 同步是空操作)
+- 门 3 冒烟反馈修复 1 | 用户截图:界面主题下拉展开后,分组标题「深色」「浅色」是**白底浅灰字**,几乎不可读(选项行本身正常,深底浅字)
+  - 根因:原生弹层的 optgroup label 是独立绘制的一行,**不继承 option 的着色**;`theme-tokens.css` 此前只给 `option` 设了 `background-color` / `color`,optgroup 裸奔,于是用了弹层默认浅底
+  - 处置:补 `optgroup { background-color: var(--app-surface); color: var(--app-ink-muted) }`,与 option 同源变量(`surface` 底、次文本色作分组标题)
+  - 验证:typecheck 0 error;`pnpm test` 44 文件 304 passed;`pnpm build` exit 0,产物 CSS 36,175 字节,`optgroup` 规则已进产物且位于 `option` 之后、主题块之前,12 个 `.theme-<id>` 仍在(12/12)
+  - 备选方案(若本机仍不可读则改用它):放弃 optgroup,改用「禁用 option 作分组标题」或直接平铺不分组(12 套名字本身多含 Dark/Light,顺序即深前浅后)
+  - 待用户重测
+- 门 3 冒烟反馈修复 2 | 用户要求:去掉项目行「…」菜单里的「设置」项,设置只保留标题栏齿轮一处
+  - 改动:`MoreMenu.tsx` 删该 menuitem 与随之无用的 `Settings` 图标、`openSettingsDialog` 引用;头注释补「设置入口只在标题栏齿轮一处(应用级功能不该藏在项目级菜单里)」;`App.tsx` 齿轮处注释同步(原写「两处都能进」)
+  - 反向依赖核对:`openSettingsDialog` 现在只剩 App 齿轮一处调用(ui-slice 定义不变);`grep` 确认 MoreMenu 无残留
+  - 验证:typecheck 0 error;`pnpm test` 44 文件 304 passed;`pnpm build` exit 0(纯 JSX 删除,CSS 字节数未变 36,175)
+  - 归因修正(与第一版历史的关系):第一版「门 3 冒烟反馈修复」把入口挂到项目菜单是为解决「零项目时无从进入」,随后又加齿轮;现在齿轮已能独立承担入口,菜单里的第二处成了噪音,按用户要求移除
+- 门 3 通过(收尾) | 2026-11-24 用户实机冒烟整体通过,失败项为零;两处冒烟反馈均已修复(见上两条)
+  - 文档同步:`TODO.md` R18~R28 勾选并改写段首为「已验证通过」;`PLAN.md` 当前进度段、M7 主题条(标为已完成)、修订记录各一条;本文件状态行改「已完成」;`SMOKE.md` 顶部补结果行
+  - 最终验证:typecheck 双投影 0 error;`pnpm test` 44 文件 304 passed;`pnpm build` exit 0,产物 CSS 36,175 字节(含 `optgroup` 规则、12 个 `.theme-<id>` 均在、无 `.dark.theme-` 残留)
+  - `.review/` 已清;`.tmp/` 无本任务残留

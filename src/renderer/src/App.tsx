@@ -254,7 +254,8 @@ function App(): React.JSX.Element {
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           {/* 设置入口:应用级功能,必须不依赖「有没有项目」——此前只挂在项目行「…」菜单里,
-              零项目时无从进入(用户实测反馈)。项目行菜单里的同名项保留,两处都能进 */}
+              零项目时无从进入(用户实测反馈)。2026-11-24 用户要求去掉项目菜单里的同名项,
+              设置只此一处入口 */}
           <Button
             variant="ghost"
             aria-label="设置"
