@@ -8,6 +8,9 @@ patchedDependencies:
   '@xterm/xterm@6.1.0-beta.336':
     hash: 6f3849280aeb53cbd7036f9a1ab4ee12c987fbd7062160436845098fc19f382b
     path: config/patches/@xterm__xterm@6.1.0-beta.336.patch
+  node-pty@1.1.0:
+    hash: 323de54927594a11e3e110e31d5350327ef0a9d527c25342ab9b770b89948c9b
+    path: config/patches/node-pty@1.1.0.patch
 
 importers:
 
@@ -33,7 +36,7 @@ importers:
         version: 6.1.0-beta.336(patch_hash=6f3849280aeb53cbd7036f9a1ab4ee12c987fbd7062160436845098fc19f382b)
       node-pty:
         specifier: ^1.1.0
-        version: 1.1.0
+        version: 1.1.0(patch_hash=323de54927594a11e3e110e31d5350327ef0a9d527c25342ab9b770b89948c9b)
       simple-git:
         specifier: ^4.1.0
         version: 4.1.0
@@ -4772,7 +4775,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pty@1.1.0:
+  node-pty@1.1.0(patch_hash=323de54927594a11e3e110e31d5350327ef0a9d527c25342ab9b770b89948c9b):
     dependencies:
       node-addon-api: 7.1.1
 

@@ -62,7 +62,8 @@
       "node-pty"
     ],
     "patchedDependencies": {
-      "@xterm/xterm@6.1.0-beta.336": "config/patches/@xterm__xterm@6.1.0-beta.336.patch"
+      "@xterm/xterm@6.1.0-beta.336": "config/patches/@xterm__xterm@6.1.0-beta.336.patch",
+      "node-pty@1.1.0": "config/patches/node-pty@1.1.0.patch"
     }
   }
 }
