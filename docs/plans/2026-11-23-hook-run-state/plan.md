@@ -1,6 +1,6 @@
 # Hook 驱动的运行状态识别 · 切片
 
-> 2026-11-23 | 状态:T1–T4 完成(2026-11-24 随 0d8289fb 入库);T5 剩实机冒烟(验项 H1–H5 见 docs/pending-verification.md 四),过即门 3
+> 2026-11-23 | 状态:T1–T4 完成(2026-11-24 随 0d8289fb 入库);T5 剩实机冒烟(验项 H1–H5 已转 TODO.md 跟踪,正典清单在 docs/pending-verification.md 四),过即门 3
 
 ## 任务
 

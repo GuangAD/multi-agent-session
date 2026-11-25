@@ -300,4 +300,20 @@ brief 第 6 节的欠账,排在对应任务内消化:
   - 用户按 docs/pending-verification.md 一、1–7 逐条实机验证通过(安装启动/数据迁移/打包版 PTY/主题三态/快捷键/等输入通知/应用图标);应用图标此前已换透明版品牌 S 标(eb6a1af6)并重新出包;T11 补勾,brief 7.1「打包产物可安装启动」达成
 - 2026-11-25 | D5 结案:保存队列条目清理(T1 评审 Minor「留 T4 复用接缝时顺手自清」兑现)
   - store-persistence.ts:尾随 promise settle 后引用比较清理(saveQueues.get(file) === tail 才 delete;期间新保存进队则让位,绝不误删活跃队列);新增 hasQueuedSave 测试可观测点(最小查询,不暴露 Map 本体);守卫用例 1 条(保存完成后 Map 留空)+ 并发用例补队列残留断言;mutation check 留痕(去清理 → 恰 2 红;还原 14 绿);全量 44 文件/305 用例绿、typecheck 双投影 0 error
+- 2026-11-25 | D5 结案：保存队列条目清理(T1 评审 Minor「留 T4 复用接缝时顺手自清」兑现)
+  - store-persistence.ts:尾随 promise settle 后引用比较清理(saveQueues.get(file) === tail 才 delete;期间新保存进队则让位，绝不误删活跃队列);新增 hasQueuedSave 测试可观测点(最小查询，不暴露 Map 本体);守卫用例 1 条(保存完成后 Map 留空)+ 并发用例补队列残留断言;mutation check 留痕(去清理 → 恰 2 红；还原 14 绿);全量 44 文件/305 用例绿、typecheck 双投影 0 error
+- 2026-11-25 | D6 结案:pendingData 暂存袋上限(T3 评审遗留「终审评估加上限」兑现)
+  - use-terminal.ts:导出 PENDING_DATA_MAX_CHARS(100 万字符),装袋合并超限丢最旧(保留最新画面),正常路径(袋子仅活几毫秒、几百字节)零变化；守卫用例 1 条(三袋 180 万字符 → flush 恰为上限 100 万);mutation check 留痕(去截断 → 恰 1 红；还原 30 绿);typecheck 双投影 + build + 全量 44 文件/306 用例绿
+- 2026-11-25 | D7 结案：安装检测 install-dir 兜底移植 + 弹窗打开即重扫(T2 口径③「检测只走 PATH」收窄反转)
+  - 新增 `command-path/cli-install-dirs.ts`(Orca 裁剪移植:`~/.local/bin`〔Claude 官方 Windows 安装位〕、Codex 官方位、npm/pnpm/yarn 全局、volta/bun、fnm env 推导；不搬 nvm 别名链与 POSIX 系统目录，文件头注释登记，需要时按原件单独移植);`resolveCommandPath` 增 `homeDir` 注入,PATH 未命中且裸名命令走兜底目录(带分隔符的路径不兜底，原件同款);`AgentPickerDialog` 打开即 `loadAgents()`(主进程 agents:list 现查，新装 agent 重开弹窗即可见，侧栏徽标 store 随之刷新，不再依赖重启;loadAgents 失败静默保现有清单)。守卫：清单纯函数 4 例 + resolver 集成 3 例(兜底命中 / 双 miss / 分隔符不兜底);mutation check 去兜底 → 兜底用例精确红;Dialog 层 UI 装配无测试接缝沿 waiver 先例，行为靠实机;typecheck + build + 全量 45 文件/313 用例绿
+- 2026-11-25 | D8 结案：回填「自动接棒」维持不做(用户拍板)
+  - 并发第二会话在资格释放后不自动补抢 claim、重开走全新对话 -- 「防串线优先于自动续接」的既定取舍维持(补扫护栏对晚 claim 场景语义不成立，判错即续接错对话);行为边界已在 docs/pending-verification.md「三、已知边界」登记,agent 侧对话不丢，可在 CLI 手动 /resume 找回；将来要做时改点在 ipc/pty.ts 的 onExit/release 处补重 claim(T8 下游结论②)
+- 2026-11-25 | D9 结案:piBucketName 跨平台局限销账转 TODO(用户拍板)
+  - 桶名编码仅实现 Windows 路径形态(T7 真机 9 桶穷举核对),非 Windows 静默扫空 -- 属跨平台支持范畴,Windows 首发不做；非 Windows 的 pi 桶名编码未实测，不猜规则；已登记 TODO.md「优化待办」，出 Mac/Linux 版需求时实测后补
+- 2026-11-25 | D10 结案：超契约快捷键保留(Ctrl+B / Ctrl+Shift+E / Ctrl+Shift+G / Ctrl+W,用户拍板)
+  - T11 顺手实现的应用级快捷键超出契约两条(新建会话/切换标签页),经安装冒烟第 5 项实机验证可用；终端聚焦让位守卫(isTerminalTarget/isEditableTarget)已封死与 shell 行编辑键的冲突，保留不删；契约外功能自此转为既成事实，后续契约修订时补记
+- 2026-11-25 | D11 结案:INITIAL_SETTINGS 提升为 shared 单一来源,TDZ 残留面结构除根(theme 终审 P2-1,与 Minor① 同一刀)
+  - 新增 `shared/settings-defaults.ts`:DEFAULT_SETTINGS(Object.freeze)为设置默认值唯一来源，渲染层切片初值与主进程 DEFAULT_STORE.settings 同源引用——两处手抄镜像与漂移风险一并消除;settings-slice(与 app-store 循环值依赖文件)顶层 const 归零，循环链上不再有模块求值期初始化；结构守卫 1 条(读源码断言顶层无 const/let,这类求值顺序地雷 vitest 解析顺序测不出，静态守卫是唯一可钉手段);mutation check 加顶层 const → 恰 1 红，还原 5 绿;typecheck + build + 全量 45 文件/314 用例绿
+- 2026-11-25 | D12 结案:终端外观全量重放加幂等短路(theme 终审 M7 既有债)
+  - use-terminal.ts:applyTerminalAppearanceToAll 前置解析指纹缓存(JSON 比较),与上次完全一致直接返回——shell/回滚行数等无关 settings 字段变更、loadSettings 初载重拉等「值未变的重放」不再触碰任何已开终端(options/fit/pty.resize 零动作),外观真变正常应用;新增 resetAppliedAppearanceCache 测试接缝(模块级单例,用例间不得隐式继承缓存状态);守卫用例 1 条(首用生效/同值重放零动作/外观变化恢复);mutation check 去短路 → 恰 1 红,还原 31 绿;typecheck + build + 全量 45 文件/315 用例绿。App 层 effect 依赖未拆(保持 [settings]):短路已把重放降为零动作,拆依赖仅省两次纯函数解析,不值 lint/接缝复杂度
 <!-- 四层文档的任何改动都在这里另行留一行 -->

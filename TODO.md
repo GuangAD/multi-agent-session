@@ -42,6 +42,17 @@
 
 来源:`docs/plans/2026-11-23-hook-run-state/` 遗留项(授权项)。
 
+## hook 状态通道实机冒烟(H1–H5,待验证;2026-11-25 自待办底稿 A3 转入)
+
+hook 特性(`docs/plans/2026-11-23-hook-run-state/`)T5 收尾仅剩实机冒烟:代码已全量入库(0d8289fb,ADR-0007),以下过完即门 3。本机已装 claude 2.1.220 / pi 1.6.0;详细验法与边界以 `docs/pending-verification.md` 四为正典。
+
+- H1. claude 状态全环:提交提示 → spinner 转;回答完成 → 消失且后台弹「任务已完成」;权限对话框 → 橙(waiting)且弹「会话在等你输入」(首跑有项目信任框,未信任前无状态属 claude 侧行为)
+- H2. pi 状态全环:提交 → spinner 转;/quit 回 shell → 消失;扩展对话框 → waiting(pi 首跑信任框,接受后扩展才加载,首个会话可能无状态,重开生效)
+- H3. 双反例回归:working 中切标签再切回,动画全程正确;无回合时打字,spinner 不亮
+- H4. 注入与用户配置共存:项目出现 `.claude/settings.json`(已有文件合并保留自有 hooks);删项目后 managed 条目摘除(pi 扩展文件删除)
+- H5. 显式移除:控制台 `window.api.hooks.remove()` 后各项目配置摘净;重启应用 reconcile 又写回
+- (H6 为 codex/kimi/antigravity 装后复核,不在本轮)
+
 ## 优化待办(低危 polish,暂不排期;2026-11-25 自待办底稿 D1/D2 转入)
 
 来源:`docs/plans/2026-11-22-sidebar-project-tree/` 终审挂账(M2–M6)。处置口径:个人项目、不使用键盘,键盘相关三条不做;M4 已冒烟确认;以下维持记录,碍事再做。
@@ -52,3 +63,14 @@
 - M5 行本体 Space 未 preventDefault,聚焦行按 Space 滚动侧栏(特性前既有)—— 键盘不做,仅登记
 - M6 弹窗无初始焦点管理,Tab 进终端后 Esc 会同时关弹窗并送 ^[ 给 CLI(窄路径低损)—— 键盘不做,仅登记
 - D4 插件适配层守卫加固(2026-11-25 自待办底稿转入):反向依赖守卫不递归子目录/不识别 export-from;console.error 硬断言(测试脆);已知 agent 空 name 不回落;agents:list 启动失败后弹窗空列表直至重启(可加「重试」)—— 守卫加固类,碍事再做
+- D9 piBucketName 仅按 Windows 路径形态编码会话桶名(`:` 与 `\` → `-`),非 Windows 上导入 pi 会话静默扫空(2026-11-25 自待办底稿转入) -- 跨平台支持范畴,Windows 首发不做;若出 Mac/Linux 版,需先实测 pi 在对应平台的桶名编码再补规则
+
+## 待讨论(架构疑点):项目路径统一形态,反斜杠还是正斜杠
+
+疑点(2026-11-25,D9 讨论中用户提出):全仓项目路径进来前都经 `path.normalize` 统一——**Windows 上它会转成反斜杠 `\`**,整个代码库的路径形态因此贴死 Windows(桶名推算、piBucketName、git/fs-tree 调用全在其上)。用户质疑:是否应该统一成正斜杠 `/`(Node 跨平台惯例,Windows API 同样接受)?
+
+讨论要点:
+1. 收益与风险面:统一 `/` 利于跨平台与代码可读;但触及面大(projects/sessions/import/git/fs-tree 全链路),非小改
+2. 关键约束:pi 的会话桶名编码基于 **pi 进程 cwd 的原始形态**(Windows 上即反斜杠,T7 真机 9 桶穷举核对)——应用内部若改用 `/`,piBucketName 的编码输入与实测结论全部要重推,当前实现会静默扫空(D9 同源)
+3. 交叉项:D9(桶名仅 Windows 形态)、`path.win32`/`path.posix` 分支的测试注入口径
+4. 若讨论结论是「维持反斜杠」,应把理由写成显式约定(AGENTS.md 一条),防止后续贡献者再困惑
