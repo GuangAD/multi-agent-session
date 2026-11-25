@@ -146,3 +146,4 @@ brief 第 6 节无欠账,无遗留项。
 - [ ] **T-R6 main 进程** —— settings.ts 校验去三态;nativeTheme.themeSource 与标题栏 overlay 颜色按所选主题 isDark/token 计算(不再读系统深浅) —— 挡无
 - [ ] **T-R7 标题栏清理** —— 删 ThemeToggle 组件与 App 里的使用(保留齿轮设置入口) —— 挡无
 - [ ] **T-R8 收尾** —— typecheck + 全量 test + build 产物校验(CSS 含 12 个 theme 类)+ 冒烟清单更新(TODO.md) —— 挡门 3
+- 第二版准备 | 新增 gen-theme-data.py:从 theme-selection-tokens.json 生成 app-themes.ts(12 套 × 单 token + isDark + DEFAULT_APP_THEME_ID)与 theme-tokens.css 的 12 个 .theme-<id> 块(标记后整段重写,避免手抄 120 个色值);**尚未执行**——执行会改变数据结构,必须与 T-R3(解析/写手)同一片做,否则编译不过 | 当前代码仍为第一版(三态 + 双槽),构建与测试全绿,无半成品状态
