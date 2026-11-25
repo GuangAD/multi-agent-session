@@ -132,3 +132,17 @@ brief 第 6 节无欠账,无遗留项。
 - 主题候选补充(用户:vscode 的主题配置包含吗 → 加一下) | 预览页增加第三段 9 套:VS Code Dark Modern / Dark+ / Light Modern / Light+ 与 GitHub Dark / Dark Dimmed / Dark High Contrast / Light / Light High Contrast,数据取自 .reference 里 Orca 打包的规范化 JSON(字段与 token 一一对应:base←--background、panel←--sidebar、surface←--card、line←--border、ink←--foreground、inkMuted←--muted-foreground、accent←--primary、onAccent←--primary-foreground、hover←--secondary) | 诚实标注:7 套「官方 9 值 + 仅 accentHover 派生」;**Dark+/Light+ 的 JSON 只有 background/border/foreground 三项**,其余 7 项派生,卡片底部逐项列出,页面明说其观感不等同真正 Dark+/Light+ | 对比度体检:9 套 ink/base 均 ≥7.6,onAccent/accent 均 ≥4.5
 - 主题候选扩充(用户:再来一些) | 预览页增至 65 张:深 32 / 浅 24 / 官方 9 | 新增深色 12 套:Cobalt2、Ayu Mirage、Carbonfox、Selenized Dark/Black、Flexoki Dark(外部)+ Night Owl、Horizon Dark、Material Dark、Ayu Dark、Tango Dark、Ghostty Default Dark(仓库内 catalog 未用到的) | 新增浅色 4 套:Alabaster、Ashes Light、Tomorrow、Flexoki Light | 新增色值来源:alacritty-theme(Cobalt2 / ayu_mirage / carbonfox / alabaster / ashes_light / tomorrow 的 toml,srgb 官方值)、kepano/flexoki README 的 base 与 400/600 强调色 | 标题与分区改为动态计数,避免再写死
 - 主题定选(用户给出 10 套清单 + 两处主色覆盖) | 产出 theme-selection-preview.html(5 深 + 5 浅单独预览)与 theme-selection-tokens.json(10 套 token 值,供落地时直接抄) | 选:深 = VS Code Dark Modern、GitHub Dark(主色指定 #0078d4)、GitHub Dark High Contrast、Carbonfox、Tango Dark;浅 = VS Code Light+、GitHub Light(主色指定 #000000)、Gruvbox Light (hard)、Selenized White、Tango Light | 对比度:正文 10.26–21,按钮文字 4.49–21 | 待用户决定的模型问题:APP_THEMES 每套主题自带深浅两形态,而清单是 5 纯深 + 5 纯浅,落地前需确定配对
+
+## 第二版改造(2026-11-24 用户定选 12 套 + 单槽直选,回退协议重过门 1 后)
+
+决策依据:ADR-0009(取代 ADR-0008 的槽结构部分)、台账 J-005、brief 第二版第 2/5/7 节。
+第一版已完成的 T1(语义 token 层)与 T3(22 套终端主题 + 解析)保留,T2/T4/T5/T6/T7 按下列任务改造。
+
+- [ ] **T-R1 数据结构与迁移** —— Settings 换 appTheme/terminalTheme 单槽,DEFAULT_STORE 与 settings-slice 初值同步,applyPatch 校验改单槽,loadStore 做旧字段迁移(旧三态/双槽 → 新字段,旧主题 id 落默认);测试:迁移 4 例 + 校验 4 例 —— 挡 T-R2 之后全部
+- [ ] **T-R2 界面主题数据 12 套** —— app-themes.ts 改单 token + isDark(值取 theme-selection-tokens.json),theme-tokens.css 出 12 个 .theme-<id> 块,:root 留兜底;app-themes.test 与 app-themes-css.test 改口径(12 套 × 10 token) —— 挡 T-R3
+- [ ] **T-R3 解析与唯一写手** —— resolve.ts:selectAppTheme→getAppTheme(settings)、selectTerminalTheme→getTerminalTheme(settings)、resolveTerminalAppearance 去掉 systemDark;theme.ts:applyAppearance(theme) 按 isDark 写 .dark 与 color-scheme;删 resolveDark/systemPrefersDark;测试改为新签名 —— 挡 T-R4/T-R5
+- [ ] **T-R4 设置对话框** —— 删「主题模式」三段;界面主题单下拉(12,按深浅分组显示)、终端主题单下拉(22,按 DARK/LIGHT 名表分组);预览删深浅钮;patchAppearance 走 getAppTheme —— 挡无
+- [ ] **T-R5 终端接线** —— openTerminal(sessionId, scrollback, settings, container)、applyTerminalAppearanceToAll(settings)、TerminalView 只读 store、App 去掉 matchMedia 与 systemDark —— 挡无
+- [ ] **T-R6 main 进程** —— settings.ts 校验去三态;nativeTheme.themeSource 与标题栏 overlay 颜色按所选主题 isDark/token 计算(不再读系统深浅) —— 挡无
+- [ ] **T-R7 标题栏清理** —— 删 ThemeToggle 组件与 App 里的使用(保留齿轮设置入口) —— 挡无
+- [ ] **T-R8 收尾** —— typecheck + 全量 test + build 产物校验(CSS 含 12 个 theme 类)+ 冒烟清单更新(TODO.md) —— 挡门 3

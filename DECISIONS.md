@@ -24,3 +24,9 @@
 - 状态:有效 · 2026-11-24 · 来源:`docs/plans/2026-11-24-theme-style-settings/plan.md` T6/T7 记账
 - 判断:改设置只更新 store,不会自动触发界面/终端重绘;每个改变外观的控件必须在上游(`patchAppearance` 一类)显式调用写手(`applyAppearance` / 终端应用函数)
 - 波及:后续新增任何外观设置项;`docs/plans/2026-11-24-theme-style-settings/tasks/T6.md` 实施期补充第 1 条
+
+## J-005 界面主题单槽单色板,不跟随系统
+
+- 状态:有效 · 2026-11-24 · 来源:`docs/plans/2026-11-24-theme-style-settings/brief.md` 第 5 节(第二版)
+- 判断:主题为「一套 = 一组 token」的单槽直选,不设深浅双槽、不跟随系统;每套带 `isDark` 只用于 color-scheme 与原生控件着色
+- 取代:ADR-0008 的「深浅双槽」结构部分(语义 token 层部分继续有效);本条目升格 ADR-0009

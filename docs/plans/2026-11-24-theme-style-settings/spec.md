@@ -42,15 +42,15 @@ graph LR
 
 ## 数据结构
 
-`src/shared/types.ts` 的 Settings 扩展(既有字段不动,新字段如下):
+> 第二版(2026-11-24,J-005):主题为单槽单色板;三态与深浅双槽删除。
+
+`src/shared/types.ts` 的 Settings(既有字段保留,主题相关字段改为单槽):
 
 ```ts
 interface Settings {
-  // ……既有:defaultAgentId?、scrollbackRows、theme、shell
-  appThemeDark: string // 界面主题深槽 id,默认 'default'
-  appThemeLight: string // 界面主题浅槽 id,默认 'default'
-  terminalThemeDark: string // 终端主题深槽 id(Orca 原名),默认 'Ghostty Default Style Dark'
-  terminalThemeLight: string // 终端主题浅槽 id,默认 'Builtin Tango Light'
+  // ……既有:defaultAgentId?、scrollbackRows、shell
+  appTheme: string // 界面主题 id,默认 'github-dark'
+  terminalTheme: string // 终端配色名(Orca 原名),默认 'Ghostty Default Style Dark'
   terminalFontFamily?: string // 缺省 = 默认回退链
   terminalFontSize: number // 默认 14,范围 [8, 32]
   terminalFontWeight: number // 默认 300,档位 300/400/500
@@ -58,44 +58,47 @@ interface Settings {
   terminalCursorStyle: 'block' | 'bar' | 'underline' // 默认 'block'
   terminalCursorBlink: boolean // 默认 false
 }
+// 删除:theme(三态)、appThemeDark、appThemeLight、terminalThemeDark、terminalThemeLight
 ```
 
-界面主题数据(`src/shared/themes/app-themes.ts`):
+界面主题数据(`src/shared/themes/app-themes.ts`)——**每套一组 token,带 isDark**:
 
 ```ts
-type AppThemeId = 'default' | 'warm' | 'cool' | 'forest' | 'purple-night' | 'rose' | 'dusk' | 'ember'
+type AppThemeId =
+  | 'github-dark' | 'github-dark-hc' | 'vscode-dark-modern' | 'carbonfox' | 'tango-dark'
+  | 'vscode-light' | 'github-light' | 'gruvbox-light-hard' | 'selenized-white' | 'tango-light'
+  | 'flexoki-light' | 'tomorrow'
+
 type AppTokenValues = {
-  base: string // 窗口底
-  surface: string // 面板/浮层
+  base: string // 内容区底
+  panel: string // 侧栏与面板容器底
+  surface: string // 浮层(对话框/菜单/预览)
   line: string // 边框
   ink: string // 主文本
   inkMuted: string // 次文本
   accent: string // 强调底(主按钮)
   onAccent: string // 强调底上的文本
-  hover: string // 悬停叠加
   hover: string // 中性悬停叠加
   accentHover: string // 强调底悬停色
-} // 色值一律 #rrggbb
-// APP_THEMES: AppTheme[],8 套;'default' 的两形态 = 现状 zinc 观感
+}
+
+type AppTheme = { id: AppThemeId; name: string; isDark: boolean; tokens: AppTokenValues }
+// APP_THEMES: AppTheme[],恰 12 套;默认 'github-dark'
 ```
 
-终端主题数据(`src/shared/themes/catalog.ts`):
+12 套的 token 值来自 `theme-selection-tokens.json`(由 `theme-selection-gen.py` 生成,
+三处用户指定的主色覆盖已固化:github-dark / github-dark-hc 用 `#0078d4`,github-light 与
+gruvbox-light-hard 用 `#000000`)。
 
-```ts
-import type { ITheme } from '@xterm/xterm'
-// TERMINAL_THEMES: Record<string, ITheme>,键 = Orca 原名,22 套
-// 深默认 'Ghostty Default Style Dark',浅默认 'Builtin Tango Light'
-```
+终端主题数据不变:`TERMINAL_THEMES`(22 套)+ `DARK/LIGHT_TERMINAL_THEME_NAMES`(下拉分组用)。
 
-字体预置(`src/shared/themes/fonts.ts`):
+token 落地(`theme-tokens.css`):`:root` 保留一套兜底变量;每套主题一个 `.theme-<id>` 块覆盖
+`--app-*` 十个变量;不再有 `.dark.theme-<id>` 的成对结构。`color-scheme` 由 `applyAppearance`
+按 `isDark` 写到 `<html>`,同时按需切换 `.dark` 类(Tailwind 的 dark: 变体兜底)。
 
-```ts
-type FontOption = { label: string; value?: string } // value 缺省 = 默认回退链
-// TERMINAL_FONT_OPTIONS: FontOption[],首项「默认(回退链)」+ 10 项
-// DEFAULT_FONT_FALLBACK_CHAIN: string,现状整串回退链原样搬来
-```
-
-token 落地(`src/renderer/src/assets/theme-tokens.css`):`:root` 定义浅色默认灰变量,`.dark` 覆盖深色默认灰;`.theme-<id>`(及 `.dark.theme-<id>`)按主题覆盖。`main.css` 用 Tailwind 4 `@theme inline` 把变量映射成语义 utility(`bg-base`、`bg-surface`、`border-line`、`text-ink`、`text-ink-muted`、`bg-accent`、`text-on-accent`、`hover:bg-hover`、`hover:bg-accent-hover`)。
+**旧数据迁移**(loadStore):若 `appTheme` 缺失,按顺序尝试 `appThemeDark` → `appThemeLight`
+→ 默认 `github-dark`;旧 id('default'/'warm'/'cool'/…)不在新目录内,因此统一落默认。
+`terminalTheme` 缺失时取 `terminalThemeDark` → `terminalThemeLight` → 默认 Ghostty 深色。
 
 ## 模块划分
 
@@ -181,10 +184,10 @@ token 落地(`src/renderer/src/assets/theme-tokens.css`):`:root` 定义浅色默
 
 ## 接口面清单
 
-- `selectAppTheme` -- 接缝 -- 三态 + 系统深浅 + 双槽 → 界面主题,坏 id 落默认
-- `selectTerminalTheme` -- 接缝 -- 同口径 → 终端主题,坏 id 落默认
-- `resolveTerminalAppearance` -- 接缝 -- 设置 → xterm 全量外观(字体链、度量、光标、配色、scrollback)
-- `applyAppearance` -- 接缝 -- theme.ts 唯一写手,写 dark 类与主题类
+- `getAppTheme` -- 接缝 -- 设置 → 界面主题(坏 id 落默认 github-dark,不再有槽与系统深浅维度)
+- `getTerminalTheme` -- 接缝 -- 设置 → 终端配色(坏名落默认 Ghostty 深色)
+- `resolveTerminalAppearance` -- 接缝 -- 设置 → xterm 全量外观(签名去掉 systemDark 维度)
+- `applyAppearance` -- 接缝 -- theme.ts 唯一写手:写主题类、按 isDark 写 .dark 与 color-scheme
 - `useSettings` / `updateSettings` -- 接缝 -- 渲染层设置状态读取与变更
 - `applyTerminalAppearanceToAll` -- 接缝 -- 全部已开终端应用解析结果,度量变更触发 refit
 - `APP_THEMES` -- 非接缝 -- 8 套界面主题数据,只读
@@ -195,3 +198,14 @@ token 落地(`src/renderer/src/assets/theme-tokens.css`):`:root` 定义浅色默
 - `DEFAULT_STORE.settings` -- 非接缝 -- 新字段默认值唯一来源,loadStore 补缺依据
 - `PREVIEW_BUFFER` / `ui-slice` 设置对话框开合 -- 非接缝 -- 预览示例缓冲;对话框开合状态
 - `TerminalAppearance` -- 非接缝 -- resolveTerminalAppearance 输出形状,字段见 T3 契约
+
+## 第二版覆盖标准调整
+
+- 接缝一(主题选择解析)从「三态 × 系统深浅 × 双槽」的 6 行矩阵降为 3 行:坏 id 落默认、
+  取到目录内主题、`isDark` 与 token 组一致。
+- 接缝二(终端外观解析)去掉 `systemDark` 入参,原 5 条用例保留(改签名后仍成立)。
+- 接缝三(持久化兼容)新增迁移行:旧文件带 `appThemeDark` 时导出 `appTheme='github-dark'`;
+  旧 `terminalThemeDark` 迁移到 `terminalTheme` 仅当名字仍在 22 套目录内。
+- 接缝四(主题数据完整性)从 8 套 × 2 形态改为 12 套 × 1 形态 × 10 token。
+- 新增接缝六(主题与 CSS 一致):`app-themes-css.test.ts` 改为 12 个 `.theme-<id>` 块逐一比对。
+- 删除:三态解析、跟随系统监听、双槽选择相关的一切用例(`resolveDark`、`systemPrefersDark` 删除)。
