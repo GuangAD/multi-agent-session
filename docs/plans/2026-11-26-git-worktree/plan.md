@@ -12,7 +12,7 @@
       交付:经桥接建出一个 worktree——磁盘出现目录、`.worktree/` 已写进本机排除文件、会话记录带 worktree 三项、该会话的终端在 worktree 目录里启动。DevTools 里调桥接即可演示。
       挡谁:T3、T4
 
-- [ ] **T3 删链路:删会话连带删 worktree**
+- [x] **T3 删链路:删会话连带删 worktree**
       交付:删带 worktree 的会话时目录一起消失;有未提交改动则拒绝并回传 git 原文;带强制参数才强删;目录已被手工删掉时清掉 git 的残留登记、幂等成功。
       挡谁:T5
 
@@ -40,6 +40,13 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
 - `dirKey` 只做斜杠与 win32 大小写归一,无 realpath(T2 复审 P2-5):**平台前提确定为 Windows 首发**(打包目标只有 `electron-builder --win`,macOS 不在支持范围)。同一 gate 覆盖不到的另一症状:项目本身若是 linked worktree(`.git` 是文件)时排除文件写不进去,只在日志里告警。
 - 会话记录里 worktree `path` 存的是 `path.join` 的反斜杠形式,与 `shared/types.ts` 注释「归一化存储」措辞不一致(T2 评审 Minor-3):`dirKey` 已兜住所有比较,暂无功能影响;改动它会牵动未来 spawn cwd 与两个面板,留到有实际需求时再统一。
 - T3 待办(T2 评审 Minor-6):`remove` 删会话但**保留分支**,之后用同名再建 worktree 会撞 `branch already exists`,落 `git-error` 原文。是否在 T3 加「分支已存在」的友好提示,由 T3 处理时定。
+- 断链 worktree 无出口(T3 第三轮复审实测):`<worktree>/.git` 文件被删/损坏时,`git worktree list` 仍列出该条目(附 `prunable` 行),而 `git worktree remove` 带不带 `--force` 都失败(`validation failed … '.git' does not exist`),登记也摘不掉 → 该会话在应用里永远删不掉。门 3 冒烟时按此形态核一遍,再定是否给 `prune` 前置。
+- T5 要补的显示语义(T3 第三轮复审):`sessions.remove` 在 worktree 清不掉时**不抛**,只回 `worktreeError`;而 `sessions-slice.removeSession` 现在只看 `closedTabs`,会把该会话从列表移除并关标签页(界面「假删成功」,`sessions:list` 之后又冒出来)。T5 必须让失败分支保留记录。
+- `removeWorktree` 的 `skip` 分支 `rm` 非原子:目录内某文件被占时会先删掉一部分再抛错(T3 复审)。已用 `forceWorktree` 闸门把这条限制在用户确认之后,但「半删」本身无法避免,登记备查。
+- `sessions:remove` 的 800ms 重试不看错误性质(T3 复审):有未提交改动时也会白等一次再跑同一句 `contains modified or untracked files`;且这条路径会先杀掉用户的 agent 终端却回 `closedTabs: []`。T5 的二次确认要能解释「标签页已死」。
+- 三处重复小件(T3 评审 Minor-3):`runGit`(`ipc/sessions.ts` / `ipc/worktree.ts`)、`pathExists`(同两处)、`errorMessage`(同两处)。合并时不必新建 utils 目录,从 `git-worktree.ts` 导出即可。
+- `pathExists` 用 `stat` 不辨文件与目录(T3 评审 Minor-4);`session` 快照在 `await` 前后各取一次会更严格(T3 评审 Minor-5)。
+- 删项目仍会留下 worktree 目录(T3 评审 Minor-6,已核实):`ipc/projects.ts` 走 `sessionRecords.removeByProject`,既不清 `<项目>/.worktree/*` 也不摘 git 登记,下次同名创建会撞 `dir-exists` 得手工删。与 brief 第 2 节「移除项目不删磁盘目录」一致,但残留下次会挡创建,登记备查。
 
 ## 开发记录
 
@@ -70,7 +77,16 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
   - mutation check 留痕:`.lock`→`.locked` 与 `//`→`///` 各使对应守卫用例转红后还原;`isRepoRoot` 的 `===`→`!==` 使两条用例转红后还原(最终整文件 23 passed)。
   - TDD waiver:`src/main/ipc/worktree.ts` 编排层无自动化用例(需 electron `ipcMain` + fs 打桩,成本与收益不成比例;同层 `ipc/git.ts` 亦无单测),靠门 3 冒烟与 gate 的 `isRepoRoot` 单测兜底。步骤 32 的 DevTools 演示未做(无 Electron 环境),留门 3。
   - 下一步用得上的结论:真实环境 git 回正斜杠而 `path.join` 给反斜杠,任何新增的路径比较都必须经 `dirKey` 归一;T3 只需往 `WorktreeService` 加 `remove`/`prune`;T4 调 `bridge.worktree.create` 成功后用返回的 `session` 开 tab 即可(cwd 已统一走 `resolveSessionDir`)。
-
+- **T3 删链路** | 形态 L2(派发 implementer + 三轮评审) | commit `feat(T3): 删会话连带删 worktree`
+  - 落地:`git-worktree.ts` 加 `RemovalAction`、`pickRemovalAction`、`removeWorktree`(探事实 → 选动作 → 执行;不抛,失败折成 `{ok:false, error}`),`WorktreeService` 加 `remove({root,path,force})` 与 `prune(root)`;`SessionsApi.remove` 加 `options.forceWorktree` 与 `worktreeError`;`ipc/sessions.ts` 的 handler 改 async:有存活 PTY 先 `ptyRegistry.kill`,再清目录,清不掉就原样回错误且记录/回填资格/落盘全不动,`killedPty` 以「先读一次 activeIds」替掉;`preload` 透传 `options`。
+  - 验证:全量 51 文件 400 用例绿(BASE 352 + T1 8 + T2 24 + T3 16);`pnpm typecheck` 双投影 0 error;eslint 无输出。
+  - 评审:三轮(初审 0 Critical / 2 Important / 8 Minor;复审 2 条 P1;第三轮通过 + 遗留清单)。三轮都由独立 reviewer 裁决。
+  - 实测取证(git 2.46.0.windows.1,临时仓库):脏 worktree 无论有没有进程占目录,`worktree remove` 都以 `contains modified or untracked files` 拒绝且**登记不摘**;干净 worktree 被进程 cwd 占住时,`remove` 报 `failed to delete …: Permission denied` 但**登记已被摘掉**——这正是「目录在、git 不认」这一状态的来源,也是「先杀 PTY」与「skip 分支自删」两条设计的依据。
+  - 处置:Important-1(`dirExists && !registered` 会删记录留孤儿)改为「对本项目 `.worktree/` 下的路径由应用自己删,别处拒绝」;复审又补了「删除前必须 `forceWorktree`」的闸门(该分支已无 git 脏检查兜底,且 `rm` 非原子);Important-2(删正在跑的会话被目录锁挡住)改为先 `ptyRegistry.kill` 再清目录,并对首次失败(仅原本有活 PTY)等 800ms 重试一次;`list` 抛错时若目录也不在则幂等成功,解掉「项目目录被删后会话永远删不掉」的死锁;`removeDir` 由可选改必填。
+  - 契约修订:步骤 8 的 Expected 改 `2 failed | 1 passed`(空骨架使「都不在→跳过」必绿);步骤 15 的条数按实测改为 37;`removeWorktree` 伪代码补 `removeDir` 与「第四种组合」;测试规格表补 #6–#13。
+  - mutation check 留痕:`--force` 实参改成恒不带 → force 用例转红后还原;`if (!p.force)` 改成 `if (false)` → 「未给 force 拒绝」用例转红后还原。
+  - TDD waiver:`ipc/sessions.ts` 的删除编排(杀 PTY、800ms 重试、activeIds 快照)仍无自动化用例,与 T2 同因(需 electron + pty 打桩);靠门 3 实机冒烟(含「删一个正在跑 agent 的 worktree 会话」)兜底。步骤 12–14 的 DevTools 演示未做。
+  - 下一步用得上的结论:失败时 `worktreeError` 存在而 `closedTabs` 恒为空,记录与 PTY 都未被触碰(PTY 可能已被主动杀掉,见遗留项);`bridge.sessions.remove(id, { forceWorktree })` 已通到主进程;`WorktreeService` 的假服务样板在 `git-worktree.test.ts` 的 `createFakeService`,T4/T5 可直接复用。
 
 <!-- 四层文档的任何改动都在这里另行留一行 -->
 <!-- 跨特性仍生效的判断登记到根目录 DECISIONS.md,不在这里留 -->

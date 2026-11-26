@@ -2,9 +2,12 @@
 // 本层负责 agent 归一、组合落盘(防抖合并 + saveStoreAtomic + 退出前排空)与删除连带关标签页
 // (spec 模块划分)
 import { ipcMain } from 'electron'
+import { rm, stat } from 'node:fs/promises'
 import { IPC_CHANNELS } from './channels'
 import { agentRegistry } from '../agents/agent-registry'
 import { ptyRegistry } from '../pty-registry'
+import { gitService } from '../git-service'
+import { createWorktreeService, removeWorktree, type GitRunner } from '../git-worktree'
 import { BackfillCoordinator } from '../session-store/backfill'
 import { sessionRecords } from '../session-store/session-records'
 import { activeSession } from '../active-session'
@@ -67,6 +70,17 @@ function createDebouncedSaver(
   }
 }
 
+// 删除 worktree 前要看的事实之一:目录在不在(T3 处理 2)。探测失败一律当不存在,
+// 剩下的交给 git 登记事实
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await stat(target)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // 返回退出前要 flush 的落盘器与防抖入口:scheduleSave 供入口转交给 ipc/pty.ts 的回填写回
 // (controller 裁决 4:入口组合,ipc/pty 不跨域 import sessions 内部)
 export function registerSessionsIpc(
@@ -75,6 +89,10 @@ export function registerSessionsIpc(
 ): { flush: () => Promise<void>; scheduleSave: () => void } {
   const saver = createDebouncedSaver(store, storePath)
   const scheduleSave = saver.schedule
+  // worktree 与 git 面板共用同一个 simple-git 实例与 root 缓存(spec 技术选型);
+  // 每次调用新建服务,不缓存、不持有状态
+  const runGit: GitRunner = (root, args) => gitService.for(root).raw(args)
+  const worktreeService = createWorktreeService(runGit)
 
   ipcMain.handle(
     IPC_CHANNELS.sessionsCreate,
@@ -105,14 +123,59 @@ export function registerSessionsIpc(
 
   ipcMain.handle(
     IPC_CHANNELS.sessionsRemove,
-    (_event, id: SessionId): { closedTabs: SessionId[] } => {
-      const existed = sessionRecords.get(store, id) !== undefined
+    async (
+      _event,
+      id: SessionId,
+      options?: { forceWorktree?: boolean }
+    ): Promise<{ closedTabs: SessionId[]; worktreeError?: string }> => {
+      const session = sessionRecords.get(store, id)
+      // 处理 1-5:带 worktree 的会话先清磁盘目录,再删记录——否则会留下「记录没了但目录还在」的孤儿。
+      // 清不掉就把 git 原文回给渲染层,记录、回填资格、落盘一律不动,可带 forceWorktree 再来一次。
+      // 「有活动标签页」在主进程侧 = 有存活 PTY,先读一次:下面可能主动把它杀掉,
+      // 杀完之后它已不在活动列表里,但它的标签页仍然要关,故以这次读取为准。
+      const activeIds = ptyRegistry.activeSessionIds()
+      const wasActive = activeIds.includes(id)
+      if (session?.worktree) {
+        const project = store.projects.find((item) => item.id === session.projectId)
+        if (project) {
+          // Why 先杀 PTY:agent 的 shell cwd 就在 worktree 目录里,Windows 对「某进程的 cwd」加锁,
+          // 实测 `git worktree remove` 会先摘掉登记再报 "failed to delete …: Permission denied",
+          // 目录于是变成 `dirExists=true && registered=false` 的孤儿(应用再也定位不到)。
+          // 删除意愿已明确,先停进程释放锁再清目录;清不掉(有未提交改动)仍按失败回原文。
+          if (wasActive) {
+            ptyRegistry.kill(id)
+          }
+          const worktreePath = session.worktree.path
+          const cleanup = (): ReturnType<typeof removeWorktree> =>
+            removeWorktree({
+              root: project.path,
+              path: worktreePath,
+              force: options?.forceWorktree === true,
+              service: worktreeService,
+              dirExists: pathExists,
+              removeDir: (target) => rm(target, { recursive: true, force: true })
+            })
+          let cleaned = await cleanup()
+          if (!cleaned.ok && wasActive) {
+            // ptyRegistry.kill 的树杀是并发的、不 await(约 0.6-0.9s 才真正释放目录锁),
+            // 第一次常以 Permission denied 收场;等一会儿再试一次,有界两次。
+            await new Promise((resolve) => setTimeout(resolve, 800))
+            cleaned = await cleanup()
+          }
+          if (!cleaned.ok) {
+            return { closedTabs: [], worktreeError: cleaned.error }
+          }
+        }
+        // 项目记录不存在时拿不到仓库根(projects:remove 会连带删其下会话,这里只剩脏数据),
+        // 无法执行 git,按普通会话删除——留目录好过留一条永远删不掉的记录
+      }
+      const existed = session !== undefined
       if (existed) {
         // 删除待回填会话也释放资格(controller 裁决 4);release 同时中止在途轮询,不写回
         BackfillCoordinator.release(id)
       }
-      // 「有活动标签页」在主进程侧 = 有存活 PTY(与渲染层 tab 的进程存活判定同源)
-      const result = sessionRecords.remove(store, id, ptyRegistry.activeSessionIds())
+      // 有活动标签页 = 有存活 PTY(与渲染层 tab 的进程存活判定同源)
+      const result = sessionRecords.remove(store, id, activeIds)
       if (existed) {
         scheduleSave() // 无记录可删时不落盘(重复删除是正常竞态)
       }

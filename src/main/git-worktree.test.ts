@@ -8,7 +8,10 @@ import {
   createWorktreeService,
   decideCreateConflict,
   parseWorktreeList,
-  validateWorktreeName
+  pickRemovalAction,
+  removeWorktree,
+  validateWorktreeName,
+  type WorktreeService
 } from './git-worktree'
 
 describe('名称(validateWorktreeName)', () => {
@@ -158,6 +161,266 @@ describe('冲突(decideCreateConflict)', () => {
   })
 })
 
+// 期望值来源:T3 契约用例表的期望列 + git 的事实——`git worktree remove` 只对已登记
+// 且目录还在的条目有效,目录被手工删掉后只能靠 `git worktree prune` 清残留登记。
+describe('删除动作(pickRemovalAction)', () => {
+  it('目录在、git 已登记:remove', () => {
+    expect(pickRemovalAction({ dirExists: true, registered: true })).toBe('remove')
+  })
+
+  it('目录不在、git 已登记:prune', () => {
+    expect(pickRemovalAction({ dirExists: false, registered: true })).toBe('prune')
+  })
+})
+
+// 假服务记录入参,不打真实 git(T3 契约:service 与 dirExists 可注入)。期望值来源:
+// 契约用例表 3/4/5 行 + spec 覆盖标准 4(未提交改动时两者都不删)、10(--force)、12(都不在就跳过)。
+const worktreePath = 'D:/demo/.worktree/feat-a'
+
+interface FakeServiceCalls {
+  removed: Array<{ root: string; path: string; force: boolean }>
+  pruned: string[]
+}
+
+// 哨兵:这些用例期望「应用自己删目录」这条分支根本不被走到,被调到就让测试炸出来
+const noRemoveDir = async (): Promise<void> => {
+  throw new Error('removeDir 不应被调用')
+}
+
+function createFakeService(p: {
+  registeredPaths: string[]
+  removeError?: string
+  listError?: string
+}): {
+  service: WorktreeService
+  calls: FakeServiceCalls
+} {
+  const calls: FakeServiceCalls = { removed: [], pruned: [] }
+  const service: WorktreeService = {
+    isRepoRoot: async () => true,
+    list: async () => {
+      if (p.listError !== undefined) {
+        throw new Error(p.listError)
+      }
+      return p.registeredPaths.map((path) => ({ path, branch: '' }))
+    },
+    add: async () => {},
+    remove: async (args) => {
+      calls.removed.push(args)
+      if (p.removeError !== undefined) {
+        throw new Error(p.removeError)
+      }
+    },
+    prune: async (root) => {
+      calls.pruned.push(root)
+    }
+  }
+  return { service, calls }
+}
+
+describe('清理 worktree(removeWorktree)', () => {
+  it('有未提交改动(服务抛 git 原文):ok:false 与原文', async () => {
+    const errorText =
+      "fatal: 'D:/demo/.worktree/feat-a' contains modified or untracked files, use --force to delete it"
+    const { service } = createFakeService({
+      registeredPaths: [worktreePath],
+      removeError: errorText
+    })
+
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: worktreePath,
+      force: false,
+      service,
+      dirExists: async () => true,
+      removeDir: noRemoveDir
+    })
+
+    expect(result).toEqual({ ok: false, error: errorText })
+  })
+
+  it('force: true:ok:true,且服务收到 force: true', async () => {
+    const { service, calls } = createFakeService({ registeredPaths: [worktreePath] })
+
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: worktreePath,
+      force: true,
+      service,
+      dirExists: async () => true,
+      removeDir: noRemoveDir
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(calls.removed).toEqual([{ root: 'D:/demo', path: worktreePath, force: true }])
+  })
+
+  it('目录与 git 登记都不在:ok:true,remove 与 prune 都不调用', async () => {
+    const { service, calls } = createFakeService({ registeredPaths: ['D:/demo'] })
+
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: worktreePath,
+      force: false,
+      service,
+      dirExists: async () => false,
+      removeDir: noRemoveDir
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(calls.removed).toEqual([])
+    expect(calls.pruned).toEqual([])
+  })
+
+  // 覆盖标准 5 的接线半段:选 prune 之后确实调到 service.prune(纯函数用例只钉了选择,
+  // 这里钉执行;T3 复审指出现有 33 条里没有一条驱动 prune 分支)
+  it('目录不在、git 仍登记:ok:true 且调 service.prune,不调 remove', async () => {
+    const { service, calls } = createFakeService({ registeredPaths: [worktreePath] })
+
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: worktreePath,
+      force: false,
+      service,
+      dirExists: async () => false,
+      removeDir: noRemoveDir
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(calls.pruned).toEqual(['D:/demo'])
+    expect(calls.removed).toEqual([])
+  })
+
+  // list 抛错时我们不知道 git 认不认这条 worktree:T3 复审要求「不知道就别动手」,
+  // 但目录也不在时必须有出口,否则项目目录被用户删掉后这条会话永远删不掉
+  it('list 抛错、目录在:ok:false,remove 与 prune 都不调', async () => {
+    const { service, calls } = createFakeService({
+      registeredPaths: [],
+      listError: 'fatal: not a git repository'
+    })
+
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: worktreePath,
+      force: false,
+      service,
+      dirExists: async () => true,
+      removeDir: noRemoveDir
+    })
+
+    expect(result).toEqual({ ok: false, error: 'fatal: not a git repository' })
+    expect(calls.removed).toEqual([])
+    expect(calls.pruned).toEqual([])
+  })
+
+  it('list 抛错、目录不在:ok:true(幂等,记录可删)', async () => {
+    const { service } = createFakeService({
+      registeredPaths: [],
+      listError: 'fatal: not a git repository'
+    })
+
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: worktreePath,
+      force: false,
+      service,
+      dirExists: async () => false,
+      removeDir: noRemoveDir
+    })
+
+    expect(result).toEqual({ ok: true })
+  })
+
+  // T3 评审 Important-1:目录还在但 git 已不认这条登记(实测可达——有进程占着目录时
+  // `git worktree remove` 会先摘掉登记再报 Permission denied)。此时跳过删除会永久留下
+  // 应用再也定位不到的孤儿目录,故对「本项目 .worktree/ 下」的路径改由应用自己删。
+  it('目录在、git 未登记、路径在 .worktree/ 下:应用自己删目录', async () => {
+    const { service: baseService, calls } = createFakeService({ registeredPaths: [] })
+    const dirs: string[] = []
+    const service = {
+      ...baseService,
+      list: async () => []
+    }
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: 'D:/demo/.worktree/feat-a',
+      force: true,
+      service,
+      dirExists: async () => true,
+      removeDir: async (path) => {
+        dirs.push(path)
+      }
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(dirs).toEqual(['D:/demo/.worktree/feat-a'])
+    expect(calls.removed).toEqual([])
+    expect(calls.pruned).toEqual([])
+  })
+
+  it('目录在、git 未登记、路径不在 .worktree/ 下:拒绝删,回错误', async () => {
+    const { service: baseService } = createFakeService({ registeredPaths: [] })
+    const dirs: string[] = []
+    const service = {
+      ...baseService,
+      list: async () => []
+    }
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: 'D:/other/feat-a',
+      force: false,
+      service,
+      dirExists: async () => true,
+      removeDir: async (path) => {
+        dirs.push(path)
+      }
+    })
+
+    expect(result.ok).toBe(false)
+    expect(dirs).toEqual([])
+  })
+
+  it('应用自己删目录失败:ok:false 带原文', async () => {
+    const { service: baseService } = createFakeService({ registeredPaths: [] })
+    const service = {
+      ...baseService,
+      list: async () => []
+    }
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: 'D:/demo/.worktree/feat-a',
+      force: true,
+      service,
+      dirExists: async () => true,
+      removeDir: async () => {
+        throw new Error('EBUSY: resource busy or locked')
+      }
+    })
+
+    expect(result).toEqual({ ok: false, error: 'EBUSY: resource busy or locked' })
+  })
+
+  // 这个分支已失去 git 的脏检查兜底,而 rm 不是原子的:没有 force 就只回错误,交给二次确认
+  it('目录在、git 未登记、未给 force:拒绝,removeDir 不调', async () => {
+    const { service } = createFakeService({ registeredPaths: [] })
+    const dirs: string[] = []
+
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: 'D:/demo/.worktree/feat-a',
+      force: false,
+      service,
+      dirExists: async () => true,
+      removeDir: async (path) => {
+        dirs.push(path)
+      }
+    })
+
+    expect(result.ok).toBe(false)
+    expect(dirs).toEqual([])
+  })
+})
+
 // 假执行器记录收到的 (root, args),不打真实 git:期望值取自 git 文档的参数顺序
 // `git worktree add [-b <new-branch>] <path> <commit-ish>`。
 describe('服务(createWorktreeService)', () => {
@@ -216,5 +479,37 @@ describe('服务(createWorktreeService)', () => {
       throw new Error('fatal: not a git repository')
     })
     expect(await service.isRepoRoot('D:/demo')).toBe(false)
+  })
+
+  // 覆盖标准 10「带强制参数删除 → 用 --force 执行」的前半段:T3 评审 Minor-1 指出
+  // 现有 force 用例只到接口层,真正决定 --force 能不能到达 git 的是这里的实参拼装。
+  it('remove:force 为 false 时参数不带 --force', async () => {
+    const calls: Array<{ root: string; args: string[] }> = []
+    const service = createWorktreeService(async (root, args) => {
+      calls.push({ root, args })
+      return ''
+    })
+
+    await service.remove({ root: 'D:/demo', path: 'D:/demo/.worktree/feat-a', force: false })
+
+    expect(calls).toEqual([
+      { root: 'D:/demo', args: ['worktree', 'remove', 'D:/demo/.worktree/feat-a'] }
+    ])
+  })
+
+  it('remove:force 为 true 时参数带 --force;prune 只发 worktree prune', async () => {
+    const calls: Array<{ root: string; args: string[] }> = []
+    const service = createWorktreeService(async (root, args) => {
+      calls.push({ root, args })
+      return ''
+    })
+
+    await service.remove({ root: 'D:/demo', path: 'D:/demo/.worktree/feat-a', force: true })
+    await service.prune('D:/demo')
+
+    expect(calls).toEqual([
+      { root: 'D:/demo', args: ['worktree', 'remove', '--force', 'D:/demo/.worktree/feat-a'] },
+      { root: 'D:/demo', args: ['worktree', 'prune'] }
+    ])
   })
 })

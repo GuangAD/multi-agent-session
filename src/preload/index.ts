@@ -34,7 +34,8 @@ const api: AppApi = {
   sessions: {
     create: (p) => ipcRenderer.invoke(IPC_CHANNELS.sessionsCreate, p),
     rename: (p) => ipcRenderer.invoke(IPC_CHANNELS.sessionsRename, p),
-    remove: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsRemove, id),
+    // options.forceWorktree 用于 worktree 有未提交改动时的二次确认(T3 删链路)
+    remove: (id, options) => ipcRenderer.invoke(IPC_CHANNELS.sessionsRemove, id, options),
     open: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsOpen, id),
     list: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.sessionsList, projectId),
     setActive: (id) => ipcRenderer.invoke(IPC_CHANNELS.sessionsSetActive, id),

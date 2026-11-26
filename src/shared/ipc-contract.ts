@@ -82,8 +82,13 @@ export interface AgentsApi {
 export interface SessionsApi {
   create: (p: { projectId: ProjectId; agentId: AgentId }) => Promise<Session>
   rename: (p: { id: SessionId; title: string }) => Promise<void>
-  // 删除记录;closedTabs = 需连带关闭的标签页(主进程按活动 PTY 判定)
-  remove: (id: SessionId) => Promise<{ closedTabs: SessionId[] }>
+  // 删除记录;closedTabs = 需连带关闭的标签页(主进程按活动 PTY 判定)。
+  // 带 worktree 的会话先把磁盘目录删干净再删记录;worktreeError 存在即表示 worktree 没删成、
+  // 会话记录也没删,可带 forceWorktree 重试(--force 丢弃未提交改动)
+  remove: (
+    id: SessionId,
+    options?: { forceWorktree?: boolean }
+  ) => Promise<{ closedTabs: SessionId[]; worktreeError?: string }>
   // 重开:记录存在则更新 lastOpenedAt 并返回;续接决策由渲染层在 pty:spawn 载荷以可选 resume 透传(T8)
   open: (id: SessionId) => Promise<Session>
   list: (projectId: ProjectId) => Promise<Session[]>

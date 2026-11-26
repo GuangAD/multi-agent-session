@@ -127,10 +127,98 @@ export function decideCreateConflict(p: {
   return null
 }
 
+// 两件事实 → 一种清理动作(T3 处理 3)。git 对「目录没了但登记还在」的条目只认 prune,
+// 反之 `worktree remove` 会报 "is not a working tree";目录与登记都在才走 remove。
+export type RemovalAction = 'remove' | 'prune' | 'skip'
+
+export function pickRemovalAction(p: { dirExists: boolean; registered: boolean }): RemovalAction {
+  if (p.dirExists && p.registered) {
+    return 'remove'
+  }
+  return p.registered ? 'prune' : 'skip'
+}
+
+// git / fs 报错原文:调用方要把 git 原文送到界面上让用户看懂是哪一步出错
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+// 把「探事实 → 选动作 → 执行」串成一次清理(T3 处理 2-4)。不抛:任何失败都折成 ok:false 与原文,
+// 让调用方能把「目录没清掉」与「记录已删」两件事分开——没清掉就一条记录也不许动。
+export async function removeWorktree(p: {
+  root: string
+  path: string
+  force: boolean
+  service: WorktreeService
+  dirExists: (path: string) => Promise<boolean>
+  // 应用自己删目录(仅在「目录还在但 git 已不认这条登记」时用到);注入以便单测不打真实 fs
+  removeDir: (path: string) => Promise<void>
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const dirExists = await p.dirExists(p.path)
+  // 登记事实只能问 git。list 失败时无法判断该不该动手:目录也不在就没有孤儿可留,幂等成功
+  // 让记录能被删掉(否则项目目录被用户删掉时这条会话永远删不掉);目录还在则不动手,回原文
+  let registeredPaths: string[]
+  try {
+    registeredPaths = (await p.service.list(p.root)).map((ref) => ref.path)
+  } catch (error) {
+    if (!dirExists) {
+      return { ok: true }
+    }
+    return { ok: false, error: errorMessage(error) }
+  }
+  const target = dirKey(p.path)
+  const action = pickRemovalAction({
+    dirExists,
+    registered: registeredPaths.some((path) => dirKey(path) === target)
+  })
+  if (action === 'skip') {
+    // 目录也不在了:幂等成功,记录照删
+    if (!dirExists) {
+      return { ok: true }
+    }
+    // 目录还在、git 已不认这条登记(实测可达:有进程占着目录时 `worktree remove` 会先摘掉
+    // 登记再报 Permission denied)。此时跳过会让记录被删、目录永久留下,而记录是应用唯一
+    // 指向它的句柄。故对「本项目 .worktree/ 下」的路径改由应用自己删,别处一律拒绝。
+    const managedPrefix = `${dirKey(p.root)}/.worktree/`
+    if (!dirKey(p.path).startsWith(managedPrefix)) {
+      return {
+        ok: false,
+        error: `目录存在但 git 未登记该 worktree,且不在 ${managedPrefix} 下,拒绝自动删除`
+      }
+    }
+    // 走到这里已无法自证目录干净(git 的登记没了,也就没有 git 的脏检查兜底),且 rm 不是原子的:
+    // 冲突文件被占时会先删掉一部分再抛错。故只在用户已确认丢弃时动手(forceWorktree),否则回错误
+    // 让渲染层弹二次确认——与 brief「有未提交改动先拒,二次确认才强删」同一口径。
+    if (!p.force) {
+      return { ok: false, error: '目录存在但 git 已不认这条 worktree,需确认丢弃目录内容后再删' }
+    }
+    try {
+      await p.removeDir(p.path)
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) }
+    }
+  }
+
+  try {
+    if (action === 'prune') {
+      await p.service.prune(p.root)
+    } else {
+      // 分支始终保留(ADR-0003 例外):只删应用自己建的这个 worktree 副本
+      await p.service.remove({ root: p.root, path: p.path, force: p.force })
+    }
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: errorMessage(error) }
+  }
+}
+
 export interface WorktreeService {
   isRepoRoot(root: string): Promise<boolean>
   list(root: string): Promise<WorktreeRef[]>
   add(p: { root: string; path: string; branch: string; base: string }): Promise<void>
+  remove(p: { root: string; path: string; force: boolean }): Promise<void>
+  prune(root: string): Promise<void>
 }
 
 // 每次调用新建实例,不缓存、不持有状态(可重复创建);root 由每个动作自带,runner 据此定执行目录。
@@ -153,6 +241,16 @@ export function createWorktreeService(runner: GitRunner): WorktreeService {
     async add(p) {
       // 参数顺序按 git 文档:worktree add [-b <new-branch>] <path> <commit-ish>
       await runner(p.root, ['worktree', 'add', '-b', p.branch, p.path, p.base])
+    },
+    async remove(p) {
+      // 参数顺序按 git 文档:worktree remove [--force] <path>;force 才丢弃未提交改动
+      await runner(
+        p.root,
+        p.force ? ['worktree', 'remove', '--force', p.path] : ['worktree', 'remove', p.path]
+      )
+    },
+    async prune(root) {
+      await runner(root, ['worktree', 'prune'])
     }
   }
 }
