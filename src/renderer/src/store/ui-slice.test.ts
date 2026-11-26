@@ -45,3 +45,27 @@ describe('agentDialog 弹窗描述状态', () => {
     expect(store.getState().agentDialog).toBeNull()
   })
 })
+
+// 期望值来源:T4 测试规格用例 4/5(手算字面量 + 幂等约定)。与 agentDialog 同款:
+// 描述整体覆盖式读写,目标项目显式记在描述里,不依赖侧栏选中态。
+describe('worktree 弹窗开合', () => {
+  it('用例 4:openWorktreeDialog 后描述为该项目', () => {
+    const store = makeStore()
+    store.getState().openWorktreeDialog({ projectId: 'p1' })
+    // toEqual 校验整个对象形状:多带字段(如把项目路径也塞进描述)即转红
+    expect(store.getState().worktreeDialog).toEqual({ projectId: 'p1' })
+  })
+
+  it('用例 5:关闭两次都得到 null 且不抛(幂等)', () => {
+    const store = makeStore()
+    // 先把弹窗置为打开态(等价于 openWorktreeDialog 的效果),再连关两次:
+    // 关闭动作必须真的把它置 null,no-op 实现会在第一次 close 后仍非 null 而转红
+    store.setState({ worktreeDialog: { projectId: 'p1' } })
+
+    store.getState().closeWorktreeDialog()
+    expect(store.getState().worktreeDialog).toBeNull()
+
+    expect(() => store.getState().closeWorktreeDialog()).not.toThrow()
+    expect(store.getState().worktreeDialog, '重复关闭保持 null').toBeNull()
+  })
+})

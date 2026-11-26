@@ -16,7 +16,7 @@
       交付:删带 worktree 的会话时目录一起消失;有未提交改动则拒绝并回传 git 原文;带强制参数才强删;目录已被手工删掉时清掉 git 的残留登记、幂等成功。
       挡谁:T5
 
-- [ ] **T4 侧栏入口与建 worktree 弹窗**
+- [x] **T4 侧栏入口与建 worktree 弹窗**
       交付:仓库根项目在「更多」菜单里出现「新建 worktree」,其余项目没有;弹窗内选起点分支、填名称、点 agent,一次动作把目录与标签页会话一起做出来;冲突与 git 失败在弹窗内显示。
       挡谁:T5
 
@@ -47,6 +47,8 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
 - 三处重复小件(T3 评审 Minor-3):`runGit`(`ipc/sessions.ts` / `ipc/worktree.ts`)、`pathExists`(同两处)、`errorMessage`(同两处)。合并时不必新建 utils 目录,从 `git-worktree.ts` 导出即可。
 - `pathExists` 用 `stat` 不辨文件与目录(T3 评审 Minor-4);`session` 快照在 `await` 前后各取一次会更严格(T3 评审 Minor-5)。
 - 删项目仍会留下 worktree 目录(T3 评审 Minor-6,已核实):`ipc/projects.ts` 走 `sessionRecords.removeByProject`,既不清 `<项目>/.worktree/*` 也不摘 git 登记,下次同名创建会撞 `dir-exists` 得手工删。与 brief 第 2 节「移除项目不删磁盘目录」一致,但残留下次会挡创建,登记备查。
+- `createWorktree` 与 `openSession` / `reopenSession` 三处同构(T4 评审 Minor-3):`pendingSpawns.set` + `upsertSession` + `tabs` + `activeTabId` 四步逐行等价,建议后续抽 `openTabWithPendingSpawn`,本特性不动以免扩大差异。
+- `WorktreeDialog.tsx` 的界面行为(置灰、Esc、错误区、分支为空提示)无自动化用例(T4 裁定 A):靠门 3 冒烟,门 3 清单里四条分别在「名称非法 / 分支已存在 / 目录已存在 / 未安装置灰与 Esc」。
 
 ## 开发记录
 
@@ -87,6 +89,14 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
   - mutation check 留痕:`--force` 实参改成恒不带 → force 用例转红后还原;`if (!p.force)` 改成 `if (false)` → 「未给 force 拒绝」用例转红后还原。
   - TDD waiver:`ipc/sessions.ts` 的删除编排(杀 PTY、800ms 重试、activeIds 快照)仍无自动化用例,与 T2 同因(需 electron + pty 打桩);靠门 3 实机冒烟(含「删一个正在跑 agent 的 worktree 会话」)兜底。步骤 12–14 的 DevTools 演示未做。
   - 下一步用得上的结论:失败时 `worktreeError` 存在而 `closedTabs` 恒为空,记录与 PTY 都未被触碰(PTY 可能已被主动杀掉,见遗留项);`bridge.sessions.remove(id, { forceWorktree })` 已通到主进程;`WorktreeService` 的假服务样板在 `git-worktree.test.ts` 的 `createFakeService`,T4/T5 可直接复用。
+- **T4 侧栏入口与建 worktree 弹窗** | 形态 L2(派发 implementer + 一轮评审) | commit `feat(T4): 侧栏入口与建 worktree 弹窗`
+  - 落地:`ui-slice` 的 `worktreeDialog` / `openWorktreeDialog` / `closeWorktreeDialog`;`sessions-slice.createWorktree`(成功先登记待 spawn 再入列开 tab,失败原样回传且 store 与 pendingSpawns 都不动,桥接 rejection 归 `git-error`);新增 `components/sidebar/WorktreeDialog.tsx`(分支下拉 + 名称 + agent 置灰 + 错误区 + Esc/遮罩关闭,按 `project.id` 设 key 归零);`MoreMenu` 打开即探 `isRepoRoot`,`=== true` 才渲染菜单项;`App.tsx` 挂载弹窗。
+  - 验证:全量 51 文件 406 用例绿(BASE 352 + T1 8 + T2 24 + T3 16 + T4 6);`pnpm typecheck` 双投影 0 error;eslint 0 error。
+  - 评审:独立 reviewer,0 Critical / 1 Important / 4 Minor。
+  - 处置:Important(`MoreMenu` 的测量 effect 只依赖 `anchor`,探测回填后插入一行会使坐标陈旧——翻上方压住触发按钮、向下可能越出视口)已把 `isRepoRoot` 加进依赖;Minor「空仓库静默死路」已加提示;Minor「分支读取失败误用创建失败文案」已拆成独立 `branchesError`;Minor「`submit` 无 `finally`」已改 try/finally;Minor「`createWorktree` 与 `openSession` 三处同构」记入遗留。
+  - 契约修订:步骤 3 由「关弹窗 → 调 create」纠正为「调 create → 成功才关」(原稿与「处理 5:失败保持打开」自相矛盾);测试规格补第 6 行(桥接抛错归 `git-error`)。
+  - 下一步用得上的结论:弹窗的错误区收口在 `FAILURE_LABEL` + detail 一处,T5 定稿文案只改这个 Record;创建成功由弹窗自己关、失败保持打开,删除侧的二次确认不要复用这个实例;`MoreMenu` 的探测是「每次打开一次」,依赖它随 `moreOpen` 卸载/挂载。
+
 
 <!-- 四层文档的任何改动都在这里另行留一行 -->
 <!-- 跨特性仍生效的判断登记到根目录 DECISIONS.md,不在这里留 -->

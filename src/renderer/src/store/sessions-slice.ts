@@ -3,6 +3,7 @@
 import type { StateCreator } from 'zustand'
 import { bridge } from '../ipc/bridge'
 import type { AgentListItem, ResumeRef } from '../../../shared/agents'
+import type { WorktreeCreateResult, WorktreeFailure } from '../../../shared/ipc-contract'
 import { resolveSessionDir } from '../../../shared/session-dir'
 import type { AgentId, Project, ProjectId, Session, SessionId } from '../../../shared/types'
 import type { AppState } from './app-store'
@@ -16,6 +17,13 @@ export interface TabSession {
 export interface ImportResult {
   imported: number
   skipped: number
+}
+
+// 建 worktree 的入参(项目由调用方显式传入:弹窗描述只带 projectId,项目列表才是权威来源)
+export interface CreateWorktreeInput {
+  name: string
+  baseBranch: string
+  agentId: AgentId
 }
 
 export interface SessionsSlice {
@@ -32,6 +40,11 @@ export interface SessionsSlice {
   reopenSession: (session: Session, project: Project) => Promise<void>
   // 终端首个 fit 收敛后由 TerminalView 回调:消费待 spawn 记录并带真实 cols/rows 发起 spawn
   spawnOnTerminalReady: (sessionId: SessionId, cols: number, rows: number) => Promise<void>
+  // T4:一次动作完成「建 worktree + 开标签页」,失败不留半成品(记录与标签页都不动)
+  createWorktree: (
+    project: Project,
+    p: CreateWorktreeInput
+  ) => Promise<{ ok: true } | { ok: false; failure: WorktreeFailure; detail?: string }>
   closeTab: (sessionId: SessionId) => Promise<void>
   setActiveTab: (sessionId: SessionId) => void
   renameSession: (id: SessionId, title: string) => Promise<void>
@@ -160,6 +173,46 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
         return { tabs, activeTabId }
       })
     }
+  },
+
+  createWorktree: async (project, p) => {
+    let result: WorktreeCreateResult
+    try {
+      result = await bridge.worktree.create({
+        projectId: project.id,
+        name: p.name,
+        baseBranch: p.baseBranch,
+        agentId: p.agentId
+      })
+    } catch (error) {
+      // 主进程在项目不存在/agent 未知时走 invoke rejection:归为 git-error 并带原文,
+      // Why: 不把异常打给调用方——UI 侧只认 failure 字段,store 保持原样
+      console.error('创建 worktree 失败:', error)
+      return {
+        ok: false,
+        failure: 'git-error',
+        detail: error instanceof Error ? error.message : String(error)
+      }
+    }
+    if (!result.ok) {
+      // 失败分类原样回传(T2 已定的冲突判定,渲染层不重算);无 detail 时不装饰多余的 undefined 键
+      return result.detail === undefined
+        ? { ok: false, failure: result.failure }
+        : { ok: false, failure: result.failure, detail: result.detail }
+    }
+    const session = result.session
+    // 与新建会话同一条链路:先开 tab,首个 fit 后带尺寸 spawn。
+    // 目录取 resolveSessionDir(唯一来源):刚建的会话携带 worktree,故登记的就是 worktree 路径
+    pendingSpawns.set(session.id, {
+      agentId: session.agentId,
+      cwd: resolveSessionDir(session, project)
+    })
+    set((state) => ({
+      sessions: upsertSession(state.sessions, session),
+      tabs: [...state.tabs, { sessionId: session.id }],
+      activeTabId: session.id
+    }))
+    return { ok: true }
   },
 
   closeTab: async (sessionId) => {

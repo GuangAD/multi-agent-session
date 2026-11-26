@@ -11,13 +11,15 @@ import { createSessionsSlice, type SessionsSlice } from './sessions-slice'
 vi.mock('../ipc/bridge', () => ({
   bridge: {
     sessions: { create: vi.fn(), open: vi.fn() },
-    pty: { spawn: vi.fn(), kill: vi.fn() }
+    pty: { spawn: vi.fn(), kill: vi.fn() },
+    worktree: { create: vi.fn() }
   }
 }))
 
 const createMock = vi.mocked(bridge.sessions.create)
 const openMock = vi.mocked(bridge.sessions.open)
 const spawnMock = vi.mocked(bridge.pty.spawn)
+const worktreeCreateMock = vi.mocked(bridge.worktree.create)
 
 const project: Project = { id: 'p1', path: 'D:\\demo-project', name: 'demo-project' }
 const agent = {
@@ -48,6 +50,7 @@ beforeEach(() => {
   createMock.mockReset()
   openMock.mockReset()
   spawnMock.mockReset()
+  worktreeCreateMock.mockReset()
   createMock.mockResolvedValue(makeSession('s1'))
   spawnMock.mockResolvedValue(undefined)
 })
@@ -187,5 +190,80 @@ describe('sessions 记录顺序(与 listByProject 的 createdAt 倒序一致)', 
       's-newest',
       's-existing'
     ])
+  })
+})
+
+// 期望值来源:T4 测试规格用例 1(brief 第 2 节目标 2)+ 接口面 createWorktree 的载荷约定;
+// worktree.create 打桩,不重复 T2 的冲突规则。
+describe('createWorktree(建 worktree 并开标签页)', () => {
+  const worktree = {
+    path: 'D:\\demo-project\\.worktree\\feat-a',
+    branch: 'feat-a',
+    baseBranch: 'main'
+  }
+  const input = { name: 'feat-a', baseBranch: 'main', agentId: 'claude' }
+
+  it('建 worktree 成功:记录入列、标签页打开、activeTabId 指向它', async () => {
+    const store = makeStore()
+    worktreeCreateMock.mockResolvedValue({
+      ok: true,
+      session: { ...makeSession('s-wt'), worktree }
+    })
+
+    const result = await store.getState().createWorktree(project, input)
+
+    expect(result).toEqual({ ok: true })
+    expect(worktreeCreateMock).toHaveBeenCalledWith({ projectId: 'p1', ...input })
+    expect(store.getState().sessions.map((session) => session.id)).toEqual(['s-wt'])
+    expect(store.getState().tabs.map((tab) => tab.sessionId)).toEqual(['s-wt'])
+    expect(store.getState().activeTabId).toBe('s-wt')
+  })
+
+  it('建 worktree 的 spawn 目录:首个 fit 后 pty.spawn 的 cwd 为 worktree 路径', async () => {
+    const store = makeStore()
+    worktreeCreateMock.mockResolvedValue({
+      ok: true,
+      session: { ...makeSession('s-wt-spawn'), worktree }
+    })
+
+    await store.getState().createWorktree(project, input)
+
+    // 与新建会话同一条链路:开 tab 前不 spawn(tab 挂载后才有真实 fit 尺寸)
+    expect(spawnMock, '开 tab 前不得 spawn').not.toHaveBeenCalled()
+    await store.getState().spawnOnTerminalReady('s-wt-spawn', 120, 40)
+    expect(spawnMock).toHaveBeenCalledWith({
+      sessionId: 's-wt-spawn',
+      agentId: 'claude',
+      cwd: worktree.path,
+      cols: 120,
+      rows: 40
+    })
+  })
+
+  it('建 worktree 失败:store 不变、返回该 failure 与 detail', async () => {
+    const store = makeStore()
+    const detail = '名称只能含字母、数字与 ._/-'
+    worktreeCreateMock.mockResolvedValue({ ok: false, failure: 'name-invalid', detail })
+
+    const result = await store.getState().createWorktree(project, { ...input, name: 'feat a' })
+
+    expect(result).toEqual({ ok: false, failure: 'name-invalid', detail })
+    expect(store.getState().sessions, '失败不得落记录').toEqual([])
+    expect(store.getState().tabs, '失败不得开标签页').toEqual([])
+    expect(store.getState().activeTabId).toBeNull()
+  })
+
+  it('桥接抛错(项目不存在/agent 未知):按 git-error 回,不抛、store 不变', async () => {
+    const store = makeStore()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    worktreeCreateMock.mockRejectedValue(new Error('项目 p1 不存在'))
+
+    const result = await store.getState().createWorktree(project, input)
+
+    expect(result).toEqual({ ok: false, failure: 'git-error', detail: '项目 p1 不存在' })
+    expect(store.getState().sessions).toEqual([])
+    expect(store.getState().tabs).toEqual([])
+    expect(errorSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
   })
 })

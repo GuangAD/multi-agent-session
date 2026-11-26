@@ -23,6 +23,7 @@ import { applyTerminalAppearanceToAll, fitHiddenTerminals } from './components/t
 import { createStableResizeGate } from './components/terminal/stable-resize-gate'
 import { useSettings, loadSettings } from './store/settings-slice'
 import { SettingsDialog } from './components/settings/SettingsDialog'
+import { WorktreeDialog } from './components/sidebar/WorktreeDialog'
 import { applyAppearance } from './theme'
 import { resolvePanelRoot } from './panel-root'
 import { getAppTheme } from '../../shared/themes/resolve'
@@ -381,6 +382,8 @@ function App(): React.JSX.Element {
       </div>
 
       <SettingsDialog />
+      {/* 建 worktree 弹窗(T4):入口在侧栏项目行「更多」菜单,本体挂根部(与设置弹窗同处,不受侧栏开关影响) */}
+      <WorktreeDialog />
     </div>
   )
 }
