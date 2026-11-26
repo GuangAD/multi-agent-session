@@ -135,18 +135,18 @@ function WorktreePanel({ project }: { project: Project }): React.JSX.Element {
       onClick={requestClose}
     >
       <div
-        className="w-full max-w-sm rounded-lg bg-surface p-4 shadow-lg"
+        className="w-full max-w-md rounded-lg bg-surface p-6 shadow-lg"
         onClick={(event) => event.stopPropagation()}
       >
-        <h3 className="text-sm font-semibold">建 worktree 会话</h3>
-        <p className="mt-1 text-xs text-ink-muted">
+        <h3 className="text-base font-semibold">建 worktree 会话</h3>
+        <p className="mt-2 text-xs leading-relaxed text-ink-muted">
           在 {project.path} 下新建 .worktree/&lt;名称&gt;,该会话的终端与面板以该目录为根
         </p>
 
-        <label className="mt-3 flex items-center gap-2 text-xs text-ink-muted">
+        <label className="mt-6 flex items-center gap-3 text-xs text-ink-muted">
           <span className="shrink-0">名称</span>
           <input
-            className="min-w-0 flex-1 rounded border border-line bg-transparent px-1 py-0.5 text-xs outline-none focus:border-ink-muted"
+            className="min-w-0 flex-1 rounded border border-line bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-ink-muted"
             placeholder="feat-a"
             value={name}
             disabled={submitting}
@@ -154,10 +154,10 @@ function WorktreePanel({ project }: { project: Project }): React.JSX.Element {
           />
         </label>
 
-        <label className="mt-2 flex items-center gap-2 text-xs text-ink-muted">
+        <label className="mt-4 flex items-center gap-3 text-xs text-ink-muted">
           <span className="shrink-0">起点分支</span>
           <select
-            className="min-w-0 flex-1 rounded border border-line bg-transparent px-1 py-0.5 text-xs"
+            className="min-w-0 flex-1 rounded border border-line bg-transparent px-2.5 py-1.5 text-sm"
             value={baseBranch}
             disabled={submitting || branches === null}
             onChange={(event) => setBaseBranch(event.target.value)}
@@ -170,8 +170,8 @@ function WorktreePanel({ project }: { project: Project }): React.JSX.Element {
           </select>
         </label>
 
-        <p className="mt-3 text-xs text-ink-muted">选择 agent 立即创建</p>
-        <ul className="mt-1 flex flex-col gap-0.5">
+        <p className="mt-6 text-xs text-ink-muted">选择 agent 立即创建</p>
+        <ul className="mt-2 flex flex-col gap-1">
           {agents.map((agent) => {
             const { def, installed } = agent
             // 未安装 → 拉不起 CLI,条目置灰;提交中一律禁用(防重复建)
@@ -184,7 +184,7 @@ function WorktreePanel({ project }: { project: Project }): React.JSX.Element {
                   title={
                     !installed ? '未安装' : `在 ${project.name} 的 worktree 中启动 ${def.name}`
                   }
-                  className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
+                  className={`flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm ${
                     disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-hover'
                   }`}
                   onClick={() => void submit(agent)}
@@ -199,19 +199,19 @@ function WorktreePanel({ project }: { project: Project }): React.JSX.Element {
         </ul>
 
         {failure && (
-          <p className="mt-2 px-1 text-xs text-rose-600 dark:text-rose-400">
+          <p className="mt-3 text-xs leading-relaxed text-rose-600 dark:text-rose-400">
             {FAILURE_LABEL[failure.failure]}
             {failure.detail ? `:${failure.detail}` : ''}
           </p>
         )}
         {/* 分支列表读不到 / 空仓库:两条都不是「创建失败」,分开说,否则用户以为是自己点错了 */}
         {branchesError !== null && (
-          <p className="mt-2 px-1 text-xs text-rose-600 dark:text-rose-400">
+          <p className="mt-3 text-xs leading-relaxed text-rose-600 dark:text-rose-400">
             读取分支列表失败:{branchesError}(关掉重开可重试)
           </p>
         )}
         {branches !== null && branches.all.length === 0 && (
-          <p className="mt-2 px-1 text-xs text-ink-muted">
+          <p className="mt-3 text-xs leading-relaxed text-ink-muted">
             该仓库还没有任何分支(先提交一次,再回来建 worktree)
           </p>
         )}
