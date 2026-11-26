@@ -48,3 +48,22 @@
 - 状态:有效 · 2026-11-26 · 来源:侧栏「更多」面板裁剪修复(commit `95ad95fa`)
 - 判断:锚定某一行的弹出层(dropdown / 小菜单)一律用 `position: fixed` + 按触发元素的 `getBoundingClientRect()` 现算坐标(下方不足则向上翻、边界夹取),不用 `absolute` 挂在滚动容器内部——祖先 `overflow` 的裁剪优先于 `z-index`。整仓布局链刻意不含 `transform`/`filter`/`backdrop-filter` 祖先,故 `fixed` 以视口为参照;若将来引入此类属性,浮层会退化为相对该祖先定位,须改用 portal
 - 波及:侧栏、文件树、Git 面板将来任何行内浮层;不再新造 `overflow` 内的 `absolute` 浮层
+
+## J-009 右侧面板跟随活动会话的目录
+
+- 状态:有效 · 2026-11-26 · 来源:`docs/plans/2026-11-26-git-worktree/brief.md` 第 5 节
+- 判断:右侧文件树面板、Git 面板与标题栏「在 VS Code 打开」一律显示**当前活动标签页那条会话的目录**(worktree 会话取其 worktree 路径,其余取其所属项目路径);无活动标签页时回落到侧栏选中项目。本条取代「面板只跟选中项目」的既有行为
+- 波及:`FileTreePanel` / `GitPanel` 不再各自读 `selectedProjectId`,改由 App 层算出目录后下传;`App.tsx` 里「VS Code 打开」的目标与之同源
+
+## J-010 删除会话连带删除应用自建的 worktree 目录
+
+- 状态:有效 · 2026-11-26 · 来源:`docs/plans/2026-11-26-git-worktree/brief.md` 第 5 节
+- 判断:删除带 worktree 的会话时,无未提交改动则连目录一起删;有未提交改动先拒并显示 git 原文,二次确认后才强删。分支与仓库其他内容不动;移除项目时不删磁盘上的 worktree 目录。这是「删除只删应用记录」(ADR-0003)的登记在案的例外——worktree 是应用自己创建的产物,不是 agent 存储
+- 波及:会话删除编排;移除项目确认框的文案;将来任何涉及本地文件删除的语义
+
+## J-011 worktree 依附项目,不注册为新项目
+
+- 状态:有效 · 2026-11-26 · 来源:`docs/plans/2026-11-26-git-worktree/brief.md` 第 5 节
+- 判断:worktree 目录固定为 `<项目>/.worktree/<名称>`,其会话挂在所属项目下并在会话记录里携带 worktree 三项(目录、分支、起点分支);不把 worktree 目录注册成项目,不扫描 `.worktree/` 导入
+- 升格:ADR-0010
+- 波及:将来任何 worktree 相关特性;`PLAN.md` 附录 A5 原列的「worktree 模型不搬」由本次需求取代
