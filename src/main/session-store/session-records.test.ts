@@ -35,6 +35,25 @@ it('create:入库一条 created 记录,id 全局唯一', () => {
   expect(new Date(first.createdAt).toISOString()).toBe(first.createdAt)
 })
 
+it('create:带 worktree 三项,读回记录含同样三项', () => {
+  // 期望值来源:brief 第 5 节「worktree 三项原样写入,不做校验」
+  const store = emptyStore()
+  const worktree = {
+    path: 'D:/demo/.worktree/feat-a',
+    branch: 'feat-a',
+    baseBranch: 'main'
+  }
+
+  const created = sessionRecords.create(store, {
+    projectId: 'p1',
+    agentId: 'claude',
+    worktree
+  })
+
+  expect(sessionRecords.get(store, created.id)?.worktree).toEqual(worktree)
+  expect(created.worktree).toEqual(worktree)
+})
+
 it('rename:只改 title,agentId/origin 等其余字段不动', () => {
   const store = emptyStore()
   const created = sessionRecords.create(store, { projectId: 'p1', agentId: 'claude' })

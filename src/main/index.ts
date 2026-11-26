@@ -17,6 +17,7 @@ import { registerHooksIpc } from './ipc/hooks'
 import { createInjector } from './agent-hooks/injector'
 import { registerFilesIpc } from './ipc/files'
 import { registerGitIpc } from './ipc/git'
+import { registerWorktreeIpc } from './ipc/worktree'
 import { ptyRegistry } from './pty-registry'
 
 // 会话记录落盘器的退出前排空入口:由 registerSessionsIpc 在 whenReady 内装配后填入
@@ -60,6 +61,8 @@ app.whenReady().then(async () => {
   // T8:防抖落盘器从 sessions IPC 层导出,入口组合转交 ipc/pty.ts(回填写回用;不跨域 import)
   const sessionsIpc = registerSessionsIpc(store, storePath)
   flushSessionRecords = sessionsIpc.flush
+  // T2:worktree 建链路(取事实 → 判定 → 执行 → 写排除 → 建记录);记录落盘沿用会话的防抖写入口
+  registerWorktreeIpc(store, sessionsIpc.scheduleSave)
   // T11:settings 写入需要窗口(切换 nativeTheme 后同步标题栏 overlay 配色)与落盘路径
   registerSettingsIpc(store, () => BrowserWindow.getAllWindows()[0] ?? null, storePath)
   // 单窗口应用:事件出站直接取当前窗口(无窗口时不发)

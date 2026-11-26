@@ -10,12 +10,13 @@ import { createSessionsSlice, type SessionsSlice } from './sessions-slice'
 
 vi.mock('../ipc/bridge', () => ({
   bridge: {
-    sessions: { create: vi.fn() },
+    sessions: { create: vi.fn(), open: vi.fn() },
     pty: { spawn: vi.fn(), kill: vi.fn() }
   }
 }))
 
 const createMock = vi.mocked(bridge.sessions.create)
+const openMock = vi.mocked(bridge.sessions.open)
 const spawnMock = vi.mocked(bridge.pty.spawn)
 
 const project: Project = { id: 'p1', path: 'D:\\demo-project', name: 'demo-project' }
@@ -45,6 +46,7 @@ function makeStore() {
 
 beforeEach(() => {
   createMock.mockReset()
+  openMock.mockReset()
   spawnMock.mockReset()
   createMock.mockResolvedValue(makeSession('s1'))
   spawnMock.mockResolvedValue(undefined)
@@ -116,6 +118,49 @@ describe('spawnOnTerminalReady', () => {
     expect(store.getState().activeTabId).toBeNull()
     expect(errorSpy).toHaveBeenCalled()
     errorSpy.mockRestore()
+  })
+})
+
+// 期望值来源:brief 第 2 节目标 6/7(会话的终端在该 worktree 目录里运行 agent);
+// 只验证 spawn 载荷的 cwd,不重复 T1 的纯函数规则。
+describe('worktree 运行目录', () => {
+  const worktree = {
+    path: 'D:\\demo-project\\.worktree\\feat-a',
+    branch: 'feat-a',
+    baseBranch: 'main'
+  }
+
+  it('开一条带 worktree 的会话:spawn 的 cwd 是 worktree 路径', async () => {
+    const store = makeStore()
+    createMock.mockResolvedValue({ ...makeSession('s-open-wt'), worktree })
+
+    await store.getState().openSession(project, agent)
+    await store.getState().spawnOnTerminalReady('s-open-wt', 120, 40)
+
+    expect(spawnMock).toHaveBeenCalledWith({
+      sessionId: 's-open-wt',
+      agentId: 'claude',
+      cwd: worktree.path,
+      cols: 120,
+      rows: 40
+    })
+  })
+
+  it('重开同上:spawn 的 cwd 是 worktree 路径', async () => {
+    const store = makeStore()
+    const session = { ...makeSession('s-reopen-wt'), worktree }
+    openMock.mockResolvedValue(session)
+
+    await store.getState().reopenSession(session, project)
+    await store.getState().spawnOnTerminalReady('s-reopen-wt', 120, 40)
+
+    expect(spawnMock).toHaveBeenCalledWith({
+      sessionId: 's-reopen-wt',
+      agentId: 'claude',
+      cwd: worktree.path,
+      cols: 120,
+      rows: 40
+    })
   })
 })
 

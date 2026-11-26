@@ -3,6 +3,7 @@
 import type { StateCreator } from 'zustand'
 import { bridge } from '../ipc/bridge'
 import type { AgentListItem, ResumeRef } from '../../../shared/agents'
+import { resolveSessionDir } from '../../../shared/session-dir'
 import type { AgentId, Project, ProjectId, Session, SessionId } from '../../../shared/types'
 import type { AppState } from './app-store'
 
@@ -81,7 +82,11 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
     // Fix-B:先开 tab——TerminalView 挂载后 fit 出真实尺寸,再经 spawnOnTerminalReady 带尺寸 spawn。
     // Why: TUI(pi 等)在 Windows ConPTY 下收不到 resize 通知(nodejs/node#13197),启动宽度即它
     // 看到的终身宽度;先 spawn(80×24)再 fit 会让大窗口下的 TUI 永远画在旧宽度,右侧整段空白。
-    pendingSpawns.set(session.id, { agentId: agent.def.id, cwd: project.path })
+    // 运行目录只有 resolveSessionDir 一个来源(T1):普通会话 = 项目路径,带 worktree 的会话 = worktree 路径
+    pendingSpawns.set(session.id, {
+      agentId: agent.def.id,
+      cwd: resolveSessionDir(session, project)
+    })
     set((state) => ({
       sessions: upsertSession(state.sessions, session),
       tabs: [...state.tabs, { sessionId: session.id }],
@@ -116,7 +121,8 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
       : undefined
     pendingSpawns.set(record.id, {
       agentId: record.agentId,
-      cwd: project.path,
+      // 同新建:目录取 resolveSessionDir,重开 worktree 会话必须在 worktree 目录里续接
+      cwd: resolveSessionDir(record, project),
       ...(resume ? { resume } : {})
     })
     set((state) => ({

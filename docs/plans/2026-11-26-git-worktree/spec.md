@@ -100,7 +100,7 @@ export interface SessionsApi {
 - `src/shared/types.ts` — 会话的 worktree 三项(数据形状)。
 - `src/shared/session-dir.ts` — 会话运行目录的唯一来源。**依赖**:`shared/types`;被渲染层与主进程共用。
 - `src/shared/ipc-contract.ts`、`src/main/ipc/channels.ts` — 新通道名与载荷类型,一一对应。
-- `src/main/git-worktree.ts` — worktree 能力层:七个纯函数 + 一个可注入执行器的服务。**依赖**:`node:fs`、git 命令一律经注入的执行器,生产实现走 `GitRepo.raw`。
+- `src/main/git-worktree.ts` — worktree 能力层:六个函数级接缝 + 一个可注入执行器的服务。**依赖**:`node:fs`、git 命令一律经注入的执行器,生产实现走 `GitRepo.raw`。
 - `src/main/ipc/worktree.ts` — 两个通道的编排:取事实 → 判定 → 执行 → 建记录。
 - `src/main/ipc/sessions.ts` — 删除编排扩展:先删目录再删记录。
 - `src/main/session-store/session-records.ts` — 既有记录接缝,增加写入与读取 worktree。

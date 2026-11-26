@@ -8,7 +8,7 @@
       交付:右栏文件树、Git 面板与「在 VS Code 打开」跟着当前活动会话的目录走;无活动标签回落到选中项目;会话记录结构具备 worktree 指针(暂无人写入)。不涉 worktree 的任何创建动作。
       挡谁:T2、T4
 
-- [ ] **T2 worktree 建链路(后端到记录)**
+- [x] **T2 worktree 建链路(后端到记录)**
       交付:经桥接建出一个 worktree——磁盘出现目录、`.worktree/` 已写进本机排除文件、会话记录带 worktree 三项、该会话的终端在 worktree 目录里启动。DevTools 里调桥接即可演示。
       挡谁:T3、T4
 
@@ -36,6 +36,10 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
 
 - `panel-root` 用例 8 未覆盖「活动会话带 worktree 且所属项目已删」的最坏形态(T1 评审 Minor 3):实现走同一分支,风险低;门 3 终审再定是否补。
 - 预览标签激活时,右栏面板仍跟随上一个终端会话的目录(T1 评审 Minor 4):spec 未表态,属既有标签语义的自然延伸,登记备查。
+- `parseWorktreeList` 按 `\r?\n` 切行,项目路径含换行时就算不过(T2 复审 P2-2):Windows 目录名不可能含换行,当前不可达;若日后支持 macOS/Linux,改 `worktree list --porcelain -z`。
+- `dirKey` 只做斜杠与 win32 大小写归一,无 realpath(T2 复审 P2-5):**平台前提确定为 Windows 首发**(打包目标只有 `electron-builder --win`,macOS 不在支持范围)。同一 gate 覆盖不到的另一症状:项目本身若是 linked worktree(`.git` 是文件)时排除文件写不进去,只在日志里告警。
+- 会话记录里 worktree `path` 存的是 `path.join` 的反斜杠形式,与 `shared/types.ts` 注释「归一化存储」措辞不一致(T2 评审 Minor-3):`dirKey` 已兜住所有比较,暂无功能影响;改动它会牵动未来 spawn cwd 与两个面板,留到有实际需求时再统一。
+- T3 待办(T2 评审 Minor-6):`remove` 删会话但**保留分支**,之后用同名再建 worktree 会撞 `branch already exists`,落 `git-error` 原文。是否在 T3 加「分支已存在」的友好提示,由 T3 处理时定。
 
 ## 开发记录
 
@@ -50,13 +54,23 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
   - 发现 5(无需改):`SessionWorktree` 不含 root;删会话时的 root 由 `session.projectId` 反查项目路径取得,与 T3 契约一致。
   - 测试基座:`src/shared/session-dir.test.ts`(node 投影含 `src/shared/**`)、`src/renderer/src/panel-root.test.ts`(web 投影含 `src/renderer/src/**`),均落 vitest 的 `src/**/*.test.ts`;T2/T3 共用的 `src/main/git-worktree.test.ts` 用七个互不重叠的 `-t` 过滤(名称 / 排除文件 / worktree 列表 / 冲突 / 服务 / 删除动作 / 清理 worktree),收尾条数 T2 16 + T3 5 = 21 自洽。
   - BASE:T1 开工前 `pnpm test` 48 文件 352 用例全绿;`pnpm typecheck` 双投影 0 error。
-- **T1 会话运行目录与面板跟随** | 形态 L2(读数 10% 时派发 implementer) | commit `feat(T1): 会话运行目录收成单一来源并让面板跟随`(哈希待下一任务提交时回填,沿用 `df33a980` 的做法)
+- **T1 会话运行目录与面板跟随** | 形态 L2(读数 10% 时派发 implementer) | commit `feat(T1): 会话运行目录收成单一来源并让面板跟随`(`ef9444da`)
   - 落地:`SessionWorktree` + `Session.worktree?`(`shared/types.ts`);`resolveSessionDir`(`shared/session-dir.ts`);`resolvePanelRoot`(`renderer/src/panel-root.ts`);`App.tsx` 算 `panelRoot` 下传两个面板与「在 VS Code 打开」;两个面板删掉各自查选中项目的代码,重挂 key 从项目 id 改为根目录。
   - 验证:全量 50 文件 360 用例绿(BASE 352 + 新增 8);`pnpm typecheck` 双投影 0 error。
   - 评审:独立 reviewer,双裁决通过(规格 ✅ / 质量通过),0 Critical / 0 Important。
   - 处置:Minor 1(`App.tsx:54` 注释仍写 `${projectId}:${tick}`)已改;Minor 2(注释把「终端 cwd 已接入」写成现状)已改为「待 T2 接入」;Minor 3、4 记入遗留项。
   - 契约修订:步骤 12 的 Expected 由 `Tests 5 failed (5)` 改为 `Tests 4 failed | 1 passed (5)`——骨架恒返回 null 时用例 7(期望正是 null)结构上必绿;属 plan/契约级修订,未触及 brief。
   - 下一步用得上的结论:`resolveSessionDir` 的 `project` 必须是会话所属项目,不能猜;面板重挂 key 现在是根目录,T4/T5 加面板状态时不要假设 key 恒等于项目 id;spawn cwd 的唯一落点是 `sessions-slice.ts` 两处 `pendingSpawns.set`(T2 步骤 29)。
+- **T2 worktree 建链路** | 形态 L2(派发 implementer) | commit `feat(T2): 建 worktree 并落会话记录`
+  - 落地:`src/main/git-worktree.ts`(四个纯函数 + 可注入执行器的服务 + `dirKey` 路径归一)、`src/main/ipc/worktree.ts`(两通道编排:名称先挡 → 仓库边界 gate → 三样事实 → 冲突判定 → add → 写排除 → 落记录)、`GitRepo.raw`、`sessionRecords.create` 加可选 worktree、`shared/ipc-contract.ts` 三个类型与两通道名、`main/index.ts` 注册、preload 暴露、`sessions-slice` 两处 cwd 改走 `resolveSessionDir`。
+  - 验证:全量 51 文件 386 用例绿(BASE 352 + T1 8 + T2 原 19 + 评审守卫 5 + 复核守卫 2);`pnpm typecheck` 双投影 0 error;eslint 无输出。
+  - 评审:独立 reviewer 初审(0 Critical / 2 Important / 6 Minor)+ 新上下文复审(通过,0 阻塞,5 条 report-only)。
+  - 契约修订:步骤 3/7/11/15 的 Expected 由 `3/4/3/4 failed` 改为 `2/3/2/3 failed | 1 passed`——同一骨架悖论(每组恰有一条用例的期望就是骨架行为)。spec 的「七个纯函数」改为「六个函数级接缝」。
+  - 处置:Important-1(编排层无 `isRepoRoot` gate,子目录项目会「建成功但排除文件从未写入」)已加 gate;Important-2(porcelain 非 ASCII 路径引号)按**实测推翻**——git 2.46 对含中文/空格的 worktree 路径不加引号不做转义(临时仓库实测),且 `git-worktree.html` 的 Porcelain Format 段说明只有 lock reason 会被 quote,故非缺陷;Minor-1(名称校验漏 `//`、`.lock`)与复审 P2-3(应逐段判)已改为逐段校验;Minor-2(`appendExclude` 把读失败当空串可能覆盖用户条目)已改为仅 ENOENT 回落;复审 P2-1(gate 文案说死)已改;复审 P2-4(`isRepoRoot` 零守卫)已补三条假执行器用例。
+  - mutation check 留痕:`.lock`→`.locked` 与 `//`→`///` 各使对应守卫用例转红后还原;`isRepoRoot` 的 `===`→`!==` 使两条用例转红后还原(最终整文件 23 passed)。
+  - TDD waiver:`src/main/ipc/worktree.ts` 编排层无自动化用例(需 electron `ipcMain` + fs 打桩,成本与收益不成比例;同层 `ipc/git.ts` 亦无单测),靠门 3 冒烟与 gate 的 `isRepoRoot` 单测兜底。步骤 32 的 DevTools 演示未做(无 Electron 环境),留门 3。
+  - 下一步用得上的结论:真实环境 git 回正斜杠而 `path.join` 给反斜杠,任何新增的路径比较都必须经 `dirKey` 归一;T3 只需往 `WorktreeService` 加 `remove`/`prune`;T4 调 `bridge.worktree.create` 成功后用返回的 `session` 开 tab 即可(cwd 已统一走 `resolveSessionDir`)。
+
 
 <!-- 四层文档的任何改动都在这里另行留一行 -->
 <!-- 跨特性仍生效的判断登记到根目录 DECISIONS.md,不在这里留 -->

@@ -54,6 +54,9 @@ export const IPC_CHANNELS = {
   gitCommit: 'git:commit',
   gitBranches: 'git:branches',
   gitCheckout: 'git:checkout',
+  // T2:worktree 两通道(本项目目录是否为仓库根 / 建一个 worktree 并落会话记录)
+  worktreeIsRepoRoot: 'worktree:isRepoRoot',
+  worktreeCreate: 'worktree:create',
   // 主进程 → 渲染层事件通道(ipcRenderer.on 订阅)
   // 主进程 → 渲染层事件通道(ipcRenderer.on 订阅)
   ptyData: 'pty:data',
@@ -198,6 +201,31 @@ export interface GitApi {
   checkout: (p: { root: string; branch: string }) => Promise<void>
 }
 
+// T2:worktree 建链路的失败分类(spec 数据结构)。detail 只在 name-invalid(给用户看的原因)
+// 与 git-error(git 原文)时出现
+export type WorktreeFailure =
+  | 'name-invalid' // 名称不合法
+  | 'dir-exists' // 目标目录已存在
+  | 'path-registered' // 该路径已被 git 登记为 worktree
+  | 'session-taken' // 已有会话占用该路径
+  | 'git-error' // git 命令失败,原文在 detail
+
+export type WorktreeCreateResult =
+  { ok: true; session: Session } | { ok: false; failure: WorktreeFailure; detail?: string }
+
+// T2:建 worktree 与「本项目目录是否为仓库根」两个合同面
+// (入口只在仓库根 == 项目目录时提供:排除文件固定写在 <项目>/.git/info/exclude)
+export interface WorktreeApi {
+  isRepoRoot: (path: string) => Promise<boolean>
+  // 项目路径、会话记录由主进程自取(渲染层不传路径,避免与记录不一致)
+  create: (p: {
+    projectId: ProjectId
+    name: string
+    baseBranch: string
+    agentId: AgentId
+  }) => Promise<WorktreeCreateResult>
+}
+
 export interface HooksApi {
   // 显式移除全部 managed 注入(项目级四家 + kimi 全局 marker);用户内容保留
   remove: () => Promise<void>
@@ -213,4 +241,5 @@ export interface AppApi {
   hooks: HooksApi
   files: FilesApi
   git: GitApi
+  worktree: WorktreeApi
 }

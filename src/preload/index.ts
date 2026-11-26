@@ -84,6 +84,11 @@ const api: AppApi = {
     commit: (p) => ipcRenderer.invoke(IPC_CHANNELS.gitCommit, p),
     branches: (root) => ipcRenderer.invoke(IPC_CHANNELS.gitBranches, root),
     checkout: (p) => ipcRenderer.invoke(IPC_CHANNELS.gitCheckout, p)
+  },
+  // T2:worktree(仓库根判定 + 建一个 worktree 并落会话记录)
+  worktree: {
+    isRepoRoot: (path) => ipcRenderer.invoke(IPC_CHANNELS.worktreeIsRepoRoot, path),
+    create: (p) => ipcRenderer.invoke(IPC_CHANNELS.worktreeCreate, p)
   }
 }
 

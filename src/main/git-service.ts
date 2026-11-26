@@ -98,6 +98,9 @@ export interface GitRepo {
   commit(message: string): Promise<string>
   branches(): Promise<{ current: string; all: string[] }>
   checkout(branch: string): Promise<void>
+  // 原生命令出口:worktree 等未封装的子命令拼参数数组走这里,与上面七通道共用同一个
+  // simple-git 实例与 root 缓存(spec 技术选型);失败原样抛出 git 原文
+  raw(args: string[]): Promise<string>
 }
 
 // 按 root 缓存句柄:同 root 复用(spec:按项目 root 缓存 repo 句柄)
@@ -164,6 +167,9 @@ function createRepo(baseDir: string): GitRepo {
     },
     async checkout(branch: string): Promise<void> {
       await git.checkout(branch)
+    },
+    async raw(args: string[]): Promise<string> {
+      return git.raw(args)
     }
   }
 }
