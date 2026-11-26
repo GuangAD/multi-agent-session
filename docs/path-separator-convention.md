@@ -188,7 +188,7 @@ path.posix.join('//srv/share', 'x')   →  '/srv/share/x'    (双斜杠被压成
 - 消费点仅一个:`pi/plugin.ts:49-50` 的降级分支 `ref.id ? ... : ref.filePath ? ... : null`
 - `git log -S externalFilePath` 显示自 T6(`7b8a8aa5`)引入即为上述写法,**历史上不存在「有 filePath 无 id」的写入路径**
 
-结论:该降级分支不可达,字段本身冗余。清理属独立事项(动 `shared/types.ts` + `shared/agents.ts` `ResumeRef.filePath` + 3 处),不要与本议题的形态变更捆绑 —— **已于 2026-11-26 清理完毕(commit `98f493cb`),本节保留为历史证据。**
+结论:该降级分支不可达,字段本身冗余。清理属独立事项(动 `shared/types.ts` + `shared/agents.ts` `ResumeRef.filePath` + 3 处),不要与本议题的形态变更捆绑 —— **已于 2026-11-26 清理完毕(commit `74f0c8c6`),本节保留为历史证据。**
 
 ### 6.4 测试夹具缺口(路线 B 必须补)
 
@@ -203,7 +203,7 @@ path.posix.join('//srv/share', 'x')   →  '/srv/share/x'    (双斜杠被压成
 ## 七、登记备查(不属本议题)
 
 - ~~**`DECISIONS.md` 存在两条编号相同的 `J-003`**~~ 已于 2026-11-26 修复:后一条(第三方上游缺陷照搬 Orca 补丁重放)改号为 `J-006`,判断内容未改。
-- ~~**`externalFilePath` 死代码**~~ 已于 2026-11-26 清理(commit `98f493cb`),证据链见 6.3。
+- ~~**`externalFilePath` 死代码**~~ 已于 2026-11-26 清理(commit `74f0c8c6`),证据链见 6.3。
 - **D9(pi 桶名非 Windows 平台编码)**:与本议题无关,仍待实测。若出 macOS/Linux 版,需先确认 pi 在对应平台的桶名编码规则再补 `piBucketName`。
 
 ---
