@@ -1,7 +1,8 @@
 // Git 面板(T10):分支下拉 + 变更列表 + 提交框(无自身标题行——标题与刷新在窗口标题栏,
 // 见 App.tsx;垂直空间全部留给内容)(spec:components/git-panel/GitPanel)
 // 布局:右栏单面板,内部自滚动。
-// 取数:selectedProjectId → 项目 path 作为 git root;挂载与每次操作后重拉状态。
+// 取数:由 App 下传的 root(当前运行目录:活动会话的 worktree 或项目根)作为 git root;
+// 挂载与每次操作后重拉状态。
 // 「不是 Git 仓库」不是错误横幅,而是面板内的空态文案(裁决 6)。
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../../store/app-store'
@@ -18,43 +19,39 @@ function isNotRepo(error: unknown): boolean {
 }
 
 export interface GitPanelProps {
+  // git root:App 算出的「当前运行目录」(活动会话的 worktree 或项目根);null = 空态
+  root: string | null
   // 刷新计数:标题栏的刷新按钮 +1,变化时以 key 重挂内层(重新拉状态与分支)
   refreshTick: number
 }
 
-export function GitPanel({ refreshTick }: GitPanelProps): React.JSX.Element {
-  const projects = useAppStore((state) => state.projects)
-  const selectedProjectId = useAppStore((state) => state.selectedProjectId)
+export function GitPanel({ root, refreshTick }: GitPanelProps): React.JSX.Element {
   const previewPath = useAppStore((state) => state.previewPath)
   const openPreview = useAppStore((state) => state.openPreview)
-  const project = projects.find((item) => item.id === selectedProjectId) ?? null
 
-  if (!project) {
+  // 目录为空:显示空态(没有活动会话也没有选中项目)
+  if (!root) {
     return <EmptyState title="先添加项目" hint="在左栏选择一个项目后,这里显示它的 Git 状态" />
   }
-  // key = 项目 id + 刷新计数:切换项目或点标题栏刷新时整体重挂,
+  // key = 根目录 + 刷新计数:切换会话/项目或点标题栏刷新时整体重挂,
   // 状态/分支/提交说明这些局部 state 自然归零
   return (
-    <GitPanelProject
-      key={`${project.id}:${refreshTick}`}
-      root={project.path}
+    <GitPanelRoot
+      key={`${root}:${refreshTick}`}
+      root={root}
       previewPath={previewPath}
-      onSelectFile={(path) => openPreview(path, 'git-diff', project.path)}
+      onSelectFile={(path) => openPreview(path, 'git-diff', root)}
     />
   )
 }
 
-interface GitPanelProjectProps {
+interface GitPanelRootProps {
   root: string
   previewPath: string | null
   onSelectFile: (path: string) => void
 }
 
-function GitPanelProject({
-  root,
-  previewPath,
-  onSelectFile
-}: GitPanelProjectProps): React.JSX.Element {
+function GitPanelRoot({ root, previewPath, onSelectFile }: GitPanelRootProps): React.JSX.Element {
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [branches, setBranches] = useState<{ current: string; all: string[] } | null>(null)
   const [message, setMessage] = useState('')

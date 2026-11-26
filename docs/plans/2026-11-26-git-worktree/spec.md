@@ -100,7 +100,7 @@ export interface SessionsApi {
 - `src/shared/types.ts` — 会话的 worktree 三项(数据形状)。
 - `src/shared/session-dir.ts` — 会话运行目录的唯一来源。**依赖**:`shared/types`;被渲染层与主进程共用。
 - `src/shared/ipc-contract.ts`、`src/main/ipc/channels.ts` — 新通道名与载荷类型,一一对应。
-- `src/main/git-worktree.ts` — worktree 能力层:五个纯函数 + 一个可注入执行器的服务。**依赖**:simple-git(既有)、`node:fs`。
+- `src/main/git-worktree.ts` — worktree 能力层:七个纯函数 + 一个可注入执行器的服务。**依赖**:`node:fs`、git 命令一律经注入的执行器,生产实现走 `GitRepo.raw`。
 - `src/main/ipc/worktree.ts` — 两个通道的编排:取事实 → 判定 → 执行 → 建记录。
 - `src/main/ipc/sessions.ts` — 删除编排扩展:先删目录再删记录。
 - `src/main/session-store/session-records.ts` — 既有记录接缝,增加写入与读取 worktree。
@@ -116,8 +116,8 @@ export interface SessionsApi {
 
 ## 技术选型与约束
 
-- worktree 全部走 `simple-git` 的 `raw`,`['worktree','add'|'remove'|'prune','list']`,不新增依赖。
-- 执行器注入:服务接受 `(args: string[]) => Promise<string>`,单测传假实现,不打真实 git。
+- worktree 命令一律拼成参数数组交执行器,不新增依赖:`git-service.ts` 的 `GitRepo` 加一个 `raw(args)`,worktree 与既有七通道共用同一个 simple-git 实例与 root 缓存。
+- 执行器注入:服务接受 `(root: string, args: string[]) => Promise<string>`,root 由每个动作自带;单测传假实现,不打真实 git。
 - 测试环境是 node,不做组件测试。渲染层的验证落在 store 与纯函数,界面由冒烟验。
 - 名称校验按 `git check-ref-format` 的常用子集实现:非空、只含 `A-Za-z0-9._/-`、不含 `..`、不以 `/`、`.`、`-` 开头或结尾。
 - 排除文件固定在 `<项目>/.git/info/exclude`;入口只在「仓库根 == 项目目录」时提供,故不必回溯上级目录。

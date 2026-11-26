@@ -13,6 +13,15 @@ export interface Project {
   name: string // 目录名
 }
 
+// worktree 会话的运行目录登记(T1 起为契约字段,建/删编排见后续任务):
+// 缺省 = 普通会话,运行目录取所属项目路径
+// (spec「数据结构」:路径归一化存储,分支名同时是目录名,baseBranch 是建它时的起点分支)
+export interface SessionWorktree {
+  path: string // worktree 目录绝对路径,归一化存储
+  branch: string // 建出来时使用的分支名,同时是目录名
+  baseBranch: string // 起点分支名
+}
+
 export interface Session {
   id: SessionId
   projectId: ProjectId
@@ -24,6 +33,7 @@ export interface Session {
   origin: 'created' | 'imported'
   externalSessionId?: string // imported:去重键;created:回填后供续接
   activityAt?: string // 导入会话最近活动时间,排序展示
+  worktree?: SessionWorktree // 缺省 = 普通会话,运行目录取所属项目路径
 }
 
 // 运行时状态,不持久化

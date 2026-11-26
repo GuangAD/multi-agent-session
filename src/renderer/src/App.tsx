@@ -24,6 +24,7 @@ import { createStableResizeGate } from './components/terminal/stable-resize-gate
 import { useSettings, loadSettings } from './store/settings-slice'
 import { SettingsDialog } from './components/settings/SettingsDialog'
 import { applyAppearance } from './theme'
+import { resolvePanelRoot } from './panel-root'
 import { getAppTheme } from '../../shared/themes/resolve'
 import { bridge } from './ipc/bridge'
 
@@ -39,6 +40,7 @@ function App(): React.JSX.Element {
   const loadSessions = useAppStore((state) => state.loadSessions)
   const loadAgents = useAppStore((state) => state.loadAgents)
   const projects = useAppStore((state) => state.projects)
+  const sessions = useAppStore((state) => state.sessions)
   const selectedProjectId = useAppStore((state) => state.selectedProjectId)
   const tabs = useAppStore((state) => state.tabs)
   const activeTabId = useAppStore((state) => state.activeTabId)
@@ -49,7 +51,7 @@ function App(): React.JSX.Element {
   const openSettingsDialog = useAppStore((state) => state.openSettingsDialog)
   const [leftOpen, setLeftOpen] = useState(true)
   const [rightPanel, setRightPanel] = useState<RightPanel>(null)
-  // 刷新计数:标题栏的刷新按钮把计数 +1,面板以 `${projectId}:${tick}` 作 key 重挂取新数据
+  // 刷新计数:标题栏的刷新按钮把计数 +1,面板以 `${root}:${tick}` 作 key 重挂取新数据
   // Why 用重挂而不是把刷新函数塞进 store:面板的取数与展开态都是组件内部状态,
   // key 变化即天然回到「首次加载」形态,不必在组件之间传回调(与 T9/T10 既有模式一致)
   const [refreshTick, setRefreshTick] = useState(0)
@@ -75,7 +77,21 @@ function App(): React.JSX.Element {
       gate.reset()
     }
   }, [])
-  const activeProject = projects.find((item) => item.id === selectedProjectId) ?? null
+  // 侧栏选中的项目:新建会话弹窗的目标(Ctrl+N)、面板回落目录都取它
+  const selectedProject = projects.find((item) => item.id === selectedProjectId) ?? null
+  // 右栏面板与「在 VS Code 打开」看哪个目录(T1):活动会话的运行目录优先(worktree 会话即
+  // worktree 路径),没有活动会话或所属项目已删时回落选中项目;null = 面板空态。
+  // Why 在 App 层算一份再下传:目录的唯一来源是 session-dir.resolveSessionDir(终端 spawn 的 cwd 待 T2 接入同一来源),面板与
+  // 编辑器动作各算一遍就会出现「面板看 worktree、VS Code 开项目根」的分歧。
+  const activeSession = sessions.find((item) => item.id === activeTabId) ?? null
+  const panelRoot = resolvePanelRoot({
+    activeSession,
+    activeProject:
+      activeSession === null
+        ? null
+        : (projects.find((item) => item.id === activeSession.projectId) ?? null),
+    selectedProject
+  })
 
   // 启动顺序:项目与 agent 载荷并行(agents:list 与项目无关;项目一旦失败不得阻断 agent 装载——
   // 弹窗清单只在启动装一次,顺序 await 会把它连坐跳过),会话记录仍随项目之后
@@ -197,8 +213,8 @@ function App(): React.JSX.Element {
       if (key === 'n' && !event.shiftKey) {
         event.preventDefault()
         setLeftOpen(true)
-        if (activeProject) {
-          openAgentDialog({ mode: 'new', projectId: activeProject.id })
+        if (selectedProject) {
+          openAgentDialog({ mode: 'new', projectId: selectedProject.id })
         }
         return
       }
@@ -227,7 +243,7 @@ function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [tabs, activeTabId, setActiveTab, closeTab, openAgentDialog, activeProject])
+  }, [tabs, activeTabId, setActiveTab, closeTab, openAgentDialog, selectedProject])
 
   return (
     // 根容器给主题底色:左右侧栏与面板容器本身不写背景,显示的就是这里的 base
@@ -294,12 +310,12 @@ function App(): React.JSX.Element {
               </Button>
               <Button
                 variant="ghost"
-                aria-label="通过 VS Code 打开项目目录"
+                aria-label="通过 VS Code 打开当前目录"
                 className="!px-1.5 !py-1"
-                disabled={!activeProject}
+                disabled={!panelRoot}
                 onClick={() => {
-                  if (activeProject) {
-                    void bridge.files.openInEditor(activeProject.path)
+                  if (panelRoot) {
+                    void bridge.files.openInEditor(panelRoot)
                   }
                 }}
               >
@@ -356,9 +372,9 @@ function App(): React.JSX.Element {
         {rightPanel && (
           <aside className="flex min-h-0 w-72 shrink-0 flex-col border-l border-line bg-panel">
             {rightPanel === 'files' ? (
-              <FileTreePanel refreshTick={refreshTick} />
+              <FileTreePanel root={panelRoot} refreshTick={refreshTick} />
             ) : (
-              <GitPanel refreshTick={refreshTick} />
+              <GitPanel root={panelRoot} refreshTick={refreshTick} />
             )}
           </aside>
         )}
