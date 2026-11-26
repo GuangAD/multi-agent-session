@@ -26,6 +26,16 @@ export interface CreateWorktreeInput {
   agentId: AgentId
 }
 
+// 删会话的结果(T5):ok = 记录已从列表移除、该关的标签页已关;
+// 否则 worktreeError 是主进程回传的原文——worktree 没删成时会话记录也没删,调用方据此决定是否强删
+// (shared/ipc-contract.ts 的 sessions.remove:worktreeError 存在即表示两样都没动)
+// kind 区分两类失败:worktree = 主进程的 git 挡住了(有强制删除这条路);
+// transport = 桥接调用本身失败(没有强删可言,只能把原文显示给用户)
+export type RemoveSessionResult =
+  | { ok: true }
+  | { ok: false; kind: 'worktree'; worktreeError: string }
+  | { ok: false; kind: 'transport'; message: string }
+
 export interface SessionsSlice {
   // 已加载项目的会话记录(平铺;按 projectId 分组渲染在侧栏)
   sessions: Session[]
@@ -48,7 +58,11 @@ export interface SessionsSlice {
   closeTab: (sessionId: SessionId) => Promise<void>
   setActiveTab: (sessionId: SessionId) => void
   renameSession: (id: SessionId, title: string) => Promise<void>
-  removeSession: (id: SessionId) => Promise<void>
+  // T5:删会话并告诉调用方是否被 worktree 里的改动挡住;失败时列表原样,可带 forceWorktree 重试
+  removeSession: (
+    id: SessionId,
+    options?: { forceWorktree?: boolean }
+  ) => Promise<RemoveSessionResult>
   // T6:导入该 agent 在本项目下的历史会话(主进程扫描 + 去重),返回条数供 UI 提示
   importSessions: (projectId: ProjectId, agentId: AgentId) => Promise<ImportResult>
   // 主进程回填/标题补捞改写记录后的原位落位(sessions:changed 广播;externalSessionId/标题)
@@ -251,13 +265,25 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
     }))
   },
 
-  removeSession: async (id) => {
+  removeSession: async (id, options) => {
     let closedTabs: SessionId[]
     try {
-      closedTabs = (await bridge.sessions.remove(id)).closedTabs
+      const result = await bridge.sessions.remove(id, options)
+      if (result.worktreeError !== undefined) {
+        // 主进程没删成 worktree 时会话记录也原样保留(ipc-contract:worktreeError 存在即两者都没动),
+        // 所以列表与标签页一律不动,原文交给调用方决定是否带 forceWorktree 重试。
+        // Why 不能照删记录:界面会「假删成功」,下次 sessions:list 又把会话冒出来
+        return { ok: false, kind: 'worktree', worktreeError: result.worktreeError }
+      }
+      closedTabs = result.closedTabs
     } catch (error) {
+      // 桥接异常(主进程拒绝)按通用失败回:不抛给调用方,列表与标签页都不动
       console.error('删除会话失败:', error)
-      return
+      return {
+        ok: false,
+        kind: 'transport',
+        message: error instanceof Error ? error.message : String(error)
+      }
     }
     // 主进程按活动 PTY 返回需连带关闭的 tab;记录已删,挂在该记录上的 tab(含进程已退出)一律撤
     const boundTabs = get()
@@ -267,6 +293,7 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
       await get().closeTab(tabId)
     }
     set((state) => ({ sessions: state.sessions.filter((session) => session.id !== id) }))
+    return { ok: true }
   },
 
   importSessions: async (projectId, agentId) => {

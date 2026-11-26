@@ -8,7 +8,9 @@ export function ConfirmDialog({
   confirmLabel = '确定',
   cancelLabel = '取消',
   onConfirm,
-  onCancel
+  onCancel,
+  // 忙碌态:调用方在跑异步删除时置 true,期间禁点两个按钮(避免重复提交)
+  busy = false
 }: {
   open: boolean
   title: string
@@ -17,6 +19,7 @@ export function ConfirmDialog({
   cancelLabel?: string
   onConfirm: () => void
   onCancel: () => void
+  busy?: boolean
 }): React.JSX.Element {
   if (!open) {
     return <></>
@@ -32,10 +35,12 @@ export function ConfirmDialog({
         <h3 className="text-sm font-semibold">{title}</h3>
         <p className="mt-2 text-sm text-ink-muted">{message}</p>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onCancel}>
+          <Button variant="ghost" disabled={busy} onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button onClick={onConfirm}>{confirmLabel}</Button>
+          <Button disabled={busy} onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
         </div>
       </div>
     </div>

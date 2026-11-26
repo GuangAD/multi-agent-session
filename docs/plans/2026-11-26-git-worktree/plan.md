@@ -20,7 +20,7 @@
       交付:仓库根项目在「更多」菜单里出现「新建 worktree」,其余项目没有;弹窗内选起点分支、填名称、点 agent,一次动作把目录与标签页会话一起做出来;冲突与 git 失败在弹窗内显示。
       挡谁:T5
 
-- [ ] **T5 会话行分支小字与强制删除二次确认**
+- [x] **T5 会话行分支小字与强制删除二次确认**
       交付:worktree 会话在侧栏标题下多一行分支名;删有未提交改动的这类会话时,第一个确认框显示 git 原文,再给「强制删除」二次确认。
       挡谁:无
 
@@ -49,6 +49,8 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
 - 删项目仍会留下 worktree 目录(T3 评审 Minor-6,已核实):`ipc/projects.ts` 走 `sessionRecords.removeByProject`,既不清 `<项目>/.worktree/*` 也不摘 git 登记,下次同名创建会撞 `dir-exists` 得手工删。与 brief 第 2 节「移除项目不删磁盘目录」一致,但残留下次会挡创建,登记备查。
 - `createWorktree` 与 `openSession` / `reopenSession` 三处同构(T4 评审 Minor-3):`pendingSpawns.set` + `upsertSession` + `tabs` + `activeTabId` 四步逐行等价,建议后续抽 `openTabWithPendingSpawn`,本特性不动以免扩大差异。
 - `WorktreeDialog.tsx` 的界面行为(置灰、Esc、错误区、分支为空提示)无自动化用例(T4 裁定 A):靠门 3 冒烟,门 3 清单里四条分别在「名称非法 / 分支已存在 / 目录已存在 / 未安装置灰与 Esc」。
+- 用户在二次确认里点「取消」时,该会话的 PTY 已经在主进程被杀了(T3 的「先杀再清」顺序),目录与记录都在但终端已死(T5 评审 M-3)。修点在主进程顺序(先清、失败再杀),留给后续任务;门 3 冒烟时按此形态观察一次。
+- `SessionRow` 的分支行没有 `onDoubleClick`:双击分支名会走点击的 200ms 延时打开会话,而不是重命名(T5 评审 M-5)。行为不坏,登记备查。
 
 ## 开发记录
 
@@ -96,6 +98,15 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
   - 处置:Important(`MoreMenu` 的测量 effect 只依赖 `anchor`,探测回填后插入一行会使坐标陈旧——翻上方压住触发按钮、向下可能越出视口)已把 `isRepoRoot` 加进依赖;Minor「空仓库静默死路」已加提示;Minor「分支读取失败误用创建失败文案」已拆成独立 `branchesError`;Minor「`submit` 无 `finally`」已改 try/finally;Minor「`createWorktree` 与 `openSession` 三处同构」记入遗留。
   - 契约修订:步骤 3 由「关弹窗 → 调 create」纠正为「调 create → 成功才关」(原稿与「处理 5:失败保持打开」自相矛盾);测试规格补第 6 行(桥接抛错归 `git-error`)。
   - 下一步用得上的结论:弹窗的错误区收口在 `FAILURE_LABEL` + detail 一处,T5 定稿文案只改这个 Record;创建成功由弹窗自己关、失败保持打开,删除侧的二次确认不要复用这个实例;`MoreMenu` 的探测是「每次打开一次」,依赖它随 `moreOpen` 卸载/挂载。
+- **T5 会话行分支小字与强制删除二次确认** | 形态 L2(派发 implementer + 一轮评审) | commit `feat(T5): 分支小字与强制删除二次确认`
+  - 落地:`sessions-slice.removeSession` 改为返回 `RemoveSessionResult`(成功 / `kind:'worktree'` 被挡住 / `kind:'transport'` 调用失败),`worktreeError` 非空时提前返回、列表与标签页都不动,`options` 原样透传给桥;`SessionRow` 标题下加分支小字(仅 worktree 会话);`Sidebar` 删除确认扩成三态(confirm → force → failed)复用同一个 `ConfirmDialog`,取消任一步只关框;`ConfirmDialog` 加可选 `busy`(忙碌期禁点两个按钮),`WorktreeDialog` 的 `FAILURE_LABEL` 文案定稿(brief 第 6 节欠账结清)。
+  - 验证:全量 51 文件 410 用例绿(BASE 352 + T1 8 + T2 24 + T3 16 + T4 6 + T5 4);`pnpm typecheck` 双投影 0 error;eslint 无新增问题。
+  - 评审:独立 reviewer,0 Critical / 1 Important / 5 Minor。
+  - 处置:Important(`submitRemove` 的异步收尾没有身份校验——用户取消后会被失败结果重新弹回,成功结果还会关掉别人刚打开的框)改为带 `current.session.id` 校验的函数式更新;Minor「传输失败被塞进 `worktreeError` 会给出错误的强删文案」按 `kind` 拆开(failed 态只报原文、按钮改「知道了」);Minor「`removing` 闩是静默单例」改为 `ConfirmDialog` 的 `busy` 禁用态;其余三条记入遗留。
+  - 契约修订:`removeSession` 的返回类型由两态改为三态(加 `kind`),测试规格补第 4 行(桥接拒绝 → `transport`)。
+  - mutation check 留痕:把 transport 分支的 `message` 改成固定字符串 → 桥接拒绝用例转红后还原。
+  - 下一步用得上的结论:`removeSession` 现在必须按返回值决定是否提示,`void removeSession(...)` 会静默吞掉「被挡住」;删除往返期间确认框会保持打开并禁点(busy),门 3 冒烟时「取消后框不该自己弹回来」这条值得单独点一遍。
+
 
 
 <!-- 四层文档的任何改动都在这里另行留一行 -->

@@ -10,14 +10,15 @@ import type { AgentListItem } from '../../../../shared/agents'
 import type { WorktreeFailure } from '../../../../shared/ipc-contract'
 import type { Project } from '../../../../shared/types'
 
-// 失败分类的用户可见标签;detail 由主进程给(名称校验原因 / git 原文),有则接在标签之后。
-// 错误区措辞待 T5 按 brief 第 6 节定稿,这里只保证分类与原文都看得见
+// 失败分类的用户可见标签(T5 定稿,逐条对齐 brief 第 2 节失败形态);detail 由主进程给
+// (名称校验原因 / git 原文),有则接在标签之后——分类与原文都要看得见,用户才知道下一步改哪里。
+// 三个无 detail 的冲突分类必须自带「怎么办」:只有分类名时用户不知道去清理什么
 const FAILURE_LABEL: Record<WorktreeFailure, string> = {
   'name-invalid': '名称不合法',
-  'dir-exists': '目标目录已存在',
-  'path-registered': '该路径已被 git 登记为 worktree,先清理再试',
-  'session-taken': '已有会话占用该路径',
-  'git-error': 'git 命令失败'
+  'dir-exists': '目标目录已存在(先清理 .worktree/ 下的同名目录再试)',
+  'path-registered': '该路径已被 git 登记为 worktree(先 git worktree prune 或手工清理)',
+  'session-taken': '已有会话占用该路径(先删掉那条会话再试)',
+  'git-error': 'git 命令失败(常见原因:同名分支已存在)'
 }
 
 interface FailureState {

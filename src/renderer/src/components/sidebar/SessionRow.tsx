@@ -1,4 +1,6 @@
 // 会话行:agent 徽标 + 显示名 + 工作中旋转动画 + 行内重命名 + 删除入口
+// worktree 会话在标题下多一行分支小字(brief 第 5 节:看得出哪条会话在 worktree 里),与项目行的
+// 「名称 / 路径」同一层级(brief 第 5 节)。
 // 重命名只改应用侧显示名(brief 第 5 节),agent 侧原名与对话 id 不受影响
 // working 动画来自主进程 state:changed 广播(渲染层不自行判定);其余态与缺省不画
 // 标签页存在与否已由标签栏表达,行内不再留状态点
@@ -135,8 +137,17 @@ export function SessionRow({
             color={agent?.def.color}
             name={agent?.def.name ?? session.agentId}
           />
-          <span className="min-w-0 flex-1 truncate text-sm" onDoubleClick={startEditing}>
-            {session.title}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm" onDoubleClick={startEditing}>
+              {session.title}
+            </span>
+            {/* 分支名与会话记录同源(session.worktree,无 worktree 的会话整行不渲染);
+                目录名即分支名,故这里只显示 branch,与项目行路径同为 text-xs 次级行 */}
+            {session.worktree && (
+              <span className="block truncate text-xs text-ink-muted">
+                {session.worktree.branch}
+              </span>
+            )}
           </span>
         </button>
       )}

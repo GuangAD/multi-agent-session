@@ -10,7 +10,7 @@ import { createSessionsSlice, type SessionsSlice } from './sessions-slice'
 
 vi.mock('../ipc/bridge', () => ({
   bridge: {
-    sessions: { create: vi.fn(), open: vi.fn() },
+    sessions: { create: vi.fn(), open: vi.fn(), remove: vi.fn() },
     pty: { spawn: vi.fn(), kill: vi.fn() },
     worktree: { create: vi.fn() }
   }
@@ -18,6 +18,7 @@ vi.mock('../ipc/bridge', () => ({
 
 const createMock = vi.mocked(bridge.sessions.create)
 const openMock = vi.mocked(bridge.sessions.open)
+const removeMock = vi.mocked(bridge.sessions.remove)
 const spawnMock = vi.mocked(bridge.pty.spawn)
 const worktreeCreateMock = vi.mocked(bridge.worktree.create)
 
@@ -49,6 +50,7 @@ function makeStore() {
 beforeEach(() => {
   createMock.mockReset()
   openMock.mockReset()
+  removeMock.mockReset()
   spawnMock.mockReset()
   worktreeCreateMock.mockReset()
   createMock.mockResolvedValue(makeSession('s1'))
@@ -265,5 +267,75 @@ describe('createWorktree(建 worktree 并开标签页)', () => {
     expect(store.getState().tabs).toEqual([])
     expect(errorSpy).toHaveBeenCalled()
     errorSpy.mockRestore()
+  })
+})
+
+// 期望值来源:T5 测试规格用例 1(既有删除语义)+ 接口面 removeSession 的返回值约定;
+// 桥接打桩,不重复 T3 的主进程删除编排。
+describe('removeSession(删会话并回传被挡原因)', () => {
+  it('删除会话成功:记录从列表移除、closedTabs 内的标签页关闭、回 { ok: true }', async () => {
+    const store = makeStore()
+    store.setState({
+      sessions: [makeSession('s-del'), makeSession('s-keep')],
+      tabs: [{ sessionId: 's-del' }],
+      activeTabId: 's-del'
+    })
+    removeMock.mockResolvedValue({ closedTabs: ['s-del'] })
+
+    const result = await store.getState().removeSession('s-del')
+
+    expect(result).toEqual({ ok: true })
+    expect(store.getState().sessions.map((session) => session.id)).toEqual(['s-keep'])
+    expect(store.getState().tabs).toEqual([])
+    expect(store.getState().activeTabId).toBeNull()
+  })
+
+  it('worktree 挡住删除:记录仍在列表、标签页不关、原样回传 git 原文', async () => {
+    const store = makeStore()
+    store.setState({
+      sessions: [makeSession('s-blocked')],
+      tabs: [{ sessionId: 's-blocked' }],
+      activeTabId: 's-blocked'
+    })
+    const worktreeError = 'error: cannot remove worktree: it contains modified or untracked files'
+    // 契约:worktreeError 存在时 closedTabs 恒为空(记录与目录都没动)
+    removeMock.mockResolvedValue({ closedTabs: [], worktreeError })
+
+    const result = await store.getState().removeSession('s-blocked')
+
+    expect(result).toEqual({ ok: false, kind: 'worktree', worktreeError })
+    expect(
+      store.getState().sessions.map((session) => session.id),
+      '被挡住时记录必须留在列表里'
+    ).toEqual(['s-blocked'])
+    expect(store.getState().tabs, '被挡住时标签页不关').toEqual([{ sessionId: 's-blocked' }])
+    expect(store.getState().activeTabId).toBe('s-blocked')
+  })
+
+  it('强制删除:桥接收到 forceWorktree: true,记录照删', async () => {
+    const store = makeStore()
+    store.setState({ sessions: [makeSession('s-force')] })
+    removeMock.mockResolvedValue({ closedTabs: [] })
+
+    const result = await store.getState().removeSession('s-force', { forceWorktree: true })
+
+    expect(result).toEqual({ ok: true })
+    expect(removeMock, '强制删除的入参必须原样到桥').toHaveBeenCalledWith('s-force', {
+      forceWorktree: true
+    })
+    expect(store.getState().sessions).toEqual([])
+  })
+
+  // 契约「接口(伪代码)」要求桥接抛错时也不抛给调用方、列表不变(T5 偏离 2 补的守卫)
+  it('桥接拒绝:回通用失败、记录与标签页都不动、不抛', async () => {
+    const store = makeStore()
+    store.setState({ sessions: [makeSession('s-err')], tabs: [{ sessionId: 's-err' }] })
+    removeMock.mockRejectedValue(new Error('ipc reject'))
+
+    const result = await store.getState().removeSession('s-err')
+
+    expect(result).toEqual({ ok: false, kind: 'transport', message: 'ipc reject' })
+    expect(store.getState().sessions.map((session) => session.id)).toEqual(['s-err'])
+    expect(store.getState().tabs).toEqual([{ sessionId: 's-err' }])
   })
 })
