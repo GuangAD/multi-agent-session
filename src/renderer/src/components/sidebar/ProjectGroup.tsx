@@ -1,7 +1,7 @@
 // 项目分组:项目行(chevron / 常驻「+」「…」)+ 该项目下可折叠的会话行(spec:components/sidebar/ProjectGroup)
 // 点行本体 = 选中 + 项目展开态取反(一次点击同时完成);行上按钮阻断冒泡,不改变选中。
 // 展开态是渲染层 UI 状态,不落盘(T6 既有约定),默认展开;会话行的 working 动画来源 = run-state-slice(主进程 state:changed 广播)
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { ChevronDown, ChevronRight, Ellipsis, Plus } from 'lucide-react'
 import { useAppStore } from '../../store/app-store'
 import { SESSION_LIST_COLLAPSED_LIMIT, orderSessionsForDisplay } from '../../session-order'
@@ -34,6 +34,13 @@ export function ProjectGroup({
   // 项目展开态(默认展开,点行切换)与「更多」菜单开合态,都是组件本地 UI 状态,不落盘
   const [expanded, setExpanded] = useState(true)
   const [moreOpen, setMoreOpen] = useState(false)
+  // 「更多」面板的锚点 = 触发按钮元素(fixed 定位按它的视口矩形算坐标,见 MoreMenu)
+  const [moreAnchor, setMoreAnchor] = useState<HTMLElement | null>(null)
+  // 关闭收口在一处:面板开合态与锚点必须同步复位,否则下次打开会按旧矩形定位
+  const closeMore = useCallback(() => {
+    setMoreOpen(false)
+    setMoreAnchor(null)
+  }, [])
   // 会话列表超一屏的「显示更多」折叠态(T6 既有逻辑原样保留),默认折叠
   const [listExpanded, setListExpanded] = useState(false)
   // 最近活动倒序 + 超一屏折叠(T6):顺序只由这里统一决定
@@ -79,7 +86,7 @@ export function ProjectGroup({
             {project.path}
           </span>
         </span>
-        {/* 常驻动作区:relative 供「更多」面板 absolute 定位;按钮阻断冒泡,不触发选中与展开切换 */}
+        {/* 常驻动作区:按钮阻断冒泡,不触发选中与展开切换(「更多」面板已改 fixed 定位,不再依赖这里的 relative) */}
         <div className="relative flex items-center gap-0.5">
           <Button
             variant="ghost"
@@ -100,15 +107,17 @@ export function ProjectGroup({
             className="!px-1.5 !py-1"
             onClick={(event) => {
               event.stopPropagation()
+              setMoreAnchor(event.currentTarget)
               setMoreOpen(true)
             }}
           >
             <Ellipsis className="size-4" aria-hidden />
           </Button>
-          {moreOpen && (
+          {moreOpen && moreAnchor !== null && (
             <MoreMenu
               project={project}
-              onClose={() => setMoreOpen(false)}
+              anchor={moreAnchor}
+              onClose={closeMore}
               onRemove={onRemoveProject}
             />
           )}
