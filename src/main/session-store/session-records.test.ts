@@ -43,7 +43,6 @@ it('rename:只改 title,agentId/origin 等其余字段不动', () => {
     ...created,
     externalTitle: 'agent 侧原名',
     externalSessionId: 'ext-1',
-    externalFilePath: 'D:\\home\\.claude\\projects\\p\\ext-1.jsonl',
     lastOpenedAt: '2026-11-21T00:00:00.000Z',
     activityAt: '2026-11-20T00:00:00.000Z'
   }

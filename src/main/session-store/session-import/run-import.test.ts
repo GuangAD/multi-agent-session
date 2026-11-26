@@ -128,7 +128,6 @@ describe('runImport(既有口径改写延续)', () => {
       title: '标题 ext-1',
       externalTitle: '标题 ext-1',
       externalSessionId: 'ext-1',
-      externalFilePath: 'D:\\home\\.claude\\projects\\D--work-myapp\\ext-1.jsonl',
       activityAt: '2026-11-19T09:00:30.000Z'
     })
   })

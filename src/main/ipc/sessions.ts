@@ -126,7 +126,7 @@ export function registerSessionsIpc(
       throw new Error(`会话不存在:${id}`)
     }
     // lastOpenedAt 记最近打开时间;T8 续接参数由渲染层从返回的记录构造
-    // (externalSessionId/externalFilePath → pty:spawn 的可选 resume 字段透传,不另开通道)
+    // (externalSessionId → pty:spawn 的可选 resume 字段透传,不另开通道)
     session.lastOpenedAt = new Date().toISOString()
     scheduleSave()
     return session

@@ -161,12 +161,10 @@ it('用例 8:antigravity ref{id} → ["--conversation",id];无 id → null', () 
   expect(antigravityAgent.sessions?.resumeArgv?.({})).toBeNull()
 })
 
-it('用例 9:pi ref{id} 优先 → ["--session",id];id 缺失降级 filePath;两者皆无 → null', () => {
-  // 2026-11-23 用户裁决:pi 1.6.0 的 --session 接受路径或完整/部分 id(pi 退出自打印
-  // 「To resume this session: pi --session <id>」即官方形态);id 缺失旧记录降级转录路径
-  const filePath = 'D:\\h\\.pi\\agent\\sessions\\proj-1\\abc\\session.jsonl'
-  expect(piAgent.sessions?.resumeArgv?.({ id: 'pi-1', filePath })).toEqual(['--session', 'pi-1'])
-  expect(piAgent.sessions?.resumeArgv?.({ filePath })).toEqual(['--session', filePath])
+it('用例 9:pi ref{id} → ["--session",id];无 id → null', () => {
+  // 2026-11-23 用户裁决:pi 1.6.0 的 --session 接受完整/部分 id(pi 退出自打印
+  // 「To resume this session: pi --session <id>」即官方形态);id 缺失的转录路径降级分支已删除
+  expect(piAgent.sessions?.resumeArgv?.({ id: 'pi-1' })).toEqual(['--session', 'pi-1'])
   expect(piAgent.sessions?.resumeArgv?.({})).toBeNull()
 })
 

@@ -43,10 +43,9 @@ export const piPlugin: AgentDefinition = {
   sessions: {
     // T7:导入扫描(home = <home>/.pi/agent/sessions)
     scan: scanPi,
-    // T8:续接参数(2026-11-23 用户裁决:pi 1.6.0 的 --session 接受路径或完整/部分 id,
-    // pi 退出时自打印「To resume this session: pi --session <id>」即官方推荐形态,命令行
-    // 不再携带完整转录路径)。id 缺失的旧记录降级用转录路径;两者皆无 → null 原样拉起。
-    resumeArgv: (ref) =>
-      ref.id ? ['--session', ref.id] : ref.filePath ? ['--session', ref.filePath] : null
+    // T8:续接参数(2026-11-23 用户裁决:pi 1.6.0 的 --session 接受完整/部分 id,pi 退出时自打印
+    // 「To resume this session: pi --session <id>」即官方推荐形态,命令行不携带转录路径);
+    // 无 id → null,主进程原样拉起。
+    resumeArgv: (ref) => (ref.id ? ['--session', ref.id] : null)
   }
 }

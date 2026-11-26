@@ -23,7 +23,6 @@ export interface Session {
   lastOpenedAt?: string
   origin: 'created' | 'imported'
   externalSessionId?: string // imported:去重键;created:回填后供续接
-  externalFilePath?: string // pi 等按转录路径续接的 agent 需要
   activityAt?: string // 导入会话最近活动时间,排序展示
 }
 

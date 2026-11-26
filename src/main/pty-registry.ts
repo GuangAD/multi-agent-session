@@ -373,9 +373,10 @@ export const ptyRegistry = {
     // Fix-C 确认:注入发生在 spawn 之后,而 spawn 尺寸已是 fit 真值(Fix-B 保证 spawn 等首个
     // fit 完成),pi 启动即拿到正确宽度,注入时机无需再改。
     // T8(controller 裁决 2)+ 评审 Fix-2:注入行经 buildAgentLaunchLine 组装——launchArgs 非空时
-    // = 命令(含空白才加引号) + 逐参数(含空白者双引号包裹,如 pi 的 --session <转录路径>)拼串;
-    // 参数同样来自应用构造(externalSessionId/转录路径,非用户自由输入),Windows 路径不含 ",
-    // 维持「不引 shell 转义矩阵」边界(ADR-0004 边界注释的 T8 延伸)。
+    // = 命令(含空白才加引号) + 逐参数(含空白者双引号包裹)拼串;
+    // 参数只来自应用构造的 externalSessionId(取自 agent 会话的 id 字段,实测为 uuid/ulid 形态,
+    // 不含引号;来源是转录 JSON 内容,不是用户自由输入)。据此维持「不引 shell 转义矩阵」的
+    // 边界(ADR-0004);若某 agent 的 id 形态不再满足这个前提,须回到这里补转义。
     const injectLine = buildShellInjectLine(shellKind, launchCommand, p.launchArgs)
     if (injectLine !== null) {
       pty.write(injectLine)

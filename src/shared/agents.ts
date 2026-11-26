@@ -28,16 +28,17 @@ export type HookInstallKind =
 export interface ImportCandidate {
   externalSessionId: string
   externalTitle?: string
+  // 候选源文件绝对路径:回填 mtime 新鲜度判定(backfill.ts)/ codex 明文与 .zst 取舍(scan.ts)。
+  // 只服务扫描与回填,**不落进 Session 记录**(会话记录侧的续接只用 externalSessionId)。
   filePath?: string
   cwd: string
   activityAt?: string
 }
 
-// T8:续接定位原料——id(多数 agent)或转录路径(pi 按文件续接);两字段可选,
-// 由各定义自取。渲染层从会话记录构造(externalSessionId/externalFilePath),经 pty:spawn 透传。
+// T8:续接定位原料 —— agent 侧会话 id(五家 CLI 一律按 id 续接;pi 官方形态即 `--session <id>`)。
+// 渲染层从会话记录 externalSessionId 构造,经 pty:spawn 透传。
 export interface ResumeRef {
   id?: string
-  filePath?: string
 }
 
 export interface AgentDefinition {

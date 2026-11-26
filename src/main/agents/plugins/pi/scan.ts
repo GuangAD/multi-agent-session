@@ -1,5 +1,5 @@
 // pi 会话存储适配:定位 <home>/.pi/agent/sessions/<编码桶>/<时间戳>_<uuid>.jsonl,解析出导入候选
-// (externalSessionId / externalTitle / cwd / activityAt),外加该 .jsonl 的绝对路径——续接要用它(T8)。
+// (externalSessionId / externalTitle / cwd / activityAt),另带该 .jsonl 的绝对路径——回填新鲜度判定要用它。
 // 插件包形态(T1):本文件即 pi 插件的 sessions.scan。
 // 解析裁剪自 Orca src/main/ai-vault/scanners/session-scanner-graph-parsers.ts 的
 // consumeMessageGraphRecordLine(agent 'pi')(v1.4.265, MIT):只留 type=session 的 id/cwd、首条 role=user

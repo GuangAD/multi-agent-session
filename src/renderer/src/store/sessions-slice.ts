@@ -110,9 +110,9 @@ export const createSessionsSlice: StateCreator<AppState, [], [], SessionsSlice> 
     // 与新建同一条链路:先开 tab,首个 fit 后带尺寸 spawn。
     // 续接定位:有 externalSessionId 即带 ref——自建会话来自回填,导入会话来自扫描入库
     // (2026-11-21 需求变更,plan 开发记录 20:15 条:导入的历史会话同样续接);无 id → 原样拉起。
-    // resumeArgv 返回 null(如 pi 缺转录路径)时主进程原样拉起,不抛错。
+    // resumeArgv 返回 null(该 agent 无续接参数)时主进程原样拉起,不抛错。
     const resume: ResumeRef | undefined = record.externalSessionId
-      ? { id: record.externalSessionId, filePath: record.externalFilePath }
+      ? { id: record.externalSessionId }
       : undefined
     pendingSpawns.set(record.id, {
       agentId: record.agentId,

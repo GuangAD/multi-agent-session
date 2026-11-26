@@ -87,7 +87,6 @@ function toImportedSession(
   candidate: {
     externalSessionId: string
     externalTitle?: string
-    filePath?: string
     activityAt?: string
   },
   p: { projectId: ProjectId; agentId: AgentId; importedAt: string; agentName: string }
@@ -102,7 +101,6 @@ function toImportedSession(
     createdAt: p.importedAt,
     origin: 'imported',
     externalSessionId: candidate.externalSessionId,
-    ...(candidate.filePath ? { externalFilePath: candidate.filePath } : {}),
     ...(candidate.activityAt ? { activityAt: candidate.activityAt } : {})
   }
 }

@@ -38,7 +38,7 @@ function sendToRenderer(
 
 // T8 回填编排(controller 裁决 4):spawn 成功后,自建且尚无 externalSessionId 的会话自动
 // T8 回填编排(controller 裁决 4):spawn 成功后,自建且尚无 externalSessionId 的会话自动
-// claim 资格并按节流轮询;发现新候选由本层把 id(及转录路径/标题,有则)写回记录、防抖落盘并
+// claim 资格并按节流轮询;发现新候选由本层把 id(及标题,有则)写回记录、防抖落盘并
 // 广播 sessions:changed(2026-11-24:渲染层侧栏即时跟随)——标题缺失时接力 pollForTitle 补捞
 // (跟随 T4 既有模式:直接改 session 对象 + scheduleSave,sessionRecords 无 update 方法)。
 function startBackfillIfEligible(
@@ -94,12 +94,9 @@ function startBackfillIfEligible(
     if (!id) {
       return // 放弃:记录保持无 id(重开原样拉起)
     }
-    // 写回记录:id(及转录路径/标题,有则)+ 防抖落盘 + 广播渲染层(poll 只回 id,候选由闭包留在 lastCandidates)
+    // 写回记录:id 与标题(有则)+ 防抖落盘 + 广播渲染层(poll 只回 id,候选由闭包留在 lastCandidates)
     session.externalSessionId = id
     const found = lastCandidates.find((candidate) => candidate.externalSessionId === id)
-    if (found?.filePath) {
-      session.externalFilePath = found.filePath
-    }
     const title = pickBackfillTitle(session.title, def.name, found)
     if (title) {
       session.title = title
