@@ -12,6 +12,7 @@ import {
   buildExcludeContent,
   createWorktreeService,
   decideCreateConflict,
+  describeGitFailure,
   validateWorktreeName,
   type GitRunner
 } from '../git-worktree'
@@ -137,8 +138,13 @@ export function registerWorktreeIpc(store: AppStore, scheduleSave: () => void): 
           base: p.baseBranch
         })
       } catch (error) {
-        // 失败与退出:原文回传,不落记录、不删已建目录(目录属用户产物,交给人工)
-        return { ok: false, failure: 'git-error', detail: errorMessage(error) }
+        // 失败与退出:原文回传,不落记录、不删已建目录(目录属用户产物,交给人工)。
+        // 分支被占用是删过会话又用同名重建的常见路径(分支按 brief 保留),给原文补一句怎么办
+        return {
+          ok: false,
+          failure: 'git-error',
+          detail: describeGitFailure(p.name, errorMessage(error))
+        }
       }
 
       // 处理 4:成功后把 worktree 目录与 hook 注入目录幂等追加进仓库本机排除文件

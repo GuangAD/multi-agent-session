@@ -28,6 +28,10 @@
       交付:hook 注入不再把 worktree 弄脏(四个顶层注入目录一并写进本机排除文件),干净 worktree 会话可以不带强删直接删掉;worktree 会话的回填扫描走会话运行目录、资格按 worktree 区分,重开能真的续接且不再拖累同项目的普通会话;强删再失败给出终点;前缀判定归一 `..`;弹窗提交期有可见反馈且可关闭。
       挡谁:无(收尾任务,来自门 3 冒烟)
 
+- [x] **T7 分支被占用时给出可执行的提示**
+      交付:删过会话(分支按 brief 保留)再用同名重建时,弹窗不只显示 git 原文,还补出「分支 x 已存在:换个名称,或先执行 git branch -D x 再试」;其余 git 失败原样透传。
+      挡谁:无(用户点名的小改,只改提示不改行为)
+
 ## 依赖
 
 T1 → T2 → T3 → T4 → T5 串行。T3 与 T4 都只硬依赖 T2,但按阶段 4 的纪律串行执行;T5 的用例需要 T3 的拒绝信号与 T4 的入口才能跑绿,故 T5 排最后。
@@ -43,7 +47,7 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
 - `parseWorktreeList` 按 `\r?\n` 切行,项目路径含换行时就算不过(T2 复审 P2-2):Windows 目录名不可能含换行,当前不可达;若日后支持 macOS/Linux,改 `worktree list --porcelain -z`。
 - `dirKey` 只做斜杠与 win32 大小写归一,无 realpath(T2 复审 P2-5):**平台前提确定为 Windows 首发**(打包目标只有 `electron-builder --win`,macOS 不在支持范围)。同一 gate 覆盖不到的另一症状:项目本身若是 linked worktree(`.git` 是文件)时排除文件写不进去,只在日志里告警。
 - 会话记录里 worktree `path` 存的是 `path.join` 的反斜杠形式,与 `shared/types.ts` 注释「归一化存储」措辞不一致(T2 评审 Minor-3):`dirKey` 已兜住所有比较,暂无功能影响;改动它会牵动未来 spawn cwd 与两个面板,留到有实际需求时再统一。
-- T3 待办(T2 评审 Minor-6):`remove` 删会话但**保留分支**,之后用同名再建 worktree 会撞 `branch already exists`,落 `git-error` 原文。是否在 T3 加「分支已存在」的友好提示,由 T3 处理时定。
+- ~~同名重建撞 `branch already exists` 只落 git 原文~~ **已由 T7 处理**:`describeGitFailure` 在分支被占用时于原文之后补出可执行提示(分支保留本身是 brief 第 5 节的既定决策,不变)。
 - 断链 worktree 无出口(T3 第三轮复审实测):`<worktree>/.git` 文件被删/损坏时,`git worktree list` 仍列出该条目(附 `prunable` 行),而 `git worktree remove` 带不带 `--force` 都失败(`validation failed … '.git' does not exist`),登记也摘不掉 → 该会话在应用里永远删不掉。门 3 冒烟时按此形态核一遍,再定是否给 `prune` 前置。
 - T5 要补的显示语义(T3 第三轮复审):`sessions.remove` 在 worktree 清不掉时**不抛**,只回 `worktreeError`;而 `sessions-slice.removeSession` 现在只看 `closedTabs`,会把该会话从列表移除并关标签页(界面「假删成功」,`sessions:list` 之后又冒出来)。T5 必须让失败分支保留记录。
 - `removeWorktree` 的 `skip` 分支 `rm` 非原子:目录内某文件被占时会先删掉一部分再抛错(T3 复审)。已用 `forceWorktree` 闸门把这条限制在用户确认之后,但「半删」本身无法避免,登记备查。
@@ -121,12 +125,18 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
   - mutation check 留痕:`sameBackfillSpot` 骨架恒 `true` → 「不同 worktree」用例转红;`dirKey` 去掉 `resolve()` → `..` 绕过用例转红(恢复后 41 条全绿)。
   - 未做自动化:`ipc/pty.ts` 两处扫描接线、`Sidebar` 的 force→failed、弹窗提交期行为(grep 断言 `scan(project.path)` 已无残留)。
   - 下一步用得上的结论:干净 worktree 的删除门槛现在只剩 git 自己的脏检查,门 3 复验 E1 应能不带强删直接过;`sameBackfillSpot` 的字面比较依赖「worktree 路径只有 path.join 一个构造点」,若日后支持接管既有目录需改归一比较。
-
+- **T7 分支被占用时给出可执行的提示** | 形态 L1(会话内自己写) | commit `feat(T7): 分支被占用时给可执行提示`
+  - 落地:`git-worktree.ts` 新增导出纯函数 `describeGitFailure(name, message)` 与私有 `BRANCH_EXISTS` 正则;`ipc/worktree.ts` 的 `service.add` 失败分支改用它在原文后补「换个名称,或先执行 git branch -D <name> 再试」;另两处 `git-error`(仓库根 gate、`list` 失败)保持原样。行为零变化:不删分支、不复用分支。
+  - 验证:全量 51 文件 420 用例绿(417 + 本任务 3 条);typecheck 双投影 0 error;eslint 干净。
+  - TDD:stub(`return message`)下 1 failed | 2 passed → 实现后 3 passed;mutation check:正则改成 `a branch xnamed` → 分支用例转红,还原后 3 passed。
+  - 评审:**self-review,非独立**。原计划的独立 reviewer 连续两次运行失败(工具侧 abort),按用户「遇到问题一直没结果跳过」的指示改走冷却自审。自审发现并修掉两处结构缺陷:`describeGitFailure` 的注释原本插在 `buildExcludeContent` 的文档注释与函数之间(会把注释错配),已移到该函数之后;新测试组原本嵌在「服务(createWorktreeService)」的 describe 内部,已移到文件末尾独立成组。
+  - 边界:git 输出若被本地化(非英文),正则不匹配 → 原样回落原文,只是少了那句提示,不会误判;目录冲突的原文是 `'<path>' already exists`,与分支冲突措辞不同,不会被当成分支冲突(有用例钉住)。
 
 ## 收尾对账(门 3)
 
 - 冒烟:A–G 全通过;H1/H2/H3 初测为问题,T6 修复后五项复验(B4/B5、H1/H3、E1、H2/C4、E7)全部通过,记录见 `smoke.md`「复验记录」。
 - 文档对账:`CONTEXT.md` 的 worktree 词条在、`DECISIONS.md` 的 J-009/J-010/J-011 状态有效、`docs/adr/0010-会话携带worktree指针不注册成项目.md` 在;本轮无新增判断条,也未取代任何旧条。
 - 遗留:20 条全部登记在本文件「遗留项」,无一条阻塞合并;`.review/` 已清空。
+
 <!-- 四层文档的任何改动都在这里另行留一行 -->
 <!-- 跨特性仍生效的判断登记到根目录 DECISIONS.md,不在这里留 -->

@@ -93,6 +93,22 @@ export function buildExcludeContent(existing: string, entries: readonly string[]
   return content
 }
 
+// 把 git 的失败原文翻成「能指导下一次动作」的说明(T7):原文一字不改地保留,只在分支被占用时
+// 补一句怎么办。Why 认这句话:分支保留是 brief 第 5 节的决策(删会话不删分支),于是「同名重建」
+// 是唯一会稳定撞到它的路径,而 git 原文("a branch named 'x' already exists")没说清能怎么办。
+// Why 纯函数:匹配规则与文案要能被单测钉住,且不碰任何 IO;目录冲突原文是 '<path>' already exists,
+// 与分支冲突的措辞不同,不会被误判。
+// 分支被占用的原文形如 `fatal: a branch named 'feat-a' already exists`(git 2.46 实测);
+// 目录冲突是 `fatal: '<path>' already exists`,两者措辞不同,可据此区分。
+const BRANCH_EXISTS = /a branch named '[^']+' already exists/
+
+export function describeGitFailure(name: string, message: string): string {
+  if (BRANCH_EXISTS.test(message)) {
+    return `${message}(分支 ${name} 已存在:换个名称,或先执行 git branch -D ${name} 再试)`
+  }
+  return message
+}
+
 // porcelain 每条以 `worktree <绝对路径>` 开头,分支写在 `branch refs/heads/<名>`;detached / bare 条目
 // 没有 branch 行,故 branch 留空串(建前判定只用到路径)。畸形行跳过:git 将来加字段不影响解析。
 const WORKTREE_PREFIX = 'worktree '

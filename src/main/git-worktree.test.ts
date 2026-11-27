@@ -11,6 +11,7 @@ import {
   pickRemovalAction,
   removeWorktree,
   validateWorktreeName,
+  describeGitFailure,
   type WorktreeService
 } from './git-worktree'
 
@@ -553,5 +554,28 @@ describe('服务(createWorktreeService)', () => {
       { root: 'D:/demo', args: ['worktree', 'remove', '--force', 'D:/demo/.worktree/feat-a'] },
       { root: 'D:/demo', args: ['worktree', 'prune'] }
     ])
+  })
+})
+
+// git 原文是给机器看的,分支被占用这条得补一句「怎么办」(T7)。期望值来源:git 2.46 实测原文
+// `fatal: a branch named 'feat-a' already exists`,以及目录冲突原文 `fatal: '<path>' already exists`
+// (后者不能被误判成分支冲突)。
+describe('失败说明(describeGitFailure)', () => {
+  it('分支已存在:保留原文并补出可执行的下一步', () => {
+    const raw = "fatal: a branch named 'feat-a' already exists"
+    const text = describeGitFailure('feat-a', raw)
+    expect(text).toContain(raw)
+    expect(text).toContain('分支 feat-a 已存在')
+    expect(text).toContain('git branch -D feat-a')
+  })
+
+  it('目录已存在的原文:原样返回,不误判成分支冲突', () => {
+    const raw = "fatal: 'D:/demo/.worktree/feat-a' already exists"
+    expect(describeGitFailure('feat-a', raw)).toBe(raw)
+  })
+
+  it('其它 git 失败:原样返回', () => {
+    const raw = 'fatal: not a git repository'
+    expect(describeGitFailure('feat-a', raw)).toBe(raw)
   })
 })
