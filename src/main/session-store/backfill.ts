@@ -155,6 +155,26 @@ const claimedAt = new Map<SessionId, number>()
 // 会把「后开者接棒会话」的新文件误写进已关闭会话的记录(串线),必须随资格释放立即停止。
 const activePolls = new Map<SessionId, () => void>()
 
+// 纯判定(契约伪代码):「同一格」判据 = 同 agent + 同项目 + 同 worktree(T6 处理 3)。
+// Why 带 worktree 路径:claude 与 pi 的转发存储按 cwd 分桶,两个不同 worktree 各有一份自己的
+// 新文件,互不干扰;归入同一格会让第二个 worktree 的会话永远拿不到回填资格。
+// 残余(T6 评审 Important-3,已登记遗留):codex / antigravity / kimi 的 scan 忽略目录、扫的是
+// 全局池,对这三家本判据只是「放宽」而非「隔离」——同项目下普通会话与 worktree 会话会同时拿
+// 资格、扫同一池子,理论上可能写回同一个 externalSessionId(既有跨项目同样如此,非本次引入)。
+// 都无 worktree(普通会话)算同一格:brief 第 5 节旧语义不变。
+export function sameBackfillSpot(
+  a: { agentId: string; projectId: string; worktree?: { path: string } },
+  b: { agentId: string; projectId: string; worktree?: { path: string } }
+): boolean {
+  if (a.agentId !== b.agentId || a.projectId !== b.projectId) {
+    return false
+  }
+  // 路径直接比字面值:worktree 路径全仓只有一个构造点(建 worktree 时 path.join),记录原样透传,
+  // 同一 worktree 的两条记录拿到的是同一个字符串。若日后支持接管/导入用户给的既有 worktree 目录,
+  // 这里要改成经 dirKey 式归一后再比,否则同一目录的两种写法会被判成两格。
+  return a.worktree?.path === b.worktree?.path
+}
+
 // 纯判定(契约伪代码):origin=created 且同 agent+项目无其他持有者 → true(并登记持有);
 // activePeers 由编排层注入当前轮询集(契约裁决 4);内表再核一道,防调用方漏传 peers 时双持。
 function claim(session: Session, activePeers: Session[]): boolean {
@@ -162,13 +182,11 @@ function claim(session: Session, activePeers: Session[]): boolean {
   if (session.origin !== 'created') {
     return false
   }
-  const sameSpot = (other: { agentId: string; projectId: string }): boolean =>
-    other.agentId === session.agentId && other.projectId === session.projectId
   const conflict =
-    activePeers.some((peer) => peer.id !== session.id && sameSpot(peer)) ||
-    [...holders.values()].some((held) => held.id !== session.id && sameSpot(held))
+    activePeers.some((peer) => peer.id !== session.id && sameBackfillSpot(peer, session)) ||
+    [...holders.values()].some((held) => held.id !== session.id && sameBackfillSpot(held, session))
   if (conflict) {
-    return false // 同 agent+项目已有持有者:后开者不回填,重开原样拉起
+    return false // 同 agent+项目+worktree 已有持有者:后开者不回填,重开原样拉起
   }
   holders.set(session.id, session) // 先开者持有
   claimedAt.set(session.id, Date.now())

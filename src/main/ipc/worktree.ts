@@ -8,6 +8,7 @@ import { IPC_CHANNELS } from './channels'
 import { agentRegistry } from '../agents/agent-registry'
 import { gitService } from '../git-service'
 import {
+  WORKTREE_EXCLUDE_ENTRIES,
   buildExcludeContent,
   createWorktreeService,
   decideCreateConflict,
@@ -36,8 +37,10 @@ async function pathExists(target: string): Promise<boolean> {
 }
 
 // 排除文件固定在 <项目>/.git/info/exclude(spec 技术选型:入口只在仓库根 == 项目目录时提供,
-// 不回溯上级)。写失败只记日志:目录与会话都已就绪,排除没写进去只是让 .worktree/ 出现在
-// git 面板的未跟踪列表里,不值得把已建成的 worktree 判为失败。
+// 不回溯上级)。一次写全 WORKTREE_EXCLUDE_ENTRIES:worktree 会话的 hook 注入会把 .claude/ 等
+// 四个配置目录写进 worktree,不排除就会弄脏 git 面板,`worktree remove` 也会被未跟踪文件挡住(T6)。
+// 写失败只记日志:目录与会话都已就绪,排除没写进去只是让这些目录出现在 git 面板的未跟踪列表里,
+// 不值得把已建成的 worktree 判为失败。
 async function appendExclude(root: string): Promise<void> {
   const excludePath = join(root, '.git', 'info', 'exclude')
   try {
@@ -49,7 +52,7 @@ async function appendExclude(root: string): Promise<void> {
       }
       throw error
     })
-    const next = buildExcludeContent(existing)
+    const next = buildExcludeContent(existing, WORKTREE_EXCLUDE_ENTRIES)
     if (next !== existing) {
       await writeFile(excludePath, next, 'utf8')
     }
@@ -138,7 +141,7 @@ export function registerWorktreeIpc(store: AppStore, scheduleSave: () => void): 
         return { ok: false, failure: 'git-error', detail: errorMessage(error) }
       }
 
-      // 处理 4:成功后把 .worktree/ 幂等追加进仓库本机排除文件
+      // 处理 4:成功后把 worktree 目录与 hook 注入目录幂等追加进仓库本机排除文件
       await appendExclude(project.path)
 
       // 处理 5:写会话记录——worktree 三项、归一后的 agent id、标题取 agent 显示名

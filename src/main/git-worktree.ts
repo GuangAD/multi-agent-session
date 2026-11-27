@@ -2,6 +2,7 @@
 // 外加一个把 worktree 的 git 调用收在一处的服务(spec 模块划分:src/main/git-worktree.ts)。
 // git 命令一律拼成参数数组交注入的执行器(GitRunner),生产实现走 git-service 的 GitRepo.raw。
 // Why 注入执行器:这些规则要在单测里钉死,不打真实 git、不依赖机器 git 版本。
+import { resolve } from 'node:path'
 import type { WorktreeFailure } from '../shared/ipc-contract'
 
 export type GitRunner = (root: string, args: string[]) => Promise<string>
@@ -52,20 +53,44 @@ export function validateWorktreeName(name: string): string | null {
   return null
 }
 
-// 排除文件里写的就是这一行:worktree 目录整体不入库(不碰用户的 .gitignore)
-const EXCLUDE_LINE = '.worktree/'
+// 建 worktree 时要写进 .git/info/exclude 的全部条目(T6 处理 1)。
+// Why 不止 .worktree/:worktree 会话让 hook 注入器把配置文件写进**运行目录**(会话运行目录 = worktree),
+// 不预设排除就会以未跟踪文件的形式把该项目弄脏,git 面板满屏,`worktree remove` 也会因「有未跟踪
+// 文件」拒绝。`.git/info/exclude` 是仓库级、链式 worktree 与被链仓库共享,写一次即两者共同生效。
+// 四个目录来自 agent-hooks injector.ts 的 ensureProjectWithLauncher 落盘位置(claude/codex/
+// antigravity/pi 各一个顶层目录)。不改用户的 .gitignore:只写仓库本机排除文件。
+// 边界(如实登记):四条都**不带前导斜杠**,按 gitignore 语义在任意深度匹配,所以主工作区里用户
+// 自建的同名未跟踪目录也会一起从 status 消失(`git add .` 会跳过,需 -f)。这些目录正是本应用
+// hook 注入的产物(见 injector.ts),故按「应用产物不入库」处理;已跟踪文件不受影响。
+// 若日后要收窄成只挡 worktree 内,可改用 `.worktree/*/.claude/` 这类锚定写法,代价是主工作区
+// 重新出现这四个未跟踪目录。条目一旦写入不会回收(删掉最后一个 worktree 也留着),无副作用。
+export const WORKTREE_EXCLUDE_ENTRIES: readonly string[] = [
+  '.worktree/',
+  '.claude/',
+  '.codex/',
+  '.agents/',
+  '.pi/'
+]
 
-// 幂等追加:已含该行则原样返回(可重复调用),否则保证追加在前一行之后,不与残行粘连。
+// 幂等追加多条:逐条判「原文是否已含」,缺的按给定顺序追加,已含的跳过可重复调用;
+// 追加时保证落在前一行之后(原文末尾无换行则先补一个),最后一行同样带换行,不与残行粘连。
 // 行比较取 trim 后的值——gitignore 语义里行尾空白不参与匹配,带空白也算已含。
-export function buildExcludeContent(existing: string): string {
-  const lines = existing.split(/\r?\n/)
-  if (lines.some((line) => line.trim() === EXCLUDE_LINE)) {
-    return existing
+export function buildExcludeContent(existing: string, entries: readonly string[]): string {
+  let content = existing
+  for (const entry of entries) {
+    // 每条重算行集:上一条追加的条目会影响下一条的判定
+    if (content.split(/\r?\n/).some((line) => line.trim() === entry)) {
+      continue
+    }
+    if (content === '') {
+      content = `${entry}\n`
+    } else if (content.endsWith('\n')) {
+      content = `${content}${entry}\n`
+    } else {
+      content = `${content}\n${entry}\n`
+    }
   }
-  if (existing === '') {
-    return `${EXCLUDE_LINE}\n`
-  }
-  return existing.endsWith('\n') ? `${existing}${EXCLUDE_LINE}\n` : `${existing}\n${EXCLUDE_LINE}\n`
+  return content
 }
 
 // porcelain 每条以 `worktree <绝对路径>` 开头,分支写在 `branch refs/heads/<名>`;detached / bare 条目
@@ -100,8 +125,11 @@ export function parseWorktreeList(raw: string): WorktreeRef[] {
 
 // 路径比较键:git 的 worktree list 在 Windows 上回正斜杠(本机实测),而应用用 path.join 得到反斜杠;
 // 尾分隔符两边写法也不同,故归一后再比。Windows 路径大小写不敏感。
+// Why 先 resolve:记录里的路径可能带 `..`,不解析的话 `D:/demo/.worktree/../evil` 会含 `.worktree/`
+// 前缀,让「只在 .worktree/ 下才允许应用自删」的守卫放行到目录之外(T6 处理 5)。
 function dirKey(path: string): string {
-  const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '')
+  // 入参约定为绝对路径(调用方都来自 store 与 git 输出);相对路径会按主进程 cwd 解析,语义不定
+  const normalized = resolve(path).replace(/\\/g, '/').replace(/\/+$/, '')
   return process.platform === 'win32' ? normalized.toLowerCase() : normalized
 }
 

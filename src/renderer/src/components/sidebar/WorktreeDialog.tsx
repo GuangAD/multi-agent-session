@@ -2,7 +2,9 @@
 // 开关与目标项目读 ui-slice 的弹窗描述(入口在项目行「更多」菜单,与本组件不在同一组件分支);
 // 骨架复用 ConfirmDialog 的遮罩风格,浮层 fixed 定位,不挂在侧栏滚动容器内。
 // 点某个 agent = 提交:成功由本组件关弹窗(记录与标签页已就位),失败保持打开并显示 failure 与 detail。
-import { useEffect, useState } from 'react'
+// T6 处理 6:提交期显示「正在创建…」并允许关闭——建 worktree 要跑多条 git 命令,钉死弹窗只会让
+// 用户干等;关掉后创建照旧在后台完成并开标签页。
+import { useEffect, useRef, useState } from 'react'
 import { AgentBadge } from '../../agents-display'
 import { useAppStore } from '../../store/app-store'
 import { bridge } from '../../ipc/bridge'
@@ -53,6 +55,9 @@ function WorktreePanel({ project }: { project: Project }): React.JSX.Element {
   // 分支列表读取失败与「创建失败」分开记:用户还没点过任何动作,不该看到「git 命令失败」这种创建期口径
   const [branchesError, setBranchesError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // 提交期允许关闭 ⇒ 结果回来时组件可能已卸载。卸载后不再动 store:迟到的成功会关掉用户
+  // 新开的弹窗,迟到的失败会把错误写进已经关掉的弹窗。StrictMode 的模拟重挂要重置为 false。
+  const unmounted = useRef(false)
 
   // 打开即重扫 agent 安装状态(D7 同款):未安装的条目要置灰,新装 agent 重开弹窗即可见
   useEffect(() => {
@@ -83,24 +88,23 @@ function WorktreePanel({ project }: { project: Project }): React.JSX.Element {
     }
   }, [project.path])
 
-  // Esc 关闭(提交中除外):弹窗自身监听,App 全局快捷键只拦带修饰键的组合,互不干扰
+  // Esc 关闭:弹窗自身监听,App 全局快捷键只拦带修饰键的组合,互不干扰
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !submitting) {
+      if (event.key === 'Escape') {
         closeWorktreeDialog()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [submitting, closeWorktreeDialog])
+  }, [closeWorktreeDialog])
 
-  // 点遮罩关闭;提交中忽略(建 worktree 要跑多条 git 命令,防误触中断)
-  const requestClose = (): void => {
-    if (submitting) {
-      return
+  useEffect(() => {
+    unmounted.current = false
+    return () => {
+      unmounted.current = true
     }
-    closeWorktreeDialog()
-  }
+  }, [])
 
   const submit = async (agent: AgentListItem): Promise<void> => {
     setSubmitting(true)
@@ -111,6 +115,14 @@ function WorktreePanel({ project }: { project: Project }): React.JSX.Element {
         baseBranch,
         agentId: agent.def.id
       })
+      if (unmounted.current) {
+        // 弹窗已关:成功时记录与标签页已在 store 侧落地,不动 UI 即可;失败则没有任何出口
+        // (应用无通知设施),至少留一条控制台记录,别让原因永久丢失
+        if (!result.ok) {
+          console.error('建 worktree 失败(弹窗已关闭):', result.failure, result.detail ?? '')
+        }
+        return
+      }
       if (result.ok) {
         // 成功:记录与标签页已就位(首个 fit 触发 spawn),关弹窗
         closeWorktreeDialog()
@@ -132,7 +144,7 @@ function WorktreePanel({ project }: { project: Project }): React.JSX.Element {
       role="dialog"
       aria-modal="true"
       aria-label={`在「${project.name}」建 worktree 会话`}
-      onClick={requestClose}
+      onClick={closeWorktreeDialog}
     >
       <div
         className="w-full max-w-md rounded-lg bg-surface p-6 shadow-lg"
@@ -170,7 +182,11 @@ function WorktreePanel({ project }: { project: Project }): React.JSX.Element {
           </select>
         </label>
 
-        <p className="mt-6 text-xs text-ink-muted">选择 agent 立即创建</p>
+        <p className="mt-6 text-xs text-ink-muted">
+          {submitting
+            ? '正在创建…(可以关掉本窗口,创建会在后台完成并打开标签页)'
+            : '选择 agent 立即创建'}
+        </p>
         <ul className="mt-2 flex flex-col gap-1">
           {agents.map((agent) => {
             const { def, installed } = agent

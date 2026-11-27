@@ -24,6 +24,10 @@
       交付:worktree 会话在侧栏标题下多一行分支名;删有未提交改动的这类会话时,第一个确认框显示 git 原文,再给「强制删除」二次确认。
       挡谁:无
 
+- [x] **T6 收尾:冒烟暴露的两条跨特性问题 + 终审 4 条 P2**
+      交付:hook 注入不再把 worktree 弄脏(四个顶层注入目录一并写进本机排除文件),干净 worktree 会话可以不带强删直接删掉;worktree 会话的回填扫描走会话运行目录、资格按 worktree 区分,重开能真的续接且不再拖累同项目的普通会话;强删再失败给出终点;前缀判定归一 `..`;弹窗提交期有可见反馈且可关闭。
+      挡谁:无(收尾任务,来自门 3 冒烟)
+
 ## 依赖
 
 T1 → T2 → T3 → T4 → T5 串行。T3 与 T4 都只硬依赖 T2,但按阶段 4 的纪律串行执行;T5 的用例需要 T3 的拒绝信号与 T4 的入口才能跑绿,故 T5 排最后。
@@ -51,6 +55,9 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
 - `WorktreeDialog.tsx` 的界面行为(置灰、Esc、错误区、分支为空提示)无自动化用例(T4 裁定 A):靠门 3 冒烟,门 3 清单里四条分别在「名称非法 / 分支已存在 / 目录已存在 / 未安装置灰与 Esc」。
 - 用户在二次确认里点「取消」时,该会话的 PTY 已经在主进程被杀了(T3 的「先杀再清」顺序),目录与记录都在但终端已死(T5 评审 M-3)。修点在主进程顺序(先清、失败再杀),留给后续任务;门 3 冒烟时按此形态观察一次。
 - `SessionRow` 的分支行没有 `onDoubleClick`:双击分支名会走点击的 200ms 延时打开会话,而不是重命名(T5 评审 M-5)。行为不坏,登记备查。
+- 排除文件的四条 hook 目录不带前导斜杠,按 gitignore 语义在任意深度匹配,故**主工作区**里用户自建的同名未跟踪目录也会一起从 `git status` 消失(`git add .` 跳过,需 `-f`)(T6 评审 Important-1)。取舍:这些目录本就是本应用 hook 注入的产物,已跟踪文件不受影响;要收窄可改锚定写法 `.worktree/*/.claude/`,代价是主工作区重新出现四个未跟踪目录。条目写入后不回收。
+- `codex` / `antigravity` / `kimi` 的 scan 忽略目录、扫全局池(T6 评审 Important-3):`sameBackfillSpot` 对这三家只是放宽而非隔离,同项目下普通会话与 worktree 会话会同时拿资格、扫同一池子,理论上可能写回同一个 `externalSessionId`(该风险在跨项目场景本来就存在,非本次引入)。
+- 导入会话(`ipc/sessions.ts` → `session-import`)仍按项目路径扫描(T6 评审 Minor-9):worktree 目录里的历史 transcript 不会出现在「导入历史会话」的候选里。与回填同源问题,但属既有分工,未在本特性处理。
 
 ## 开发记录
 
@@ -106,7 +113,14 @@ brief 第 6 节只有一件欠账:强制删除确认框与各处报错的具体�
   - 契约修订:`removeSession` 的返回类型由两态改为三态(加 `kind`),测试规格补第 4 行(桥接拒绝 → `transport`)。
   - mutation check 留痕:把 transport 分支的 `message` 改成固定字符串 → 桥接拒绝用例转红后还原。
   - 下一步用得上的结论:`removeSession` 现在必须按返回值决定是否提示,`void removeSession(...)` 会静默吞掉「被挡住」;删除往返期间确认框会保持打开并禁点(busy),门 3 冒烟时「取消后框不该自己弹回来」这条值得单独点一遍。
-
+- **T6 收尾:两条跨特性问题 + 4 条 P2** | 形态 L2(派发 implementer + 一轮评审) | commit `fix(T6): 修掉 hook 注入弄脏 worktree 与回填扫描路径`
+  - 落地:`WORKTREE_EXCLUDE_ENTRIES`(五个条目)+ `buildExcludeContent(existing, entries)` 逐条幂等追加;`ipc/pty.ts` 两处扫描改走 `resolveSessionDir`;`backfill.ts` 导出 `sameBackfillSpot`(加 worktree 一维)并接进 `claim`;`Sidebar` 的 `force` 再失败切 `failed` 态;`dirKey` 先 `resolve()`;`WorktreeDialog` 提交期显示「正在创建…」、Esc/遮罩放行、`unmounted` 守卫 + 关窗后失败落控制台。
+  - 验证:全量 51 文件 417 用例绿(410 + 本任务 7 条);`pnpm typecheck` 双投影 0 error;eslint/prettier 干净。
+  - 评审:独立 reviewer,0 Critical / 3 Important(均为注释与遗留登记级)/ 10 Minor;按处置全部落地或登记。
+  - 实测依据:H1 由冒烟证实(worktree 内 `git status` 非空 → `worktree remove` 拒绝);A 方案在临时仓库实测有效(写入排除后 worktree 内 status 为空、`remove` 不带 `--force` 成功)。
+  - mutation check 留痕:`sameBackfillSpot` 骨架恒 `true` → 「不同 worktree」用例转红;`dirKey` 去掉 `resolve()` → `..` 绕过用例转红(恢复后 41 条全绿)。
+  - 未做自动化:`ipc/pty.ts` 两处扫描接线、`Sidebar` 的 force→failed、弹窗提交期行为(grep 断言 `scan(project.path)` 已无残留)。
+  - 下一步用得上的结论:干净 worktree 的删除门槛现在只剩 git 自己的脏检查,门 3 复验 E1 应能不带强删直接过;`sameBackfillSpot` 的字面比较依赖「worktree 路径只有 path.join 一个构造点」,若日后支持接管既有目录需改归一比较。
 
 
 <!-- 四层文档的任何改动都在这里另行留一行 -->

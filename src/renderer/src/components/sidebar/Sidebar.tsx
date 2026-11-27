@@ -13,7 +13,7 @@ import { ProjectGroup } from './ProjectGroup'
 import type { Session } from '../../../../shared/types'
 
 // 删除确认的三态:confirm = 第一步;force = 被 worktree 里的改动挡住后的二次确认(detail 是 git 原文);
-// failed = 调用本身失败,没有强删这条路,只能把原文显示给用户。
+// failed = 重试无益,没有强删这条路(或强删也失败),只能把原文显示给用户。
 // 一份状态喂给同一个 ConfirmDialog,只换文案,不另造一套确认 UI
 interface DeleteRequest {
   session: Session
@@ -94,9 +94,16 @@ export function Sidebar(): React.JSX.Element {
           return null
         }
         // 记录没删成(store 保证列表原样):按失败类型换文案——worktree 给强删这一步,传输失败只报原文
-        return result.kind === 'worktree'
-          ? { session: request.session, step: 'force', detail: result.worktreeError }
-          : { session: request.session, step: 'failed', detail: result.message }
+        if (result.kind === 'worktree') {
+          // 强删那一步仍失败(T6 处理 4):原地再给一次「强制删除」只会拿到同一句 git 原文,
+          // 故切到只报原文的 failed 态,让用户拿到明确终点而不是无限重试
+          return {
+            session: request.session,
+            step: request.step === 'force' ? 'failed' : 'force',
+            detail: result.worktreeError
+          }
+        }
+        return { session: request.session, step: 'failed', detail: result.message }
       })
     } finally {
       setRemoving(false)

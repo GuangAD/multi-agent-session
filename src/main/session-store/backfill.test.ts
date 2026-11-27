@@ -16,7 +16,8 @@ import {
   BackfillCoordinator,
   filterFreshCandidates,
   pickBackfillTitle,
-  pollForTitle
+  pollForTitle,
+  sameBackfillSpot
 } from './backfill'
 import type { ImportCandidate } from '../../shared/agents'
 import type { Session } from '../../shared/types'
@@ -131,6 +132,33 @@ it('用例 5:轮询无果 → 300_000ms 放弃返回 null,记录保持无 id,资
   // 记录保持无 id:poll 不写回(写回由编排层在拿到 id 时做),放弃后资格已释放
   expect(session.externalSessionId).toBeUndefined()
   expect(BackfillCoordinator.pollingSessions()).toEqual([])
+})
+
+// —— 回填资格的「同一格」判定(T6 处理 3:判据加上 worktree 路径)——
+// 期望值来源:契约用例表第 4-6 行(终审 Important-2:不同 worktree = 不同 transcript 桶,
+// 同 agent+项目也不再互抢;都无 worktree 时保持 brief 第 5 节的旧语义)
+describe('回填资格(sameBackfillSpot)', () => {
+  const worktreeOf = (path: string): Session['worktree'] => ({
+    path,
+    branch: path.slice(path.lastIndexOf('/') + 1),
+    baseBranch: 'main'
+  })
+
+  it('用例 4:同 agent、同项目、worktree 路径不同 → false(不同 worktree 不抢同一份资格)', () => {
+    const a = makeSession({ id: 's-a', worktree: worktreeOf('D:/demo/.worktree/feat-a') })
+    const b = makeSession({ id: 's-b', worktree: worktreeOf('D:/demo/.worktree/feat-b') })
+    expect(sameBackfillSpot(a, b)).toBe(false)
+  })
+
+  it('用例 5:同 agent、同项目、同一 worktree 路径 → true', () => {
+    const a = makeSession({ id: 's-a', worktree: worktreeOf('D:/demo/.worktree/feat-a') })
+    const b = makeSession({ id: 's-b', worktree: worktreeOf('D:/demo/.worktree/feat-a') })
+    expect(sameBackfillSpot(a, b)).toBe(true)
+  })
+
+  it('用例 6:同 agent、同项目、两条都无 worktree → true(既有语义不变)', () => {
+    expect(sameBackfillSpot(makeSession({ id: 's-a' }), makeSession({ id: 's-b' }))).toBe(true)
+  })
 })
 
 // —— resumeArgv 参数矩阵(外部参照:Orca agent-resume-argv.ts 原文逐参数手抄,

@@ -49,21 +49,42 @@ describe('名称(validateWorktreeName)', () => {
 })
 
 describe('排除文件(buildExcludeContent)', () => {
+  // 单条目语义(既有 T2 用例):条目由调用方给,期望输出与 T2 完全一致,只是把 `.worktree/`
+  // 从函数内部的常量改成入参(T6 处理 1:一次写多条)
   it('空串:末尾多一行 .worktree/', () => {
-    expect(buildExcludeContent('')).toBe('.worktree/\n')
+    expect(buildExcludeContent('', ['.worktree/'])).toBe('.worktree/\n')
   })
 
   it('已含 .worktree/ 一行:原样返回(幂等)', () => {
     const existing = '# git ls-files --others --exclude-from=.git/info/exclude\n*.log\n.worktree/\n'
-    expect(buildExcludeContent(existing)).toBe(existing)
+    expect(buildExcludeContent(existing, ['.worktree/'])).toBe(existing)
   })
 
   it('含其他行:保留原行并追加', () => {
-    expect(buildExcludeContent('*.log\n')).toBe('*.log\n.worktree/\n')
+    expect(buildExcludeContent('*.log\n', ['.worktree/'])).toBe('*.log\n.worktree/\n')
   })
 
   it('末尾无换行:追加后不粘行', () => {
-    expect(buildExcludeContent('*.log')).toBe('*.log\n.worktree/\n')
+    expect(buildExcludeContent('*.log', ['.worktree/'])).toBe('*.log\n.worktree/\n')
+  })
+
+  // T6 处理 1:建 worktree 时要一次写进多条(exclude 也盖住 hook 注入的四个顶层目录),
+  // 期望值 = 契约用例表第 1-3 行(逐条追加语义 + 幂等约定)
+  it('多条目:原文空 → 按顺序全写,末尾只有一个换行', () => {
+    expect(buildExcludeContent('', ['.worktree/', '.claude/', '.codex/'])).toBe(
+      '.worktree/\n.claude/\n.codex/\n'
+    )
+  })
+
+  it('多条目:已含 .worktree/ → 只补缺的两条,不重复', () => {
+    expect(buildExcludeContent('.worktree/\n', ['.worktree/', '.claude/', '.codex/'])).toBe(
+      '.worktree/\n.claude/\n.codex/\n'
+    )
+  })
+
+  it('多条目:三条全都已含 → 原样返回', () => {
+    const existing = '*.log\n.worktree/\n.claude/\n.codex/\n'
+    expect(buildExcludeContent(existing, ['.worktree/', '.claude/', '.codex/'])).toBe(existing)
   })
 })
 
@@ -369,6 +390,27 @@ describe('清理 worktree(removeWorktree)', () => {
       root: 'D:/demo',
       path: 'D:/other/feat-a',
       force: false,
+      service,
+      dirExists: async () => true,
+      removeDir: async (path) => {
+        dirs.push(path)
+      }
+    })
+
+    expect(result.ok).toBe(false)
+    expect(dirs).toEqual([])
+  })
+
+  // T6 处理 5:前缀判定必须先 resolve——记录里的路径带 `..` 时,不解析就会让
+  // 「仅在 .worktree/ 下才允许应用自删」的守卫失效,删到该目录之外
+  it('目录在、git 未登记、路径带 .. 绕过 .worktree/ 前缀:拒绝删,removeDir 不调', async () => {
+    const { service } = createFakeService({ registeredPaths: [] })
+    const dirs: string[] = []
+
+    const result = await removeWorktree({
+      root: 'D:/demo',
+      path: 'D:/demo/.worktree/../evil',
+      force: true,
       service,
       dirExists: async () => true,
       removeDir: async (path) => {

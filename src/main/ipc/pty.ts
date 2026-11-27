@@ -15,6 +15,7 @@ import {
   pickBackfillTitle
 } from '../session-store/backfill'
 import { sessionRecords } from '../session-store/session-records'
+import { resolveSessionDir } from '../../shared/session-dir'
 import { getReceiverInfo } from '../agent-hooks/receiver'
 import type { Injector } from '../agent-hooks/injector'
 import type { AgentDefinition, ImportCandidate, ResumeRef } from '../../shared/agents'
@@ -54,6 +55,9 @@ function startBackfillIfEligible(
   if (!scan || !project) {
     return // 无扫描器或项目路径缺失:记录保持无 id,重开原样拉起
   }
+  // 扫描目录 = 会话运行目录(T6 处理 2):worktree 会话的 agent 在 worktree 里跑,transcript 的
+  // cwd 也是 worktree,按项目路径扫一定找不到。目录只有一处来源,不在这里另算一遍
+  const sessionDir = resolveSessionDir(session, project)
   // Fix-1(评审 Important-1):进入即记 claim 时刻,候选新鲜度护栏的基准线——首扫在 spawn 后
   // 立即执行,只认「文件出现于 claim 之后」的新文件,存储里从未导入的历史文件(T6 导入遗漏、
   // 跳过、解析失败)不再被误当新会话写回(重开续接到别的对话的失败形态)
@@ -71,7 +75,7 @@ function startBackfillIfEligible(
   // (Fix-1:老文件/mtime 不可判候选本 tick 丢弃,保留者按 mtime 升序,最早者属先 spawn 的本会话)
   let lastCandidates: ImportCandidate[] = []
   const scanNewOnly = async (): Promise<ImportCandidate[]> => {
-    const candidates = await scan(project.path)
+    const candidates = await scan(sessionDir)
     const known = new Set<string>()
     for (const item of store.sessions) {
       if (item.agentId === session.agentId && item.externalSessionId) {
@@ -107,7 +111,7 @@ function startBackfillIfEligible(
     // 节流沿用回填档位、2 分钟放弃(标题只是显示优化);拿到后再守卫一次——补捞期间会话可能
     // 被删除或被用户改名,记录不在/名字已换即放弃,绝不覆盖用户命名
     if (found && !found.externalTitle && session.title === def.name) {
-      void BackfillCoordinator.pollForTitle(session.id, id, () => scan(project.path)).then(
+      void BackfillCoordinator.pollForTitle(session.id, id, () => scan(sessionDir)).then(
         (lateTitle) => {
           const current = sessionRecords.get(store, session.id)
           if (!current || !lateTitle || current.title !== def.name) {
